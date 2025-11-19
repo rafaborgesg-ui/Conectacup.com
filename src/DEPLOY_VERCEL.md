@@ -3,7 +3,7 @@
 ## ✅ Arquivos criados para o deploy:
 
 1. **`/vercel.json`** - Configuração principal do Vercel
-2. **`/vite.config.ts`** - Configuração otimizada do Vite
+2. **`/vite.config.ts`** - Configuração otimizada do Vite (outDir: 'dist')
 3. **`/.vercelignore`** - Arquivos a serem ignorados no deploy
 
 ---
@@ -11,7 +11,7 @@
 ## 📦 O que foi configurado:
 
 ### ✅ **Build Configuration**
-- ✅ Output directory: `build` (onde o Vite gera os arquivos)
+- ✅ Output directory: `dist` (padrão do Vite e esperado pelo Vercel)
 - ✅ Build command: `npm run build`
 - ✅ SPA routing: Todas rotas redirecionam para `index.html`
 

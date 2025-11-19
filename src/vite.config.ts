@@ -7,7 +7,7 @@ export default defineConfig({
   
   // Configuração de build para produção
   build: {
-    outDir: 'build',
+    outDir: 'dist', // Mudado de 'build' para 'dist' (padrão Vercel)
     sourcemap: false,
     minify: 'terser',
     

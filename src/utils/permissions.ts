@@ -550,6 +550,49 @@ async function loadProfilesFromSupabase(): Promise<AccessProfile[]> {
 }
 
 /**
+ * Recarrega o perfil do usuário atual do Supabase (força atualização do cache)
+ */
+export async function reloadCurrentUserProfile(): Promise<AccessProfile | null> {
+  try {
+    const userStr = localStorage.getItem('porsche-cup-user');
+    if (!userStr) {
+      console.warn('⚠️ Nenhum usuário logado para recarregar');
+      return null;
+    }
+    
+    const user = JSON.parse(userStr);
+    console.log('🔄 Recarregando perfil do Supabase...');
+    
+    // Força recarregar do Supabase (não usa cache)
+    const profiles = await loadProfilesFromSupabase();
+    
+    let profileId = user.profileId || user.role;
+    let profile = profiles.find(p => p.id === profileId);
+    
+    if (!profile) {
+      console.warn(`⚠️ Perfil "${profileId}" não encontrado, usando fallback`);
+      profile = profiles.find(p => p.id === 'operator');
+    }
+    
+    if (profile) {
+      console.log('✅ Perfil recarregado:', profile.name);
+      console.log('📋 Páginas permitidas:', profile.pages);
+      
+      // Atualiza localStorage com o perfil correto
+      const updatedUser = { ...user, profileId: profile.id };
+      localStorage.setItem('porsche-cup-user', JSON.stringify(updatedUser));
+      
+      return profile;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('❌ Erro ao recarregar perfil:', error);
+    return null;
+  }
+}
+
+/**
  * Obtém perfil do usuário atual (ASYNC - busca do Supabase)
  */
 export async function getCurrentUserProfileAsync(): Promise<AccessProfile | null> {

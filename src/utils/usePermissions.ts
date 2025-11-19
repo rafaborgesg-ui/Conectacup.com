@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react';
 import {
   getCurrentUserProfile,
   getCurrentUserProfileAsync,
+  reloadCurrentUserProfile,
   canAccessPage,
   canAccessFeature,
   isAdmin,
@@ -21,66 +22,94 @@ export function usePermissions() {
 
   // Carrega perfil do Supabase na inicialização
   useEffect(() => {
-    async function loadProfile() {
-      try {
-        setIsLoading(true);
-        console.log('🔐 usePermissions - Carregando perfil do Supabase...');
-        
-        const currentProfile = await getCurrentUserProfileAsync();
-        
-        if (currentProfile) {
-          console.log('✅ usePermissions - Perfil carregado:', currentProfile.name);
-          console.log('📋 Páginas permitidas:', currentProfile.pages);
-        } else {
-          console.warn('⚠️ usePermissions - Nenhum perfil encontrado');
-        }
-        
-        setProfile(currentProfile);
-      } catch (error) {
-        console.error('❌ usePermissions - Erro ao carregar perfil:', error);
-        
-        // Fallback para cache local
-        const cachedProfile = getCurrentUserProfile();
-        if (cachedProfile) {
-          console.log('ℹ️ usePermissions - Usando perfil do cache local:', cachedProfile.name);
-        }
-        setProfile(cachedProfile);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-
     loadProfile();
   }, []);
 
+  async function loadProfile() {
+    try {
+      setIsLoading(true);
+      console.log('🔐 usePermissions - Carregando perfil do Supabase...');
+      
+      const currentProfile = await getCurrentUserProfileAsync();
+      
+      if (currentProfile) {
+        console.log('✅ usePermissions - Perfil carregado:', currentProfile.name);
+        console.log('📋 Páginas permitidas:', currentProfile.pages);
+      } else {
+        console.warn('⚠️ usePermissions - Nenhum perfil encontrado');
+      }
+      
+      setProfile(currentProfile);
+    } catch (error) {
+      console.error('❌ usePermissions - Erro ao carregar perfil:', error);
+      
+      // Fallback para cache local
+      const cachedProfile = getCurrentUserProfile();
+      if (cachedProfile) {
+        console.log('ℹ️ usePermissions - Usando perfil do cache local:', cachedProfile.name);
+      }
+      setProfile(cachedProfile);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  // Função para recarregar perfil manualmente
+  const refreshProfile = async () => {
+    try {
+      setIsLoading(true);
+      console.log('🔄 Recarregando perfil...');
+      
+      const updatedProfile = await reloadCurrentUserProfile();
+      
+      if (updatedProfile) {
+        console.log('✅ Perfil atualizado:', updatedProfile.name);
+        setProfile(updatedProfile);
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      console.error('❌ Erro ao recarregar perfil:', error);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Verifica se tem acesso a uma página
   const hasPageAccess = (page: PageKey): boolean => {
-    return canAccessPage(page);
+    if (!profile) return false;
+    return profile.pages.includes(page);
   };
 
   // Verifica se tem acesso a uma funcionalidade
   const hasFeatureAccess = (feature: FeatureKey): boolean => {
-    return canAccessFeature(feature);
+    if (!profile) return false;
+    return profile.features.includes(feature);
   };
 
   // Verifica se é admin
   const isUserAdmin = (): boolean => {
-    return isAdmin();
+    return profile?.id === 'admin';
   };
 
   // Verifica se tem acesso a múltiplas funcionalidades (OR)
   const hasAnyFeatureAccess = (features: FeatureKey[]): boolean => {
-    return features.some(feature => canAccessFeature(feature));
+    if (!profile) return false;
+    return features.some(feature => profile.features.includes(feature));
   };
 
   // Verifica se tem acesso a todas as funcionalidades (AND)
   const hasAllFeaturesAccess = (features: FeatureKey[]): boolean => {
-    return features.every(feature => canAccessFeature(feature));
+    if (!profile) return false;
+    return features.every(feature => profile.features.includes(feature));
   };
 
   // Verifica se tem acesso a múltiplas páginas (OR)
   const hasAnyPageAccess = (pages: PageKey[]): boolean => {
-    return pages.some(page => canAccessPage(page));
+    if (!profile) return false;
+    return pages.some(page => profile.pages.includes(page));
   };
 
   // Obtém o perfil atual
@@ -110,5 +139,6 @@ export function usePermissions() {
     currentProfile,
     getProfileName,
     getProfileDescription,
+    refreshProfile,
   };
 }

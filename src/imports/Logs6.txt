@@ -1,0 +1,464 @@
+  Linha 4 -> _originalIndex=3 | posição=DD | código=05301540
+🔍🔍🔍 [Jogo 2] MAPEAMENTO (ordem de registro):
+  Linha 1 -> _originalIndex=0 | posição=- | código=-
+  Linha 2 -> _originalIndex=1 | posição=- | código=-
+  Linha 3 -> _originalIndex=2 | posição=- | código=-
+  Linha 4 -> _originalIndex=3 | posição=- | código=-
+🔍🔍🔍 [Jogo 3] MAPEAMENTO (ordem de registro):
+  Linha 1 -> _originalIndex=0 | posição=- | código=-
+  Linha 2 -> _originalIndex=1 | posição=- | código=-
+  Linha 3 -> _originalIndex=2 | posição=- | código=-
+  Linha 4 -> _originalIndex=3 | posição=- | código=-
+🔍🔍🔍 [Jogo 4] MAPEAMENTO (ordem de registro):
+  Linha 1 -> _originalIndex=0 | posição=- | código=-
+  Linha 2 -> _originalIndex=1 | posição=- | código=-
+  Linha 3 -> _originalIndex=2 | posição=- | código=-
+  Linha 4 -> _originalIndex=3 | posição=- | código=-
+🎯🎯🎯 savedTireSets MUDOU! ========================================
+🎯 Total de chassis com dados: 1
+🎯 Primeiros 10 chassis: [45]=4
+✅ savedTireSets populado com sucesso
+🎯🎯🎯 ========================================
+🔄 savedTireSets mudou! Atualizando tireSets no modal...
+   Chassis Index: 45
+   Novos dados: 4 jogos
+🔥🔥🔥 setTireSets CHAMADO: {
+  "totalCodes": 4,
+  "codes": [
+    "05023306",
+    "05129139",
+    "05125857",
+    "05301540"
+  ],
+  "stack": "at https://app-6x4b6h2vtxghza5nacuh2bjai3mm5fyuldtblguaalpdrtzwgpln.makeproxy-c.figma.site/src/app/pages/ConferirPneus.tsx:820:7"
+}
+🔥🔥🔥 ConferirPneus v4.8.16 - Footer TC22 Acima dos Botões Nativos + Safe Area
+🔍 [RENDER] extractedData.length: 86
+🔍 [RENDER] selectedCategory: SPRINT CHALLENGE
+🔍 [RENDER] selectedChassisIndex: null
+🔍 [RENDER CHASSIS] extractedData.length: 86
+🔍 [RENDER CHASSIS] currentStep: chassis
+🔍 [RENDER CHASSIS] activeSessionId: f572307b-1468-4876-8973-e585f7e24a5c
+🔍🔍🔍 [RENDER CHASSIS] savedTireSets: 2 chassis com dados
+🔍 Detalhes savedTireSets: [45]=4, [85]=4
+🔗 Mapeando "228/II" (piloto: Daniel Neumann) -> originalIndex: 40 (via _originalIndex)
+   Chassis no índice 40: "228/II" (piloto: Daniel Neumann)
+   Match: ✅
+🔗 Mapeando "217/II" (piloto: Caio Castro) -> originalIndex: 41 (via _originalIndex)
+   Chassis no índice 41: "217/II" (piloto: Caio Castro)
+   Match: ✅
+🔗 Mapeando "222/II" (piloto: Sadak leite) -> originalIndex: 42 (via _originalIndex)
+   Chassis no índice 42: "222/II" (piloto: Sadak leite)
+   Match: ✅
+🔗 Mapeando "215/II" (piloto: Gerson Campos) -> originalIndex: 43 (via _originalIndex)
+   Chassis no índice 43: "215/II" (piloto: Gerson Campos)
+   Match: ✅
+🔗 Mapeando "213/II" (piloto: Will Cesar) -> originalIndex: 44 (via _originalIndex)
+   Chassis no índice 44: "213/II" (piloto: Will Cesar)
+   Match: ✅
+🔗 Mapeando "219/II" (piloto: Nicholas Garfinkel) -> originalIndex: 45 (via _originalIndex)
+   Chassis no índice 45: "219/II" (piloto: Nicholas Garfinkel)
+   Match: ✅
+🔗 Mapeando "226/II" (piloto: Marco Mascari) -> originalIndex: 46 (via _originalIndex)
+   Chassis no índice 46: "226/II" (piloto: Marco Mascari)
+   Match: ✅
+🔗 Mapeando "223/II" (piloto: Enrico Pedrosa) -> originalIndex: 47 (via _originalIndex)
+   Chassis no índice 47: "223/II" (piloto: Enrico Pedrosa)
+   Match: ✅
+🔗 Mapeando "230/II" (piloto: Cecília Rabelo) -> originalIndex: 48 (via _originalIndex)
+   Chassis no índice 48: "230/II" (piloto: Cecília Rabelo)
+   Match: ✅
+🔗 Mapeando "380/II" (piloto: Neto Heil) -> originalIndex: 49 (via _originalIndex)
+   Chassis no índice 49: "380/II" (piloto: Neto Heil)
+   Match: ✅
+🔗 Mapeando "379/II" (piloto: Charles Gruenberg) -> originalIndex: 50 (via _originalIndex)
+   Chassis no índice 50: "379/II" (piloto: Charles Gruenberg)
+   Match: ✅
+🔗 Mapeando "218/II" (piloto: Adriano Valverde) -> originalIndex: 51 (via _originalIndex)
+   Chassis no índice 51: "218/II" (piloto: Adriano Valverde)
+   Match: ✅
+🔗 Mapeando "225/II" (piloto: Emílio Moreira) -> originalIndex: 52 (via _originalIndex)
+   Chassis no índice 52: "225/II" (piloto: Emílio Moreira)
+   Match: ✅
+🔗 Mapeando "221/II" (piloto: Gabriel Cestari) -> originalIndex: 53 (via _originalIndex)
+   Chassis no índice 53: "221/II" (piloto: Gabriel Cestari)
+   Match: ✅
+🔗 Mapeando "220/II" (piloto: Ricardo Zylberman) -> originalIndex: 54 (via _originalIndex)
+   Chassis no índice 54: "220/II" (piloto: Ricardo Zylberman)
+   Match: ✅
+🔗 Mapeando "224/II" (piloto: Lucas Castellani) -> originalIndex: 55 (via _originalIndex)
+   Chassis no índice 55: "224/II" (piloto: Lucas Castellani)
+   Match: ✅
+🔗 Mapeando "229/II" (piloto: Cláudio Simão) -> originalIndex: 56 (via _originalIndex)
+   Chassis no índice 56: "229/II" (piloto: Cláudio Simão)
+   Match: ✅
+🔗 Mapeando "231/II" (piloto: Dilson Peres Jr.) -> originalIndex: 57 (via _originalIndex)
+   Chassis no índice 57: "231/II" (piloto: Dilson Peres Jr.)
+   Match: ✅
+🔗 Mapeando "214/II" (piloto: Raphael Bernardes) -> originalIndex: 58 (via _originalIndex)
+   Chassis no índice 58: "214/II" (piloto: Raphael Bernardes)
+   Match: ✅
+🔗 Mapeando "227/II" (piloto: Eldo Umbelino) -> originalIndex: 59 (via _originalIndex)
+   Chassis no índice 59: "227/II" (piloto: Eldo Umbelino)
+   Match: ✅
+🔗 Mapeando "319/II" (piloto: Marcelo Bentivoglio) -> originalIndex: 60 (via _originalIndex)
+   Chassis no índice 60: "319/II" (piloto: Marcelo Bentivoglio)
+   Match: ✅
+🔗 Mapeando "216/II" (piloto: Reserva) -> originalIndex: 61 (via _originalIndex)
+   Chassis no índice 61: "216/II" (piloto: Reserva)
+   Match: ✅
+🔗 Mapeando "165/II" (piloto: Reserva) -> originalIndex: 62 (via _originalIndex)
+   Chassis no índice 62: "165/II" (piloto: Reserva)
+   Match: ✅
+🔗 Mapeando "085/II" (piloto: Gabriel Guper) -> originalIndex: 85 (via _originalIndex)
+   Chassis no índice 85: "085/II" (piloto: Gabriel Guper)
+   Match: ✅
+📊 TABELA APÓS MAPEAMENTO:
+🔍 RENDER "085/II" [85]: {
+  "globalIndex": 85,
+  "originalIndex": 85,
+  "_originalIndex": 85,
+  "chassisNoIndice": "085/II",
+  "match": true,
+  "hasSavedSets": true,
+  "tiresCheckedRealtime": 4,
+  "totalTiresForItem": 16,
+  "savedTireSetsKeys": [
+    "45",
+    "85"
+  ]
+}
+🔍 RENDER "213/II" [44]: {
+  "globalIndex": 44,
+  "originalIndex": 44,
+  "_originalIndex": 44,
+  "chassisNoIndice": "213/II",
+  "match": true,
+  "hasSavedSets": false,
+  "tiresCheckedRealtime": 0,
+  "totalTiresForItem": 16,
+  "savedTireSetsKeys": [
+    "45",
+    "85"
+  ]
+}
+🔍 RENDER "214/II" [58]: {
+  "globalIndex": 58,
+  "originalIndex": 58,
+  "_originalIndex": 58,
+  "chassisNoIndice": "214/II",
+  "match": true,
+  "hasSavedSets": false,
+  "tiresCheckedRealtime": 0,
+  "totalTiresForItem": 16,
+  "savedTireSetsKeys": [
+    "45",
+    "85"
+  ]
+}
+🔍 RENDER "215/II" [43]: {
+  "globalIndex": 43,
+  "originalIndex": 43,
+  "_originalIndex": 43,
+  "chassisNoIndice": "215/II",
+  "match": true,
+  "hasSavedSets": false,
+  "tiresCheckedRealtime": 0,
+  "totalTiresForItem": 16,
+  "savedTireSetsKeys": [
+    "45",
+    "85"
+  ]
+}
+🔍 RENDER "217/II" [41]: {
+  "globalIndex": 41,
+  "originalIndex": 41,
+  "_originalIndex": 41,
+  "chassisNoIndice": "217/II",
+  "match": true,
+  "hasSavedSets": false,
+  "tiresCheckedRealtime": 0,
+  "totalTiresForItem": 16,
+  "savedTireSetsKeys": [
+    "45",
+    "85"
+  ]
+}
+🔍 RENDER "218/II" [51]: {
+  "globalIndex": 51,
+  "originalIndex": 51,
+  "_originalIndex": 51,
+  "chassisNoIndice": "218/II",
+  "match": true,
+  "hasSavedSets": false,
+  "tiresCheckedRealtime": 0,
+  "totalTiresForItem": 16,
+  "savedTireSetsKeys": [
+    "45",
+    "85"
+  ]
+}
+🔍 RENDER "219/II" [45]: {
+  "globalIndex": 45,
+  "originalIndex": 45,
+  "_originalIndex": 45,
+  "chassisNoIndice": "219/II",
+  "match": true,
+  "hasSavedSets": true,
+  "tiresCheckedRealtime": 4,
+  "totalTiresForItem": 16,
+  "savedTireSetsKeys": [
+    "45",
+    "85"
+  ]
+}
+🔍 RENDER "220/II" [54]: {
+  "globalIndex": 54,
+  "originalIndex": 54,
+  "_originalIndex": 54,
+  "chassisNoIndice": "220/II",
+  "match": true,
+  "hasSavedSets": false,
+  "tiresCheckedRealtime": 0,
+  "totalTiresForItem": 16,
+  "savedTireSetsKeys": [
+    "45",
+    "85"
+  ]
+}
+🔍 RENDER "221/II" [53]: {
+  "globalIndex": 53,
+  "originalIndex": 53,
+  "_originalIndex": 53,
+  "chassisNoIndice": "221/II",
+  "match": true,
+  "hasSavedSets": false,
+  "tiresCheckedRealtime": 0,
+  "totalTiresForItem": 16,
+  "savedTireSetsKeys": [
+    "45",
+    "85"
+  ]
+}
+🔍 RENDER "222/II" [42]: {
+  "globalIndex": 42,
+  "originalIndex": 42,
+  "_originalIndex": 42,
+  "chassisNoIndice": "222/II",
+  "match": true,
+  "hasSavedSets": false,
+  "tiresCheckedRealtime": 0,
+  "totalTiresForItem": 16,
+  "savedTireSetsKeys": [
+    "45",
+    "85"
+  ]
+}
+🔍 RENDER "223/II" [47]: {
+  "globalIndex": 47,
+  "originalIndex": 47,
+  "_originalIndex": 47,
+  "chassisNoIndice": "223/II",
+  "match": true,
+  "hasSavedSets": false,
+  "tiresCheckedRealtime": 0,
+  "totalTiresForItem": 16,
+  "savedTireSetsKeys": [
+    "45",
+    "85"
+  ]
+}
+🔍 RENDER "224/II" [55]: {
+  "globalIndex": 55,
+  "originalIndex": 55,
+  "_originalIndex": 55,
+  "chassisNoIndice": "224/II",
+  "match": true,
+  "hasSavedSets": false,
+  "tiresCheckedRealtime": 0,
+  "totalTiresForItem": 16,
+  "savedTireSetsKeys": [
+    "45",
+    "85"
+  ]
+}
+🔍 RENDER "225/II" [52]: {
+  "globalIndex": 52,
+  "originalIndex": 52,
+  "_originalIndex": 52,
+  "chassisNoIndice": "225/II",
+  "match": true,
+  "hasSavedSets": false,
+  "tiresCheckedRealtime": 0,
+  "totalTiresForItem": 16,
+  "savedTireSetsKeys": [
+    "45",
+    "85"
+  ]
+}
+🔍 RENDER "226/II" [46]: {
+  "globalIndex": 46,
+  "originalIndex": 46,
+  "_originalIndex": 46,
+  "chassisNoIndice": "226/II",
+  "match": true,
+  "hasSavedSets": false,
+  "tiresCheckedRealtime": 0,
+  "totalTiresForItem": 16,
+  "savedTireSetsKeys": [
+    "45",
+    "85"
+  ]
+}
+🔍 RENDER "227/II" [59]: {
+  "globalIndex": 59,
+  "originalIndex": 59,
+  "_originalIndex": 59,
+  "chassisNoIndice": "227/II",
+  "match": true,
+  "hasSavedSets": false,
+  "tiresCheckedRealtime": 0,
+  "totalTiresForItem": 16,
+  "savedTireSetsKeys": [
+    "45",
+    "85"
+  ]
+}
+🔍 RENDER "228/II" [40]: {
+  "globalIndex": 40,
+  "originalIndex": 40,
+  "_originalIndex": 40,
+  "chassisNoIndice": "228/II",
+  "match": true,
+  "hasSavedSets": false,
+  "tiresCheckedRealtime": 0,
+  "totalTiresForItem": 16,
+  "savedTireSetsKeys": [
+    "45",
+    "85"
+  ]
+}
+🔍 RENDER "229/II" [56]: {
+  "globalIndex": 56,
+  "originalIndex": 56,
+  "_originalIndex": 56,
+  "chassisNoIndice": "229/II",
+  "match": true,
+  "hasSavedSets": false,
+  "tiresCheckedRealtime": 0,
+  "totalTiresForItem": 16,
+  "savedTireSetsKeys": [
+    "45",
+    "85"
+  ]
+}
+🔍 RENDER "230/II" [48]: {
+  "globalIndex": 48,
+  "originalIndex": 48,
+  "_originalIndex": 48,
+  "chassisNoIndice": "230/II",
+  "match": true,
+  "hasSavedSets": false,
+  "tiresCheckedRealtime": 0,
+  "totalTiresForItem": 16,
+  "savedTireSetsKeys": [
+    "45",
+    "85"
+  ]
+}
+🔍 RENDER "231/II" [57]: {
+  "globalIndex": 57,
+  "originalIndex": 57,
+  "_originalIndex": 57,
+  "chassisNoIndice": "231/II",
+  "match": true,
+  "hasSavedSets": false,
+  "tiresCheckedRealtime": 0,
+  "totalTiresForItem": 16,
+  "savedTireSetsKeys": [
+    "45",
+    "85"
+  ]
+}
+🔍 RENDER "379/II" [50]: {
+  "globalIndex": 50,
+  "originalIndex": 50,
+  "_originalIndex": 50,
+  "chassisNoIndice": "379/II",
+  "match": true,
+  "hasSavedSets": false,
+  "tiresCheckedRealtime": 0,
+  "totalTiresForItem": 16,
+  "savedTireSetsKeys": [
+    "45",
+    "85"
+  ]
+}
+🔍 RENDER "380/II" [49]: {
+  "globalIndex": 49,
+  "originalIndex": 49,
+  "_originalIndex": 49,
+  "chassisNoIndice": "380/II",
+  "match": true,
+  "hasSavedSets": false,
+  "tiresCheckedRealtime": 0,
+  "totalTiresForItem": 16,
+  "savedTireSetsKeys": [
+    "45",
+    "85"
+  ]
+}
+🔍 RENDER "165/II" [62]: {
+  "globalIndex": 62,
+  "originalIndex": 62,
+  "_originalIndex": 62,
+  "chassisNoIndice": "165/II",
+  "match": true,
+  "hasSavedSets": false,
+  "tiresCheckedRealtime": 0,
+  "totalTiresForItem": 4,
+  "savedTireSetsKeys": [
+    "45",
+    "85"
+  ]
+}
+🔍 RENDER "216/II" [61]: {
+  "globalIndex": 61,
+  "originalIndex": 61,
+  "_originalIndex": 61,
+  "chassisNoIndice": "216/II",
+  "match": true,
+  "hasSavedSets": false,
+  "tiresCheckedRealtime": 0,
+  "totalTiresForItem": 4,
+  "savedTireSetsKeys": [
+    "45",
+    "85"
+  ]
+}
+🔍 RENDER "319/II" [60]: {
+  "globalIndex": 60,
+  "originalIndex": 60,
+  "_originalIndex": 60,
+  "chassisNoIndice": "319/II",
+  "match": true,
+  "hasSavedSets": false,
+  "tiresCheckedRealtime": 0,
+  "totalTiresForItem": 4,
+  "savedTireSetsKeys": [
+    "45",
+    "85"
+  ]
+}
+🔥🔥🔥 ========================================
+🔥 STATUS DA SUBSCRIPTION REALTIME:
+🔥 Status: CHANNEL_ERROR
+🔥 Erro: Error: socket closed: 1006
+🔥 ========================================
+❌ ❌❌❌ ERRO NO CANAL REALTIME: Error: socket closed: 1006
+🔥🔥🔥 ========================================
+🔥 STATUS DA SUBSCRIPTION REALTIME:
+🔥 Status: SUBSCRIBED
+🔥 Erro: 
+🔥 ========================================
+✅✅✅ REALTIME CONECTADO COM SUCESSO!

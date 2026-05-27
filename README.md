@@ -1,7 +1,7 @@
 
   # Conectacup.com
 
-  This is a code bundle for Conectacup.com. The original project is available at https://www.figma.com/design/1gXPOBwAysRvWk6EAkqkpQ/Conectacup.com.
+  This is a code bundle for Conectacup.com. The original project is available at https://www.figma.com/design/3T5TA7f3P8XGwMFIFxM0kL/Conectacup.com.
 
   ## Running the code
 

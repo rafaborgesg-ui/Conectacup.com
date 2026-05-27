@@ -1,5 +1,4 @@
 
-
 :root {
   --font-size: 16px;
   
@@ -54,7 +53,7 @@
   --info-foreground: #ffffff;
   
   /* Borders and inputs */
-  --border: rgba(0, 0, 0, 0.1);
+  --border: #E5E7EB;
   --input: #E5E7EB;
   --input-background: #FFFFFF;
   --switch-background: #E0E0E0;
@@ -381,8 +380,6 @@ body {
 html {
   font-size: var(--font-size);
 }
-
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -1015,6 +1012,9 @@ select:focus-visible {
   -webkit-overflow-scrolling: touch;
   scroll-behavior: smooth;
   position: relative;
+  /* 🔒 ISOLA scroll do menu - previne que toque afete a página */
+  overscroll-behavior: contain;
+  touch-action: pan-y; /* Permite apenas scroll vertical */
 }
 
 /* Scroll fade indicators */
@@ -1040,6 +1040,35 @@ select:focus-visible {
   background: linear-gradient(to top, rgba(255,255,255,1), rgba(255,255,255,0));
   z-index: 10;
   pointer-events: none;
+}
+
+/* ===================================
+   PROTEÇÃO ANTI-SCROLL DA PÁGINA
+   Quando menu mobile está aberto
+   =================================== */
+
+/* Container principal do menu - isola completamente o scroll */
+@media (max-width: 1024px) {
+  .collector-adapt-mobile-menu {
+    /* Cria novo contexto de stacking para scroll isolado */
+    isolation: isolate;
+    
+    /* Garante que o scroll é contido dentro do menu */
+    overscroll-behavior: contain;
+    
+    /* Permite apenas pan vertical (scroll) */
+    touch-action: pan-y !important;
+  }
+  
+  /* Área scrollável dentro do menu */
+  .mobile-nav-scroll {
+    /* Força isolamento do scroll */
+    overscroll-behavior-y: contain !important;
+    overscroll-behavior-x: none !important;
+    
+    /* Previne propagação de eventos de scroll para o body */
+    -webkit-overflow-scrolling: touch !important;
+  }
 }
 
 /* ===================================
@@ -1170,7 +1199,7 @@ select:focus-visible {
 }
 
 .mobile-nav-submenu.open {
-  max-height: 500px;
+  max-height: 2500px;
 }
 
 .mobile-nav-subitem {
@@ -1444,6 +1473,43 @@ body {
     margin: 0 8px;
     max-width: calc(100vw - 16px);
   }
+}
+
+/* 🔥 v4.8.7: Fix para botão X do toast - garantindo círculo perfeito */
+[data-sonner-toast] button[data-close-button],
+[data-sonner-toast] button[aria-label="Close toast"] {
+  aspect-ratio: 1 !important;
+  width: 20px !important;
+  height: 20px !important;
+  min-width: 20px !important;
+  min-height: 20px !important;
+  max-width: 20px !important;
+  max-height: 20px !important;
+  flex-shrink: 0 !important;
+  border-radius: 50% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important;
+}
+
+/* Ajusta o ícone X dentro do botão */
+[data-sonner-toast] button[data-close-button] svg,
+[data-sonner-toast] button[aria-label="Close toast"] svg {
+  width: 12px !important;
+  height: 12px !important;
+}
+
+/* 🎯 Toast clicável - fecha ao clicar em qualquer lugar */
+[data-sonner-toast] {
+  cursor: pointer !important;
+  user-select: none !important;
+}
+
+/* Área de toque ampliada para fechar */
+[data-sonner-toast]:active {
+  transform: scale(0.98);
+  transition: transform 150ms ease;
 }
 
 /* Modal responsiveness */
@@ -2373,4 +2439,23 @@ body {
 
 .animate-in.spin-in-180 {
   animation: spin-in-180 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ===================================
+   ANIMAÇÃO DE DESTAQUE - ENTRADA DE ESTOQUE
+   Destaca visualmente novas linhas adicionadas
+   =================================== */
+@keyframes highlight-fade {
+  0% {
+    background-color: #86efac; /* green-300 - tom mais escuro */
+    box-shadow: 0 4px 6px -1px rgba(0, 168, 107, 0.3), 0 2px 4px -2px rgba(0, 168, 107, 0.2);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: none;
+  }
+}
+
+.animate-highlight-fade {
+  animation: highlight-fade 5s ease-out forwards;
 }

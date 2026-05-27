@@ -1,0 +1,50 @@
+╔═══════════════════════════════════════════════════════════╗
+║                                                           ║
+║   🚨 ERRO 403 - AÇÃO NECESSÁRIA                          ║
+║                                                           ║
+╚═══════════════════════════════════════════════════════════╝
+
+PROBLEMA:
+  Error 403 ao fazer deploy de Edge Function
+
+CAUSA:
+  Figma Make tenta fazer deploy de /supabase/functions/server/
+  mas NÃO tem permissão (403 Forbidden)
+
+SOLUÇÃO (ESCOLHA UMA):
+  
+  ✅ OPÇÃO 1 - VIA TERMINAL (1 minuto):
+  
+     cd /caminho/para/seu/projeto
+     rm -rf supabase/functions/server
+     git add .
+     git commit -m "Remove Edge Function (erro 403)"
+     git push
+  
+  ✅ OPÇÃO 2 - VIA GITHUB WEB (2 minutos):
+  
+     1. Acesse seu repositório no GitHub
+     2. Navegue: supabase/functions/server/
+     3. Delete a pasta via interface
+     4. Commit as mudanças
+  
+  ✅ OPÇÃO 3 - VIA VS CODE (2 minutos):
+  
+     1. Abra o projeto no VS Code
+     2. Delete a pasta: supabase/functions/server/
+     3. Commit e push via Source Control
+
+SEGURO?
+  ✅ SIM! A Edge Function NÃO é usada pelo app.
+  ✅ App funciona 100% com Supabase direto.
+  ✅ Deletar NÃO quebra nada.
+
+MAIS DETALHES:
+  Veja: /INSTRUCOES_URGENTES_403.md
+
+═══════════════════════════════════════════════════════════
+
+⚠️  IMPORTANTE: Arquivos de configuração NÃO funcionam!
+    A ÚNICA solução é DELETAR ou RENOMEAR a pasta.
+
+═══════════════════════════════════════════════════════════

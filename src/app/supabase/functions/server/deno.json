@@ -1,0 +1,13 @@
+{
+  "name": "DISABLED_DO_NOT_DEPLOY",
+  "version": "0.0.0",
+  "description": "Esta Edge Function está DESABILITADA e não deve ser deployed. O app funciona 100% com Supabase direto.",
+  "exports": "./DISABLED.tsx",
+  "tasks": {
+    "dev": "echo 'Edge Function desabilitada - veja /SOLUCAO_ERRO_403.md'"
+  },
+  "compilerOptions": {
+    "lib": ["deno.window"],
+    "strict": false
+  }
+}

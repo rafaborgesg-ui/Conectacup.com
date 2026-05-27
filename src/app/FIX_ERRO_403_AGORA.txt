@@ -1,0 +1,55 @@
+════════════════════════════════════════════════════════════════
+🔴 AÇÃO NECESSÁRIA: Resolver Erro 403 de Deploy
+════════════════════════════════════════════════════════════════
+
+ERRO ATUAL:
+  Error while deploying: XHR for edge_functions/make-server/deploy 
+  failed with status 403
+
+CAUSA:
+  A pasta /supabase/functions/server/ está causando o Figma Make a 
+  tentar fazer deploy de uma Edge Function, mas não tem permissão.
+
+════════════════════════════════════════════════════════════════
+✅ SOLUÇÃO RÁPIDA (escolha 1):
+════════════════════════════════════════════════════════════════
+
+OPÇÃO A: Renomear a Pasta (RECOMENDADO)
+────────────────────────────────────────
+  1. Localize: /supabase/functions/server/
+  2. Renomeie para: /supabase/functions/_server (adicione underscore)
+  3. Salve/Commit
+  
+  OU use o terminal:
+  mv supabase/functions/server supabase/functions/_server
+
+OPÇÃO B: Deletar a Pasta (TAMBÉM FUNCIONA)
+────────────────────────────────────────
+  A Edge Function NÃO É NECESSÁRIA! Você pode deletá-la:
+  
+  rm -rf supabase/functions/server
+  
+  Ou delete manualmente pela interface.
+
+════════════════════════════════════════════════════════════════
+🎯 POR QUE ISSO RESOLVE?
+════════════════════════════════════════════════════════════════
+
+  • Figma Make escaneia /supabase/functions/ procurando funções
+  • Pastas começando com _ são ignoradas automaticamente
+  • App funciona 100% sem Edge Functions (usa Supabase SDK direto)
+
+════════════════════════════════════════════════════════════════
+📊 APÓS A CORREÇÃO:
+════════════════════════════════════════════════════════════════
+
+  ✅ Erro 403 desaparecerá
+  ✅ App carregará normalmente
+  ✅ Login funcionará perfeitamente
+  ✅ Todas as funcionalidades disponíveis
+
+════════════════════════════════════════════════════════════════
+
+IMPORTANTE: Escolha UMA das opções acima e execute agora!
+
+════════════════════════════════════════════════════════════════

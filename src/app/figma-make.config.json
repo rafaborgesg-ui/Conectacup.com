@@ -1,0 +1,20 @@
+{
+  "version": "1.0.0",
+  "integrations": {
+    "supabase": {
+      "enabled": true,
+      "edge_functions": {
+        "enabled": false,
+        "auto_deploy": false,
+        "skip": true,
+        "reason": "Erro 403 - Sem permissão para deploy. App funciona sem Edge Functions."
+      },
+      "database": {
+        "enabled": true
+      }
+    }
+  },
+  "build": {
+    "skip_edge_functions": true
+  }
+}

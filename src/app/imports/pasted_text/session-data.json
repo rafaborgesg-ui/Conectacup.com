@@ -1,0 +1,504 @@
+ Filtrando "rodas": 3 subitens → 3 após filtro
+🔍 Filtrando "pneus": 8 subitens → 8 após filtro
+🔑 "tire-models" (Cadastro de Modelos): pageKey="TIRE_MODEL", pageValue="tire_model", hasAccess=true
+🔑 "tire-status" (Cadastro de Status): pageKey="STATUS_REGISTRATION", pageValue="status_registration", hasAccess=true
+🔑 "containers" (Cadastro de Contêineres): pageKey="CONTAINER", pageValue="container", hasAccess=true
+🔑 "master-data" (Master Data): pageKey="MASTER_DATA", pageValue="master_data", hasAccess=true
+🔍 Filtrando "cadastro": 4 subitens → 4 após filtro
+🔑 "users" (Gerenciar Usuários): pageKey="USER_MANAGEMENT", pageValue="user_management", hasAccess=true
+🔑 "access-profiles" (Perfis de Acesso): pageKey="ACCESS_PROFILES", pageValue="access_profiles", hasAccess=true
+🔑 "stock-adjustment" (Ajuste de Estoque): pageKey="STOCK_ADJUSTMENT", pageValue="stock_adjustment", hasAccess=true
+🔑 "configuracoes-notificacoes" (Notificações de Avarias): pageKey="CONFIGURACOES_NOTIFICACOES", pageValue="configuracoes_notificacoes", hasAccess=true
+🔑 "cadastros-caio" (Cadastros): pageKey="CADASTROS_CAIO", pageValue="cadastros_caio", hasAccess=true
+🔍 Filtrando "caio": 1 subitens → 1 após filtro
+🔑 "dashboard" (Dashboard): pageKey="DASHBOARD", pageValue="dashboard", hasAccess=true
+🔑 "tire-consumption" (Transferir para Piloto): pageKey="TIRE_CONSUMPTION", pageValue="tire_consumption", hasAccess=true
+🔑 "tire-status-change" (Mudar Status): pageKey="TIRE_STATUS_CHANGE", pageValue="tire_status_change", hasAccess=true
+🔑 "data-import" (Importação de Dados): pageKey="DATA_IMPORT", pageValue="data_import", hasAccess=true
+🔑 "tire-discard-reports" (Relatórios & Histórico de Descarte): pageKey="DISCARD_REPORTS", pageValue="discard_reports", hasAccess=true
+🔑 "almoxarifado-gases-cadastro" (Cadastro): pageKey="GASES_CADASTRO", pageValue="gases_cadastro", hasAccess=true
+🔑 "almoxarifado-gases-programacao" (Programação): pageKey="GASES_PROGRAMACAO", pageValue="gases_programacao", hasAccess=true
+🔍 Filtrando "almoxarifado-gases": 2 subitens → 2 após filtro
+🔑 "almoxarifado-combustivel" (Combustível): pageKey="COMBUSTIVEL", pageValue="combustivel", hasAccess=true
+🔑 "almoxarifado-solicitacao-compras" (Solicitação de Compras): pageKey="SOLICITACAO_COMPRAS", pageValue="solicitacao_compras", hasAccess=true
+🔑 "almoxarifado-solicitacao-uniforme" (Solicitação de Uniforme): pageKey="SOLICITACAO_UNIFORME", pageValue="solicitacao_uniforme", hasAccess=true
+🔍 Filtrando "almoxarifado": 4 subitens → 4 após filtro
+🔍 Filtrando "rafael": 6 subitens → 6 após filtro
+🔑 "shakedown" (Shakedown): pageKey="SHAKEDOWN", pageValue="shakedown", hasAccess=true
+🔑 "demanda" (Demanda): pageKey="DEMANDA", pageValue="demanda", hasAccess=true
+🔑 "pedidos-pneus" (Pedidos de Pneus): pageKey="PEDIDOS_PNEUS", pageValue="pedidos_pneus", hasAccess=true
+🔍 Filtrando "jamyli": 3 subitens → 3 após filtro
+🔍 Filtrando "em-desenvolvimento": 3 subitens → 3 após filtro
+🔍 Filtrando "administracao": 5 subitens → 5 após filtro
+✅ Total de conferências carregadas: 8 (8 finalizadas + 0 desativadas)
+🔍 Dados brutos recebidos: 8 sessões
+🔍 Todas as sessões: [
+  {
+    "id": "4ce4f8c1-b639-4665-b1e1-897cc9a1e1e3",
+    "temporada": "Temporada 2026",
+    "etapa": "Pré Temporada",
+    "chassis": 41,
+    "data": "2026-03-16T12:30:25.849+00:00",
+    "created_at": "2026-03-16T12:30:26.451656+00:00"
+  },
+  {
+    "id": "f0307ef3-f741-4b98-88b3-3208b42d5951",
+    "temporada": "Temporada 2026",
+    "etapa": "Pré Temporada",
+    "chassis": 41,
+    "data": "2026-03-16T11:58:23.559+00:00",
+    "created_at": "2026-03-16T11:58:21.827778+00:00"
+  },
+  {
+    "id": "d452ccfc-eab1-4b67-bf30-a2129fa0b3f3",
+    "temporada": "Temporada 2026",
+    "etapa": "Pré Temporada",
+    "chassis": 41,
+    "data": "2026-03-13T21:26:47.441+00:00",
+    "created_at": "2026-03-13T21:26:45.015431+00:00"
+  },
+  {
+    "id": "478f66ec-137d-4f9d-9ef7-0c0ce5eefb8e",
+    "temporada": "Temporada 2026",
+    "etapa": "Pré Temporada",
+    "chassis": 41,
+    "data": "2026-03-13T21:26:22.339+00:00",
+    "created_at": "2026-03-13T21:26:19.943389+00:00"
+  },
+  {
+    "id": "8541b0e0-73c9-4a2d-b83e-462c8183a4f3",
+    "temporada": "Temporada 2026",
+    "etapa": "Pré Temporada",
+    "chassis": 40,
+    "data": "2026-03-13T21:22:57.07+00:00",
+    "created_at": "2026-03-13T21:22:57.626827+00:00"
+  },
+  {
+    "id": "a975b8da-89f7-4953-91b5-d6d8443ac06f",
+    "temporada": "Temporada 2026",
+    "etapa": "Pré Temporada",
+    "chassis": 40,
+    "data": "2026-03-13T21:17:59.035+00:00",
+    "created_at": "2026-03-13T21:17:56.66577+00:00"
+  },
+  {
+    "id": "feae962b-0a3b-4f0b-abf8-ece8a9c94d1b",
+    "temporada": "Temporada 2026",
+    "etapa": "Pré Temporada",
+    "chassis": 14,
+    "data": "2026-02-26T15:10:07.651+00:00",
+    "created_at": "2026-02-26T15:12:18.763255+00:00"
+  },
+  {
+    "id": "2da220a9-1226-45ad-b823-da42df143b8c",
+    "temporada": "Temporada 2026",
+    "etapa": "Pré Temporada",
+    "chassis": 6,
+    "data": "2026-02-18T16:45:22.518+00:00",
+    "created_at": "2026-02-18T16:45:23.096918+00:00"
+  }
+]
+✅ Sessão adicionada: {
+  "id": "4ce4f8c1-b639-4665-b1e1-897cc9a1e1e3",
+  "temporada": "Temporada 2026",
+  "etapa": "Pré Temporada",
+  "chassis": 41,
+  "data": "2026-03-16T12:30:25.849+00:00"
+}
+✅ Sessão adicionada: {
+  "id": "f0307ef3-f741-4b98-88b3-3208b42d5951",
+  "temporada": "Temporada 2026",
+  "etapa": "Pré Temporada",
+  "chassis": 41,
+  "data": "2026-03-16T11:58:23.559+00:00"
+}
+✅ Sessão adicionada: {
+  "id": "d452ccfc-eab1-4b67-bf30-a2129fa0b3f3",
+  "temporada": "Temporada 2026",
+  "etapa": "Pré Temporada",
+  "chassis": 41,
+  "data": "2026-03-13T21:26:47.441+00:00"
+}
+✅ Sessão adicionada: {
+  "id": "478f66ec-137d-4f9d-9ef7-0c0ce5eefb8e",
+  "temporada": "Temporada 2026",
+  "etapa": "Pré Temporada",
+  "chassis": 41,
+  "data": "2026-03-13T21:26:22.339+00:00"
+}
+✅ Sessão adicionada: {
+  "id": "8541b0e0-73c9-4a2d-b83e-462c8183a4f3",
+  "temporada": "Temporada 2026",
+  "etapa": "Pré Temporada",
+  "chassis": 40,
+  "data": "2026-03-13T21:22:57.07+00:00"
+}
+✅ Sessão adicionada: {
+  "id": "a975b8da-89f7-4953-91b5-d6d8443ac06f",
+  "temporada": "Temporada 2026",
+  "etapa": "Pré Temporada",
+  "chassis": 40,
+  "data": "2026-03-13T21:17:59.035+00:00"
+}
+✅ Sessão adicionada: {
+  "id": "feae962b-0a3b-4f0b-abf8-ece8a9c94d1b",
+  "temporada": "Temporada 2026",
+  "etapa": "Pré Temporada",
+  "chassis": 14,
+  "data": "2026-02-26T15:10:07.651+00:00"
+}
+✅ Sessão adicionada: {
+  "id": "2da220a9-1226-45ad-b823-da42df143b8c",
+  "temporada": "Temporada 2026",
+  "etapa": "Pré Temporada",
+  "chassis": 6,
+  "data": "2026-02-18T16:45:22.518+00:00"
+}
+📊 RESULTADO FINAL DA DEDUPLICAÇÃO: {
+  "sessoes_originais": 8,
+  "sessoes_unicas": 8,
+  "chassis_originais": 264,
+  "chassis_unicos": 264,
+  "duplicatas_removidas": 0
+}
+📋 SESSÕES FINAIS: [
+  {
+    "id": "4ce4f8c1-b639-4665-b1e1-897cc9a1e1e3",
+    "temporada": "Temporada 2026",
+    "etapa": "Pré Temporada",
+    "chassis": 41,
+    "data": "2026-03-16T12:30:25.849+00:00",
+    "lista_chassis": [
+      "085/992.1 (Alceu Feldmann)",
+      "251/992.1 (Cristian Mohr)",
+      "247/992.1 (Miguel Paludo)",
+      "259/992.1 (Edu Guedes)",
+      "279/992.1 (Thiago Vivacqua)",
+      "168/992.1 (Marco Pisani)",
+      "252/992.1 (Carlos Campos)",
+      "262/992.1 (Christian Hahn)",
+      "257/992.1 (Marcos Regadas)",
+      "096/992.1 (Miguel Mariotti)",
+      "095/992.1 (Raijan Mascarello)",
+      "265/992.1 (Paulo Sousa)",
+      "167/992.1 (Josimar Junior)",
+      "253/992.1 (Sebá Malucelli)",
+      "221/992.1 (Luiz Souza)",
+      "264/992.1 (José Moura Neto)",
+      "093/992.1 (Lucas Salles)",
+      "246/992.1 (SangHo Kim)",
+      "249/992.1 (Rouman Ziemkiewicz)",
+      "205/992.1 (Pietro Fantin)",
+      "406/992.1 (Matheus Comparatto)",
+      "073/992.1 (Reserva)",
+      "207/992.1 (Reserva)",
+      "218/II (Adriano Valverde)",
+      "380/II (Neto Heil)",
+      "227/II (Eldo Umbelino)",
+      "223/II (Pedro Mac Dowell)",
+      "226/II (Marco Mascari)",
+      "220/II (Ricardo Zylberman)",
+      "225/II (Emílio Moreira)",
+      "319/II (Marcelo Bentivoglio)",
+      "229/II (Cláudio Simão)",
+      "337/I (Vinicius Motta)",
+      "287/I (Alexandre Assolini)",
+      "293/I (Paulo Reales)",
+      "286/I (Alexandre dos Santos)",
+      "274/I (Leonardo Marcelli)",
+      "282/I (Cuca)",
+      "279/I (Sergio Laurentys)",
+      "283/I (João Guerra)",
+      "292/I (Neylson Almeida)"
+    ]
+  },
+  {
+    "id": "f0307ef3-f741-4b98-88b3-3208b42d5951",
+    "temporada": "Temporada 2026",
+    "etapa": "Pré Temporada",
+    "chassis": 41,
+    "data": "2026-03-16T11:58:23.559+00:00",
+    "lista_chassis": [
+      "085/992.1 (Alceu Feldmann)",
+      "251/992.1 (Cristian Mohr)",
+      "247/992.1 (Miguel Paludo)",
+      "259/992.1 (Edu Guedes)",
+      "279/992.1 (Thiago Vivacqua)",
+      "168/992.1 (Marco Pisani)",
+      "252/992.1 (Carlos Campos)",
+      "262/992.1 (Christian Hahn)",
+      "257/992.1 (Marcos Regadas)",
+      "096/992.1 (Miguel Mariotti)",
+      "095/992.1 (Raijan Mascarello)",
+      "265/992.1 (Paulo Sousa)",
+      "167/992.1 (Josimar Junior)",
+      "253/992.1 (Sebá Malucelli)",
+      "221/992.1 (Luiz Souza)",
+      "264/992.1 (José Moura Neto)",
+      "093/992.1 (Lucas Salles)",
+      "246/992.1 (SangHo Kim)",
+      "249/992.1 (Rouman Ziemkiewicz)",
+      "205/992.1 (Pietro Fantin)",
+      "406/992.1 (Matheus Comparatto)",
+      "073/992.1 (Reserva)",
+      "207/992.1 (Reserva)",
+      "218/II (Adriano Valverde)",
+      "380/II (Neto Heil)",
+      "227/II (Eldo Umbelino)",
+      "223/II (Pedro Mac Dowell)",
+      "226/II (Marco Mascari)",
+      "220/II (Ricardo Zylberman)",
+      "225/II (Emílio Moreira)",
+      "319/II (Marcelo Bentivoglio)",
+      "229/II (Cláudio Simão)",
+      "337/I (Vinicius Motta)",
+      "287/I (Alexandre Assolini)",
+      "293/I (Paulo Reales)",
+      "286/I (Alexandre dos Santos)",
+      "274/I (Leonardo Marcelli)",
+      "282/I (Cuca)",
+      "279/I (Sergio Laurentys)",
+      "283/I (João Guerra)",
+      "292/I (Neylson Almeida)"
+    ]
+  },
+  {
+    "id": "d452ccfc-eab1-4b67-bf30-a2129fa0b3f3",
+    "temporada": "Temporada 2026",
+    "etapa": "Pré Temporada",
+    "chassis": 41,
+    "data": "2026-03-13T21:26:47.441+00:00",
+    "lista_chassis": [
+      "085/992.1 (Alceu Feldmann)",
+      "251/992.1 (Cristian Mohr)",
+      "247/992.1 (Miguel Paludo)",
+      "259/992.1 (Edu Guedes)",
+      "279/992.1 (Thiago Vivacqua)",
+      "168/992.1 (Marco Pisani)",
+      "252/992.1 (Carlos Campos)",
+      "262/992.1 (Christian Hahn)",
+      "257/992.1 (Marcos Regadas)",
+      "096/992.1 (Miguel Mariotti)",
+      "095/992.1 (Raijan Mascarello)",
+      "265/992.1 (Paulo Sousa)",
+      "167/992.1 (Josimar Junior)",
+      "253/992.1 (Sebá Malucelli)",
+      "221/992.1 (Luiz Souza)",
+      "264/992.1 (José Moura Neto)",
+      "093/992.1 (Lucas Salles)",
+      "246/992.1 (SangHo Kim)",
+      "249/992.1 (Rouman Ziemkiewicz)",
+      "205/992.1 (Pietro Fantin)",
+      "406/992.1 (Matheus Comparatto)",
+      "073/992.1 (Reserva)",
+      "207/992.1 (Reserva)",
+      "218/II (Adriano Valverde)",
+      "380/II (Neto Heil)",
+      "227/II (Eldo Umbelino)",
+      "223/II (Pedro Mac Dowell)",
+      "226/II (Marco Mascari)",
+      "220/II (Ricardo Zylberman)",
+      "225/II (Emílio Moreira)",
+      "319/II (Marcelo Bentivoglio)",
+      "229/II (Cláudio Simão)",
+      "337/I (Vinicius Motta)",
+      "287/I (Alexandre Assolini)",
+      "293/I (Paulo Reales)",
+      "286/I (Alexandre dos Santos)",
+      "274/I (Leonardo Marcelli)",
+      "282/I (Cuca)",
+      "279/I (Sergio Laurentys)",
+      "283/I (João Guerra)",
+      "292/I (Neylson Almeida)"
+    ]
+  },
+  {
+    "id": "478f66ec-137d-4f9d-9ef7-0c0ce5eefb8e",
+    "temporada": "Temporada 2026",
+    "etapa": "Pré Temporada",
+    "chassis": 41,
+    "data": "2026-03-13T21:26:22.339+00:00",
+    "lista_chassis": [
+      "085/992.1 (Alceu Feldmann)",
+      "251/992.1 (Cristian Mohr)",
+      "247/992.1 (Miguel Paludo)",
+      "259/992.1 (Edu Guedes)",
+      "279/992.1 (Thiago Vivacqua)",
+      "168/992.1 (Marco Pisani)",
+      "252/992.1 (Carlos Campos)",
+      "262/992.1 (Christian Hahn)",
+      "257/992.1 (Marcos Regadas)",
+      "096/992.1 (Miguel Mariotti)",
+      "095/992.1 (Raijan Mascarello)",
+      "265/992.1 (Paulo Sousa)",
+      "167/992.1 (Josimar Junior)",
+      "253/992.1 (Sebá Malucelli)",
+      "221/992.1 (Luiz Souza)",
+      "264/992.1 (José Moura Neto)",
+      "093/992.1 (Lucas Salles)",
+      "246/992.1 (SangHo Kim)",
+      "249/992.1 (Rouman Ziemkiewicz)",
+      "205/992.1 (Pietro Fantin)",
+      "406/992.1 (Matheus Comparatto)",
+      "073/992.1 (Reserva)",
+      "207/992.1 (Reserva)",
+      "218/II (Adriano Valverde)",
+      "380/II (Neto Heil)",
+      "227/II (Eldo Umbelino)",
+      "223/II (Pedro Mac Dowell)",
+      "226/II (Marco Mascari)",
+      "220/II (Ricardo Zylberman)",
+      "225/II (Emílio Moreira)",
+      "319/II (Marcelo Bentivoglio)",
+      "229/II (Cláudio Simão)",
+      "337/I (Vinicius Motta)",
+      "287/I (Alexandre Assolini)",
+      "293/I (Paulo Reales)",
+      "286/I (Alexandre dos Santos)",
+      "274/I (Leonardo Marcelli)",
+      "282/I (Cuca)",
+      "279/I (Sergio Laurentys)",
+      "283/I (João Guerra)",
+      "292/I (Neylson Almeida)"
+    ]
+  },
+  {
+    "id": "8541b0e0-73c9-4a2d-b83e-462c8183a4f3",
+    "temporada": "Temporada 2026",
+    "etapa": "Pré Temporada",
+    "chassis": 40,
+    "data": "2026-03-13T21:22:57.07+00:00",
+    "lista_chassis": [
+      "251/992.1 (Cristian Mohr)",
+      "247/992.1 (Miguel Paludo)",
+      "259/992.1 (Edu Guedes)",
+      "279/992.1 (Thiago Vivacqua)",
+      "168/992.1 (Marco Pisani)",
+      "252/992.1 (Carlos Campos)",
+      "262/992.1 (Christian Hahn)",
+      "257/992.1 (Marcos Regadas)",
+      "096/992.1 (Miguel Mariotti)",
+      "095/992.1 (Raijan Mascarello)",
+      "265/992.1 (Paulo Sousa)",
+      "167/992.1 (Josimar Junior)",
+      "253/992.1 (Sebá Malucelli)",
+      "221/992.1 (Luiz Souza)",
+      "264/992.1 (José Moura Neto)",
+      "093/992.1 (Lucas Salles)",
+      "246/992.1 (SangHo Kim)",
+      "249/992.1 (Rouman Ziemkiewicz)",
+      "205/992.1 (Pietro Fantin)",
+      "406/992.1 (Matheus Comparatto)",
+      "073/992.1 (Reserva)",
+      "207/992.1 (Reserva)",
+      "218/II (Adriano Valverde)",
+      "380/II (Neto Heil)",
+      "227/II (Eldo Umbelino)",
+      "223/II (Pedro Mac Dowell)",
+      "226/II (Marco Mascari)",
+      "220/II (Ricardo Zylberman)",
+      "225/II (Emílio Moreira)",
+      "319/II (Marcelo Bentivoglio)",
+      "229/II (Cláudio Simão)",
+      "337/I (Vinicius Motta)",
+      "287/I (Alexandre Assolini)",
+      "293/I (Paulo Reales)",
+      "286/I (Alexandre dos Santos)",
+      "274/I (Leonardo Marcelli)",
+      "282/I (Cuca)",
+      "279/I (Sergio Laurentys)",
+      "283/I (João Guerra)",
+      "292/I (Neylson Almeida)"
+    ]
+  },
+  {
+    "id": "a975b8da-89f7-4953-91b5-d6d8443ac06f",
+    "temporada": "Temporada 2026",
+    "etapa": "Pré Temporada",
+    "chassis": 40,
+    "data": "2026-03-13T21:17:59.035+00:00",
+    "lista_chassis": [
+      "251/992.1 (Cristian Mohr)",
+      "247/992.1 (Miguel Paludo)",
+      "259/992.1 (Edu Guedes)",
+      "279/992.1 (Thiago Vivacqua)",
+      "168/992.1 (Marco Pisani)",
+      "252/992.1 (Carlos Campos)",
+      "262/992.1 (Christian Hahn)",
+      "257/992.1 (Marcos Regadas)",
+      "096/992.1 (Miguel Mariotti)",
+      "095/992.1 (Raijan Mascarello)",
+      "265/992.1 (Paulo Sousa)",
+      "167/992.1 (Josimar Junior)",
+      "253/992.1 (Sebá Malucelli)",
+      "221/992.1 (Luiz Souza)",
+      "264/992.1 (José Moura Neto)",
+      "093/992.1 (Lucas Salles)",
+      "246/992.1 (SangHo Kim)",
+      "249/992.1 (Rouman Ziemkiewicz)",
+      "205/992.1 (Pietro Fantin)",
+      "406/992.1 (Matheus Comparatto)",
+      "073/992.1 (Reserva)",
+      "207/992.1 (Reserva)",
+      "218/II (Adriano Valverde)",
+      "380/II (Neto Heil)",
+      "227/II (Eldo Umbelino)",
+      "223/II (Pedro Mac Dowell)",
+      "226/II (Marco Mascari)",
+      "220/II (Ricardo Zylberman)",
+      "225/II (Emílio Moreira)",
+      "319/II (Marcelo Bentivoglio)",
+      "229/II (Cláudio Simão)",
+      "337/I (Vinicius Motta)",
+      "287/I (Alexandre Assolini)",
+      "293/I (Paulo Reales)",
+      "286/I (Alexandre dos Santos)",
+      "274/I (Leonardo Marcelli)",
+      "282/I (Cuca)",
+      "279/I (Sergio Laurentys)",
+      "283/I (João Guerra)",
+      "292/I (Neylson Almeida)"
+    ]
+  },
+  {
+    "id": "feae962b-0a3b-4f0b-abf8-ece8a9c94d1b",
+    "temporada": "Temporada 2026",
+    "etapa": "Pré Temporada",
+    "chassis": 14,
+    "data": "2026-02-26T15:10:07.651+00:00",
+    "lista_chassis": [
+      "252/992.1 (Carlos Campos)",
+      "262/992.1 (Christian Hahn)",
+      "263/992.1 (Rodrigo Mello)",
+      "264/992.1 (José Moura Neto)",
+      "280/992.1 (Israel Salmen)",
+      "093/992.1 (Lucas Salles)",
+      "249/992.1 (Rouman Ziemkiewicz)",
+      "285/992.1 (Marco Billi)",
+      "258/992.1 (Lineu Pires)",
+      "219/II (Nicholas Garfinkel)",
+      "380/II (Neto Heil)",
+      "226/II (Marco Mascari)",
+      "220/II (Ricardo Zylberman)",
+      "245/992.1 (Wagner Pontes)"
+    ]
+  },
+  {
+    "id": "2da220a9-1226-45ad-b823-da42df143b8c",
+    "temporada": "Temporada 2026",
+    "etapa": "Pré Temporada",
+    "chassis": 6,
+    "data": "2026-02-18T16:45:22.518+00:00",
+    "lista_chassis": [
+      "279/992.1 (Thiago Vivacqua)",
+      "168/992.1 (Marco Pisani)",
+      "096/992.1 (Miguel Mariotti)",
+      "265/992.1 (Paulo Sousa)",
+      "167/992.1 (Josimar Junior)",
+      "253/992.1 (Sebá Malucelli)"
+    ]
+  }
+]
+✅ Conferências carregadas: 8
+🔍 CacheBuster: Versão atual: 2.3.0, Armazenada: 2.3.0
+✅ CacheBuster: Versão atualizada

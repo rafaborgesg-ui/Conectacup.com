@@ -1,0 +1,12 @@
+Linha 1853-1855:
+ANTES: {hasDivergence && (
+DEPOIS: {!isValid && tire.codigo !== '-' && (
+
+ANTES: <AlertTriangle size={16} className="text-orange-600" />
+DEPOIS: <AlertTriangle size={16} className="text-red-600" />
+
+Linha 1884-1894:
+ANTES: {hasDivergence && (
+DEPOIS: {!isValid && tire.codigo !== '-' && (
+
+Remover todo o span "Divergência"

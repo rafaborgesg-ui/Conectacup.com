@@ -1,0 +1,7 @@
+project_id = "nflgqugaabtxzifyhjor"
+
+# Edge Functions are intentionally not deployed from this repository.
+# The app uses Supabase directly from the frontend client.
+[functions.server]
+enabled = false
+verify_jwt = false

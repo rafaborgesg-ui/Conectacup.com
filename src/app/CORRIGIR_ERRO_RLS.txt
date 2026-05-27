@@ -1,0 +1,46 @@
+🚨 CORREÇÃO URGENTE DO ERRO RLS
+================================
+
+❌ ERRO QUE VOCÊ ESTÁ VENDO:
+"new row violates row-level security policy for table conference_sessions"
+
+⚠️ IMPORTANTE: Este erro SÓ pode ser corrigido executando SQL no Supabase!
+A aplicação NÃO consegue corrigir automaticamente.
+
+================================
+
+✅ SOLUÇÃO RÁPIDA (2 minutos):
+
+OPÇÃO 1 - PELA APLICAÇÃO (RECOMENDADO):
+
+1. Acesse: /administracao/debug
+   (no menu: Administração → Debug Admin)
+
+2. Siga os 3 passos na tela:
+   - 1️⃣ Copiar SQL (botão vermelho)
+   - 2️⃣ Abrir SQL Editor (botão verde)  
+   - 3️⃣ Colar e executar no Supabase
+
+OPÇÃO 2 - MANUAL:
+
+1. Abra o arquivo: SQL_PARA_COPIAR.txt
+2. Copie TODO o SQL
+3. Acesse: https://supabase.com/dashboard
+4. Vá em SQL Editor → New query
+5. Cole e clique em RUN
+6. Aguarde "Success" ✅
+
+================================
+
+📋 O SQL ESTÁ EM:
+- /SQL_PARA_COPIAR.txt (fácil de copiar)
+- /URGENTE_EXECUTE_ESTE_SQL.md (guia completo)
+- /administracao/debug (interface visual)
+
+================================
+
+✅ DEPOIS DE EXECUTAR O SQL:
+O erro desaparece permanentemente!
+Você poderá salvar conferências normalmente.
+
+================================

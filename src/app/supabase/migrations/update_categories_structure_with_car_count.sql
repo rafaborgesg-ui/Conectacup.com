@@ -1,0 +1,52 @@
+-- =====================================================
+-- Migration: Atualizar estrutura de 'categories' em season_stages
+-- =====================================================
+-- Descrição:
+--   Atualiza a documentação da coluna 'categories' na tabela 'season_stages'
+--   para refletir a nova estrutura que inclui quantidade de carros por categoria.
+--
+-- ESTRUTURA ANTIGA (array simples):
+--   ["Carrera", "Challenge", "Trophy"]
+--
+-- NOVA ESTRUTURA (array de objetos):
+--   [
+--     { "name": "Carrera", "car_count": 32 },
+--     { "name": "Challenge", "car_count": 28 },
+--     { "name": "Trophy", "car_count": 20 }
+--   ]
+--
+-- Autor: Sistema Conecta Cup
+-- Data: 2025-01-29
+-- =====================================================
+
+-- Atualizar comentário explicativo na coluna
+COMMENT ON COLUMN season_stages.categories IS 'Array de objetos com categorias e quantidade de carros que participam desta etapa. Estrutura: [{"name": "Carrera", "car_count": 32}, {"name": "Challenge", "car_count": 28}]';
+
+-- =====================================================
+-- NOTAS IMPORTANTES
+-- =====================================================
+-- 
+-- 1. A coluna 'categories' continua sendo JSONB
+-- 2. O índice GIN existente continua funcionando perfeitamente
+-- 3. Esta migration apenas atualiza a documentação
+-- 4. Os dados antigos devem ser migrados manualmente se necessário
+-- 5. A nova estrutura permite que cada etapa tenha quantidade de carros diferente
+--
+-- EXEMPLO DE CONSULTA:
+-- SELECT 
+--   name, 
+--   categories
+-- FROM season_stages
+-- WHERE categories @> '[{"name": "Carrera"}]';
+--
+-- =====================================================
+-- Verificação da estrutura (OPCIONAL - para conferência)
+-- =====================================================
+-- Execute esta query para verificar a coluna:
+-- SELECT 
+--   column_name, 
+--   data_type, 
+--   column_default,
+--   col_description((table_schema||'.'||table_name)::regclass::oid, ordinal_position) as column_comment
+-- FROM information_schema.columns 
+-- WHERE table_name = 'season_stages' AND column_name = 'categories';

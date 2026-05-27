@@ -1,0 +1,27 @@
+project_id = "nflgqugaabtxzifyhjor"
+
+# ============================================
+# EDGE FUNCTIONS - DESABILITADAS
+# ============================================
+# O Figma Make não tem permissão para deploy (erro 403)
+# O app funciona 100% com Supabase direto, sem Edge Functions
+
+[functions.make-server]
+# Função específica desabilitada
+enabled = false
+verify_jwt = false
+
+# ============================================
+# PROJETO
+# ============================================
+
+[api]
+enabled = true
+port = 54321
+
+[db]
+port = 54322
+
+# ✅ O app funciona 100% com Supabase direto
+# ✅ Não há necessidade de Edge Functions
+# ✅ Veja /EDGE_FUNCTION_DESABILITADA.md para detalhes

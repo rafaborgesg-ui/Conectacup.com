@@ -1,0 +1,140 @@
+================================================================================
+🔴 ERRO: permission denied for table users
+================================================================================
+
+ONDE ACONTECE:
+  Master Data > Carros > Tentar cadastrar/editar geração ou chassis
+
+ERRO EXATO:
+  "Erro: permission denied for table users"
+
+================================================================================
+⚡ SOLUÇÃO IMEDIATA (1 minuto)
+================================================================================
+
+EXECUTE ESTE ARQUIVO NO SUPABASE SQL EDITOR:
+  
+  📁 FIX_RLS_SEM_AUTH_USERS.sql
+
+COMO:
+  1. Supabase Dashboard → SQL Editor → New query
+  2. Cole o conteúdo do arquivo
+  3. Clique em Run ▶️
+  4. Recarregue app (F5)
+  5. Teste novamente
+  6. ✅ FUNCIONA!
+
+================================================================================
+📖 POR QUE ACONTECE? (Explicação rápida)
+================================================================================
+
+O PROBLEMA:
+  
+  RLS Policies tentam fazer:
+    SELECT FROM auth.users  ← ❌ Você não tem permissão!
+  
+  Supabase bloqueia usuários autenticados de acessar auth.users diretamente
+  por segurança.
+
+A SOLUÇÃO:
+
+  Criar função com SECURITY DEFINER:
+    public.is_user_admin()  ← ✅ Função TEM permissão!
+  
+  Policies usam a função ao invés de acessar auth.users diretamente.
+
+================================================================================
+🔍 COMO SABER SE É ESTE ERRO?
+================================================================================
+
+✅ Você VÊ a mensagem "permission denied for table users"
+✅ Acontece ao tentar criar/editar em Master Data > Carros
+✅ Você é administrador
+✅ Tem acesso às páginas
+
+================================================================================
+📋 O QUE O FIX FAZ?
+================================================================================
+
+1️⃣ Cria função segura:
+   CREATE FUNCTION is_user_admin()
+   - Pode acessar auth.users (SECURITY DEFINER)
+   - Verifica se você é admin
+   - Retorna TRUE/FALSE
+
+2️⃣ Atualiza policies:
+   Antes: SELECT FROM auth.users  ❌
+   Depois: is_user_admin() = true ✅
+
+3️⃣ Aplica em:
+   - Tabela geracao (gerações de carros)
+   - Tabela chassis (chassis de carros)
+
+================================================================================
+✅ VERIFICAÇÃO
+================================================================================
+
+DEPOIS DE EXECUTAR:
+
+1. Você deve ver:
+   ✅ Policies corrigidas!
+   🔧 Criada função: public.is_user_admin()
+
+2. Teste:
+   Master Data > Carros > Gerações > Adicionar
+   Digite código: 992
+   Digite descrição: Geração 992
+   Clique em Salvar
+   ✅ Deve salvar sem erro!
+
+================================================================================
+🆘 SE NÃO FUNCIONAR
+================================================================================
+
+1. Verifique se você é admin:
+   - Na página Gerenciar Usuários
+   - Seu usuário deve ter perfil "Administrador"
+
+2. Verifique se a função foi criada:
+   SQL Editor:
+   SELECT * FROM pg_proc WHERE proname = 'is_user_admin';
+   
+   Deve retornar 1 linha.
+
+3. Teste a função diretamente:
+   SQL Editor:
+   SELECT is_user_admin();
+   
+   Deve retornar: true (se você é admin)
+
+4. Se ainda não funcionar:
+   Execute: QUICK_FIX_TEMP.sql
+   (Solução temporária - permite todos editarem)
+
+================================================================================
+📚 DOCUMENTAÇÃO COMPLETA
+================================================================================
+
+Para entender TUDO:
+  📖 ERRO_PERMISSION_DENIED_USERS.md
+
+Para ver TODOS os problemas possíveis:
+  📖 START_HERE.txt
+
+================================================================================
+⏱️ TEMPO ESTIMADO
+================================================================================
+
+  Copiar arquivo      → 10 segundos
+  Colar no SQL Editor → 10 segundos
+  Executar            → 10 segundos
+  Recarregar app      →  5 segundos
+  Testar              → 10 segundos
+  ────────────────────────────────
+  TOTAL               → 45 segundos ⚡
+
+================================================================================
+
+🚀 EXECUTE AGORA: FIX_RLS_SEM_AUTH_USERS.sql
+
+================================================================================

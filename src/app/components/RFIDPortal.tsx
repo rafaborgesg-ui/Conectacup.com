@@ -3,18 +3,23 @@ import { Radio, Zap, CheckCircle2, Clock, TrendingUp, Box, ArrowRight } from 'lu
 import { Button } from './ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { toast } from 'sonner';
-import { getContainers, updateStockEntryByBarcode } from '../utils/storage';
+import { getContainers, updateStockEntryContainer } from '../utils/storage';
 import { createClient } from '../utils/supabase/client';
 
 // 📡 Funções RFID (SGTIN-96 Decoding)
+function normalizeRFIDPayload(value: string): string {
+  return value.replace(/\s/g, '').toUpperCase();
+}
+
 function isRFIDCode(code: string): boolean {
-  const trimmed = code.trim();
+  const trimmed = normalizeRFIDPayload(code);
   return /^[0-9A-Fa-f]{24}$/.test(trimmed);
 }
 
 function decodeRFID(epcHex: string): { barcode: string; cai: string } | null {
   try {
-    const epcBigInt = BigInt('0x' + epcHex);
+    const normalizedEpcHex = normalizeRFIDPayload(epcHex);
+    const epcBigInt = BigInt('0x' + normalizedEpcHex);
     const serial = Number(epcBigInt & BigInt('0x3FFFFFFFFF'));
     const itemReference = Number((epcBigInt >> BigInt(38)) & BigInt('0xFFFFFF'));
     const cai = Math.floor(itemReference / 16).toString();
@@ -25,6 +30,23 @@ function decodeRFID(epcHex: string): { barcode: string; cai: string } | null {
     console.error('❌ Erro ao decodificar RFID:', error);
     return null;
   }
+}
+
+function extractRFIDCodes(rawValue: string): string[] {
+  const rawUpper = rawValue.toUpperCase();
+  const directMatches = rawUpper.match(/[0-9A-F]{24}/g) || [];
+  const codes = directMatches.length > 0 ? directMatches : (() => {
+    const hexOnly = rawUpper.replace(/[^0-9A-F]/g, '');
+    const chunks: string[] = [];
+
+    for (let index = 0; index + 24 <= hexOnly.length; index += 24) {
+      chunks.push(hexOnly.slice(index, index + 24));
+    }
+
+    return chunks;
+  })();
+
+  return Array.from(new Set(codes.map(normalizeRFIDPayload).filter(isRFIDCode)));
 }
 
 interface RFIDReading {
@@ -54,7 +76,7 @@ export function RFIDPortal() {
 
   const inputRef = useRef<HTMLInputElement>(null);
   const readingsMapRef = useRef<Map<string, RFIDReading>>(new Map());
-  const lastReadTimestampRef = useRef<number>(0);
+  const lastReadByTagRef = useRef<Map<string, number>>(new Map());
   const readsInLastMinuteRef = useRef<number[]>([]);
   const scanBufferRef = useRef<string>('');
   const scanTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -76,11 +98,15 @@ export function RFIDPortal() {
     try {
       console.log('📥 Buscando dados do pneu:', rfidData.barcode);
       const supabase = createClient();
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('stock_entries')
         .select('*')
         .eq('barcode', rfidData.barcode)
-        .single();
+        .maybeSingle();
+
+      if (error) {
+        throw error;
+      }
 
       console.log('✅ Dados do pneu obtidos:', data ? 'Encontrado' : 'Não encontrado');
 
@@ -124,7 +150,7 @@ export function RFIDPortal() {
       return;
     }
 
-    const cleanValue = value.trim().toUpperCase();
+    const cleanValue = normalizeRFIDPayload(value);
     console.log('   Valor limpo:', cleanValue, 'Tamanho:', cleanValue.length);
 
     if (!isRFIDCode(cleanValue)) {
@@ -134,14 +160,15 @@ export function RFIDPortal() {
 
     console.log('✅ RFID VÁLIDO detectado! Processando...');
 
-    // Anti-duplicidade: ignora se leitura muito próxima (< 200ms)
+    // Anti-duplicidade por tag: não bloqueia tags diferentes lidas na mesma rajada.
     const now = Date.now();
-    if (now - lastReadTimestampRef.current < 200) {
-      console.log('⚠️ Leitura ignorada (muito rápida)');
+    const lastTagReadAt = lastReadByTagRef.current.get(cleanValue) || 0;
+    if (now - lastTagReadAt < 200) {
+      console.log('⚠️ Leitura duplicada ignorada (mesma tag em menos de 200ms)');
       return;
     }
 
-    lastReadTimestampRef.current = now;
+    lastReadByTagRef.current.set(cleanValue, now);
     readsInLastMinuteRef.current.push(now);
 
     const rfidData = decodeRFID(cleanValue);
@@ -182,6 +209,49 @@ export function RFIDPortal() {
     console.log('✅ handleRFIDInput concluído. Aguardando próxima leitura...');
   }, [isActive, fetchTireData]);
 
+  const processRFIDPayload = useCallback((rawValue: string): boolean => {
+    if (rawValue.toUpperCase().replace(/[^0-9A-F]/g, '').length < 24) {
+      return false;
+    }
+
+    const codes = extractRFIDCodes(rawValue);
+
+    if (codes.length === 0) {
+      console.log('❌ Nenhum EPC RFID completo encontrado no payload:', rawValue);
+      return false;
+    }
+
+    console.log(`📡 Payload RFID processado: ${codes.length} tag(s) encontrada(s)`);
+    codes.forEach(handleRFIDInput);
+    return true;
+  }, [handleRFIDInput]);
+
+  const processBufferedRFID = useCallback((forceFlush = false) => {
+    const hexOnly = scanBufferRef.current.toUpperCase().replace(/[^0-9A-F]/g, '');
+    const codes: string[] = [];
+    let consumedLength = 0;
+
+    while (consumedLength + 24 <= hexOnly.length) {
+      codes.push(hexOnly.slice(consumedLength, consumedLength + 24));
+      consumedLength += 24;
+    }
+
+    const remainder = forceFlush ? '' : hexOnly.slice(consumedLength);
+    scanBufferRef.current = remainder;
+    setScanBuffer(remainder);
+
+    if (codes.length === 0) {
+      if (forceFlush && hexOnly.length > 0) {
+        console.log('❌ Buffer descartado sem EPC completo:', hexOnly);
+      }
+      return false;
+    }
+
+    console.log(`📡 Buffer RFID processado: ${codes.length} tag(s), resto=${remainder.length}`);
+    codes.forEach(handleRFIDInput);
+    return true;
+  }, [handleRFIDInput]);
+
   // useEffects
   useEffect(() => {
     loadContainers();
@@ -208,20 +278,22 @@ export function RFIDPortal() {
 
       console.log('⌨️ Tecla pressionada:', e.key, 'Buffer atual:', scanBufferRef.current);
 
-      if (e.key === 'Enter') {
-        console.log('✅ ENTER detectado! Buffer completo:', scanBufferRef.current);
-        if (scanBufferRef.current.length > 0) {
-          const bufferToProcess = scanBufferRef.current;
-          scanBufferRef.current = '';
-          setScanBuffer('');
-          handleRFIDInput(bufferToProcess);
-        }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        console.log(`✅ ${e.key} detectado! Buffer completo:`, scanBufferRef.current);
+        processBufferedRFID(true);
         return;
       }
 
       if (e.key.length > 1) return;
 
-      const newBuffer = scanBufferRef.current + e.key.toUpperCase();
+      const normalizedKey = e.key.toUpperCase();
+      if (!/^[0-9A-F]$/.test(normalizedKey)) {
+        processBufferedRFID(false);
+        return;
+      }
+
+      const newBuffer = scanBufferRef.current + normalizedKey;
       scanBufferRef.current = newBuffer;
       setScanBuffer(newBuffer);
 
@@ -232,12 +304,9 @@ export function RFIDPortal() {
       scanTimerRef.current = setTimeout(() => {
         console.log('⏱️ Timeout atingido - processando buffer:', scanBufferRef.current);
         if (scanBufferRef.current.length >= 24) {
-          const bufferToProcess = scanBufferRef.current;
-          scanBufferRef.current = '';
-          setScanBuffer('');
-          handleRFIDInput(bufferToProcess);
+          processBufferedRFID(false);
         }
-      }, 100);
+      }, 150);
     };
 
     window.addEventListener('keydown', handleKeyPress);
@@ -257,7 +326,7 @@ export function RFIDPortal() {
       }
       console.log('❌ Portal RFID desativado - listener removido');
     };
-  }, [isActive, handleRFIDInput]);
+  }, [isActive, processBufferedRFID]);
 
   // Calcula tags por minuto
   useEffect(() => {
@@ -289,6 +358,7 @@ export function RFIDPortal() {
     setScanBuffer('');
     scanBufferRef.current = '';
     readingsMapRef.current.clear();
+    lastReadByTagRef.current.clear();
     readsInLastMinuteRef.current = [];
 
     toast.info('Portal RFID Ativado', {
@@ -308,36 +378,136 @@ export function RFIDPortal() {
   };
 
   const handleConfirmMovement = async () => {
-    if (!selectedContainer || readings.length === 0) {
+    if (readings.length === 0) {
+      toast.error('Nenhuma tag lida', {
+        description: 'Inicie o portal e leia os pneus antes de confirmar.',
+      });
+      return;
+    }
+
+    if (!selectedContainer) {
       toast.error('Selecione um container de destino');
+      return;
+    }
+
+    const targetContainer = containers.find(container => container.id === selectedContainer);
+    if (!targetContainer) {
+      toast.error('Container de destino inválido');
       return;
     }
 
     setIsMoving(true);
 
     try {
+      const userData = JSON.parse(localStorage.getItem('porsche-cup-user') || '{}');
+      const userId = userData.id || '';
+      const userName = userData.name || 'Usuário';
+      const validReadings = readings.filter(reading => reading.tireData);
+      const missingStockCount = readings.length - validReadings.length;
+      let skippedSameContainer = 0;
+
+      const movements = validReadings
+        .map(reading => {
+          const tire = reading.tireData;
+          const fromContainerId = tire.container_id || '';
+
+          if (fromContainerId === selectedContainer) {
+            skippedSameContainer++;
+            return null;
+          }
+
+          return {
+            barcode: reading.barcode,
+            model_name: tire.model_name || '-',
+            model_type: tire.model_type || 'Slick',
+            from_container_id: fromContainerId || null,
+            from_container_name: tire.container_name || 'Sem Contêiner',
+            to_container_id: selectedContainer,
+            to_container_name: targetContainer.name,
+            moved_by: userId || null,
+            moved_by_name: userName,
+            reason: 'Movimentação via Portal RFID',
+          };
+        })
+        .filter(Boolean) as Array<{
+          barcode: string;
+          model_name: string;
+          model_type: string;
+          from_container_id: string | null;
+          from_container_name: string;
+          to_container_id: string;
+          to_container_name: string;
+          moved_by: string | null;
+          moved_by_name: string;
+          reason: string;
+        }>;
+
+      if (movements.length === 0) {
+        toast.warning('Nenhum pneu para movimentar', {
+          description: missingStockCount > 0
+            ? `${missingStockCount} tag(s) não encontrada(s) no estoque.`
+            : 'Os pneus lidos já estão no container selecionado.',
+        });
+        return;
+      }
+
+      const supabase = createClient();
+      const { error: movementError } = await supabase
+        .from('tire_movements')
+        .insert(movements);
+
+      if (movementError) {
+        throw movementError;
+      }
+
       let successCount = 0;
       let errorCount = 0;
 
-      for (const reading of readings) {
+      for (const movement of movements) {
         try {
-          await updateStockEntryByBarcode(reading.barcode, {
-            containerId: selectedContainer,
-          });
+          await updateStockEntryContainer(
+            movement.barcode,
+            selectedContainer,
+            targetContainer.name
+          );
           successCount++;
         } catch (error) {
-          console.error('Erro ao mover pneu:', reading.barcode, error);
+          console.error('Erro ao mover pneu:', movement.barcode, error);
           errorCount++;
         }
       }
 
-      toast.success('Movimentação concluída', {
-        description: `${successCount} pneus movidos com sucesso${errorCount > 0 ? `, ${errorCount} erros` : ''}`,
-      });
+      const notes = [
+        `${successCount} pneu${successCount === 1 ? '' : 's'} movido${successCount === 1 ? '' : 's'} com sucesso`,
+        errorCount > 0 ? `${errorCount} erro${errorCount === 1 ? '' : 's'}` : '',
+        skippedSameContainer > 0 ? `${skippedSameContainer} já estava${skippedSameContainer === 1 ? '' : 'm'} no destino` : '',
+        missingStockCount > 0 ? `${missingStockCount} não encontrado${missingStockCount === 1 ? '' : 's'} no estoque` : '',
+      ].filter(Boolean).join(' • ');
+
+      if (errorCount > 0) {
+        toast.warning('Movimentação concluída com erros', { description: notes });
+      } else {
+        toast.success('Movimentação concluída', { description: notes });
+      }
+
+      window.dispatchEvent(new Event('tire-moved'));
 
       // Reset
       handleStopPortal();
       setSelectedContainer('');
+      setReadings([]);
+      readingsMapRef.current.clear();
+      lastReadByTagRef.current.clear();
+      setScanBuffer('');
+      scanBufferRef.current = '';
+      readsInLastMinuteRef.current = [];
+      setStats({
+        totalReads: 0,
+        uniqueTags: 0,
+        duplicates: 0,
+        readsPerMinute: 0,
+        sessionStart: Date.now(),
+      });
     } catch (error) {
       toast.error('Erro ao realizar movimentação');
       console.error(error);
@@ -369,9 +539,31 @@ export function RFIDPortal() {
         ref={inputRef}
         type="text"
         className="absolute opacity-0 pointer-events-none"
+        inputMode="none"
+        autoComplete="off"
+        onChange={(e) => {
+          if (processRFIDPayload(e.currentTarget.value)) {
+            e.currentTarget.value = '';
+            scanBufferRef.current = '';
+            setScanBuffer('');
+          }
+        }}
         onKeyDown={(e) => {
           if (e.key === 'Enter') {
-            handleRFIDInput(e.currentTarget.value);
+            if (processRFIDPayload(e.currentTarget.value || scanBufferRef.current)) {
+              e.currentTarget.value = '';
+              scanBufferRef.current = '';
+              setScanBuffer('');
+            }
+          }
+        }}
+        onPaste={(e) => {
+          const pastedText = e.clipboardData.getData('text');
+          if (processRFIDPayload(pastedText)) {
+            e.preventDefault();
+            e.currentTarget.value = '';
+            scanBufferRef.current = '';
+            setScanBuffer('');
           }
         }}
         autoFocus={isActive}
@@ -534,7 +726,7 @@ export function RFIDPortal() {
                               </div>
                             </div>
 
-                            {reading.tireData && (
+                            {reading.tireData ? (
                               <div className="ml-8 grid grid-cols-4 gap-4 text-sm">
                                 <div>
                                   <span className="text-gray-500">Modelo:</span>
@@ -552,6 +744,10 @@ export function RFIDPortal() {
                                   <span className="text-gray-500">Container:</span>
                                   <span className="ml-2 text-gray-300">{reading.tireData.container_name || '-'}</span>
                                 </div>
+                              </div>
+                            ) : (
+                              <div className="ml-8 text-sm text-yellow-400">
+                                Pneu não encontrado no estoque. A tag foi lida, mas não será movimentada.
                               </div>
                             )}
                           </div>

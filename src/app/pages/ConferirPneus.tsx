@@ -78,9 +78,17 @@ function countCheckedTires(tireSets: TireSet[]): number {
   }, 0);
 }
 
+function normalizeScannerCode(code: string): string {
+  return code.replace(/\s/g, '').toUpperCase();
+}
+
+function isBarcodeCode(code: string): boolean {
+  return /^\d{8}$/.test(normalizeScannerCode(code));
+}
+
 // 📡 Função para detectar se o código é RFID (24 caracteres hexadecimais)
 function isRFIDCode(code: string): boolean {
-  const trimmed = code.trim();
+  const trimmed = normalizeScannerCode(code);
   const isRFID = /^[0-9A-Fa-f]{24}$/.test(trimmed);
   console.log(`🔍 isRFIDCode("${trimmed}") = ${isRFID} (${trimmed.length} chars)`);
   return isRFID;
@@ -89,10 +97,11 @@ function isRFIDCode(code: string): boolean {
 // 📡 Função para decodificar SGTIN-96 (EPC) e retornar código de barras e CAI
 function decodeRFID(epcHex: string): { barcode: string; cai: string } | null {
   try {
-    console.log(`📡 Decodificando RFID: ${epcHex}`);
+    const normalizedEpcHex = normalizeScannerCode(epcHex);
+    console.log(`📡 Decodificando RFID: ${normalizedEpcHex}`);
 
     // Converte hex para BigInt
-    const epcBigInt = BigInt('0x' + epcHex);
+    const epcBigInt = BigInt('0x' + normalizedEpcHex);
 
     // Extrai Serial Number (38 bits finais)
     const serialMask = BigInt('0x3FFFFFFFFF'); // 38 bits
@@ -390,6 +399,7 @@ export function ConferirPneus() {
   const [tireCodeInput, setTireCodeInput] = useState('');
   const tireInputRef = useRef<HTMLInputElement>(null);
   const autoSubmitTimerRef = useRef<NodeJS.Timeout | null>(null); // Timer para auto-submit após scanner
+  const inlineAutoSubmitTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const lastInputTimestampRef = useRef<number>(0); // Timestamp do último caractere digitado (para detectar scanner ativo)
   const [showUpdateModal, setShowUpdateModal] = useState(false); // Modal de atualização de status
   const [updateFile, setUpdateFile] = useState<File | null>(null); // Arquivo de atualização
@@ -473,6 +483,8 @@ export function ConferirPneus() {
       if (autoSubmitTimerRef.current) {
         clearTimeout(autoSubmitTimerRef.current);
       }
+      Object.values(inlineAutoSubmitTimersRef.current).forEach(clearTimeout);
+      inlineAutoSubmitTimersRef.current = {};
     };
   }, []);
 
@@ -4374,7 +4386,8 @@ export function ConferirPneus() {
 
   // 📱 Função para lidar com mudanças no input do código
   const handleTireCodeChange = (value: string) => {
-    const cleanValue = value.trim().toUpperCase();
+    const cleanValue = normalizeScannerCode(value);
+    lastInputTimestampRef.current = Date.now();
 
     console.log('');
     console.log('🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵');
@@ -4406,13 +4419,13 @@ export function ConferirPneus() {
       console.log(`   Código RFID: "${cleanValue}"`);
       handleTireCodeSubmit(cleanValue);
     }
-    // 🔥 Código de barras (8 dígitos) - auto-submit após 1 segundo
-    else if (cleanValue.length === 8 && /^\d{8}$/.test(cleanValue)) {
+    // 🔥 Código de barras (8 dígitos) - auto-submit após debounce curto do scanner
+    else if (isBarcodeCode(cleanValue)) {
       console.log('');
       console.log('🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢');
       console.log('⏰ CÓDIGO DE BARRAS DETECTADO (8 dígitos)!');
       console.log('   Valor:', cleanValue);
-      console.log('   Iniciando timer de 1 segundo...');
+      console.log('   Iniciando timer curto para auto-submit...');
       console.log('🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢');
 
       autoSubmitTimerRef.current = setTimeout(() => {
@@ -4422,7 +4435,7 @@ export function ConferirPneus() {
         console.log('   Código de barras:', cleanValue);
         console.log('✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅');
         handleTireCodeSubmit(cleanValue);
-      }, 1000);
+      }, 300);
     } else {
       console.log('⏹️ Aguardando mais caracteres ou ENTER manual');
       console.log('   Tamanho atual:', cleanValue.length);
@@ -4432,6 +4445,14 @@ export function ConferirPneus() {
   // 📱 Função helper para limpar input
   const clearTireInput = () => {
     setTireCodeInput('');
+  };
+
+  const clearInlineAutoSubmitTimer = (inputKey: string) => {
+    const timer = inlineAutoSubmitTimersRef.current[inputKey];
+    if (timer) {
+      clearTimeout(timer);
+      delete inlineAutoSubmitTimersRef.current[inputKey];
+    }
   };
 
   // 🆕 Funções para observações
@@ -4493,8 +4514,12 @@ export function ConferirPneus() {
 
   // 🆕 Função para submeter código inline (direto na linha)
   const handleTireCodeSubmitInline = async (code: string, jogo: number, position: number) => {
+    const inputKey = `${jogo}-${position}`;
+    const normalizedCode = normalizeScannerCode(code);
+    clearInlineAutoSubmitTimer(inputKey);
+
     console.log('🚀🚀🚀 handleTireCodeSubmitInline CHAMADO!');
-    console.log('📦 Parâmetros recebidos:', { code, jogo: `${jogo} (${typeof jogo})`, position: `${position} (${typeof position})` });
+    console.log('📦 Parâmetros recebidos:', { code, normalizedCode, jogo: `${jogo} (${typeof jogo})`, position: `${position} (${typeof position})` });
     console.log('📦 Estado atual:', { activeJogo, activePneuPosition, isProcessingTireCode });
 
     // 🔥 v4.8.0: BLOQUEIA novas leituras se já há um registro sendo processado
@@ -4507,16 +4532,16 @@ export function ConferirPneus() {
       return;
     }
 
-    if (!code.trim()) {
+    if (!normalizedCode) {
       console.log('❌ Input vazio, abortando');
       return;
     }
 
     // 📡 Detecta e decodifica RFID antes de processar
-    let processedCode = code;
-    if (isRFIDCode(code)) {
-      console.log('📡 RFID detectado no input inline:', code);
-      const rfidData = decodeRFID(code);
+    let processedCode = normalizedCode;
+    if (isRFIDCode(normalizedCode)) {
+      console.log('📡 RFID detectado no input inline:', normalizedCode);
+      const rfidData = decodeRFID(normalizedCode);
 
       if (!rfidData) {
         toast.error('Erro ao decodificar RFID', {
@@ -4539,7 +4564,6 @@ export function ConferirPneus() {
     setIsProcessingTireCode(true);
     
     // 🔥 NOVO v4.7.0: Marca input como "processando" para evitar "piscar"
-    const inputKey = `${jogo}-${position}`;
     console.log(`🔒 Marcando input ${inputKey} como PROCESSANDO...`);
     setProcessingInputs(prev => ({ ...prev, [inputKey]: true }));
     
@@ -5193,12 +5217,12 @@ export function ConferirPneus() {
       autoSubmitTimerRef.current = null;
     }
     
-    let code = codeOverride || tireCodeInput;
+    let code = normalizeScannerCode(codeOverride || tireCodeInput);
     const targetIndex = positionOverride !== undefined ? positionOverride : activePneuPosition; // 🔥 Usa positionOverride se fornecido
 
     console.log('🚀 handleTireCodeSubmit CHAMADO! Input:', code, '| targetIndex:', targetIndex, '| positionOverride:', positionOverride);
 
-    if (!code.trim()) {
+    if (!code) {
       console.log('❌ Input vazio, abortando');
       return;
     }
@@ -5283,7 +5307,7 @@ export function ConferirPneus() {
     console.log(`✓ Usando targetIndex: ${targetIndex}`);
     
     // 🔥 BIPAGEM INSTANTÂNEA: Salva código temporário
-    const tempCode = code.trim();
+    const tempCode = code;
     console.log('🔍🔍🔍 CÓDIGO QUE VAI PARA BUSCA:', tempCode);
     console.log('   Tamanho:', tempCode.length, '| Tipo:', typeof tempCode);
     console.log('   É RFID?', isRFIDCode(tempCode) ? '❌ SIM (ERRO!)' : '✅ NÃO (CORRETO)');
@@ -7411,8 +7435,10 @@ onKeyDown={(e) => {
                       e.preventDefault();
                       const input = e.currentTarget;
 
-                      if (input.value.trim()) {
-                        let finalCode = input.value.trim();
+                      const normalizedCode = normalizeScannerCode(input.value);
+
+                      if (normalizedCode) {
+                        let finalCode = normalizedCode;
 
                         // Aplica zero à esquerda se tiver 7 dígitos numéricos
                         if (finalCode.length === 7 && /^\d+$/.test(finalCode)) {
@@ -7433,7 +7459,7 @@ onKeyDown={(e) => {
                   autoFocus
                 />
                 <button
-                  onClick={handleTireCodeSubmit}
+                  onClick={() => handleTireCodeSubmit()}
                   disabled={!isEditMode || tireSets.length === 0}
                   className="px-2 py-1 rounded font-semibold disabled:cursor-not-allowed disabled:opacity-60 collector-adapt-button-large"
                   style={{ background: '#D50000', color: '#FFFFFF', flexShrink: 0, fontSize: '12px', minWidth: '60px' }}
@@ -8290,10 +8316,12 @@ onKeyDown={(e) => {
                                         display: 'block'
                                       }}
                                       onChange={(e) => {
-                                        const value = e.target.value.toUpperCase();
+                                        const value = normalizeScannerCode(e.target.value);
                                         const inputElement = e.target;
                                         const currentJogo = parseInt(inputElement.getAttribute('data-jogo') || '0');
                                         const currentPosition = parseInt(inputElement.getAttribute('data-position') || '0');
+                                        const inputKey = `${currentJogo}-${currentPosition}`;
+                                        clearInlineAutoSubmitTimer(inputKey);
 
                                           // Aceita apenas hexadecimal (0-9, A-F)
                                           if (!/^[0-9A-F]*$/.test(value)) {
@@ -8301,15 +8329,22 @@ onKeyDown={(e) => {
                                             return;
                                           }
 
+                                          e.target.value = value;
+
                                           console.log(`📝 onChange - value.length=${value.length}, jogo=${currentJogo}, position=${currentPosition}`);
 
-                                          // Auto-enter APENAS quando atingir 24 caracteres (RFID completo)
-                                          // Para códigos de 8 dígitos, aguarda 500ms ou usuário pressiona Enter
+                                          // Auto-enter quando atingir RFID completo ou código de barras de 8 dígitos
                                           if (value.length === 24 && /^[0-9A-F]{24}$/.test(value)) {
                                             const trimmedValue = value.trim();
                                             console.log('🎯 Auto-enter ativado! RFID (24 caracteres) detectado');
                                             console.log(`📍 Código RFID: "${trimmedValue}"`);
                                             handleTireCodeSubmitInline(trimmedValue, currentJogo, currentPosition);
+                                          } else if (isBarcodeCode(value)) {
+                                            console.log('🎯 Auto-enter ativado! Código de barras (8 dígitos) detectado');
+                                            console.log(`📍 Código: "${value}"`);
+                                            inlineAutoSubmitTimersRef.current[inputKey] = setTimeout(() => {
+                                              handleTireCodeSubmitInline(value, currentJogo, currentPosition);
+                                            }, 300);
                                           }
                                         }}
                                         onKeyDown={(e) => {
@@ -8318,10 +8353,12 @@ onKeyDown={(e) => {
                                             const input = e.currentTarget;
                                             const currentJogo = parseInt(input.getAttribute('data-jogo') || '0');
                                             const currentPosition = parseInt(input.getAttribute('data-position') || '0');
-                                            
-                                            if (input.value.trim()) {
-                                              let finalCode = input.value.trim();
-                                              
+
+                                            const normalizedCode = normalizeScannerCode(input.value);
+
+                                            if (normalizedCode) {
+                                              let finalCode = normalizedCode;
+
                                               // 🔥 Aplica zero à esquerda se tiver 7 dígitos numéricos
                                               if (finalCode.length === 7 && /^\d+$/.test(finalCode)) {
                                                 finalCode = '0' + finalCode;

@@ -4,7 +4,7 @@ import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { copyToClipboard } from '../utils/clipboard';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 
 interface MasterDataMigrationAlertProps {
   errorCode?: string;

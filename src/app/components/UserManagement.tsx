@@ -6,7 +6,7 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { UserPlus, Trash2, RefreshCw, Shield, User as UserIcon, Mail, Eye, EyeOff, Calendar, Edit, Save, X, Users as UsersIcon, Settings, Edit2, Plus, User, Search } from 'lucide-react';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { ActionButton } from './ActionFeedback';
 import { TableLoadingState } from './UniversalLoadingState';
 import { projectId, publicAnonKey } from '../utils/supabase/info.tsx';

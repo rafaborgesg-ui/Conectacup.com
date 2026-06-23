@@ -4,7 +4,7 @@
  * Fix: Removidos logs para evitar poluição do console
  */
 
-import { toast } from "sonner@2.0.3";
+import { toast } from "sonner";
 
 let initialized = false;
 

@@ -3,7 +3,7 @@ import { Upload, Loader2, CheckCircle2, AlertCircle, Trash2, FileSpreadsheet, Da
 import { Button } from './ui/button';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -14,7 +14,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from './ui/alert-dialog';
-import * as XLSX from 'xlsx@0.18.5';
+import * as XLSX from 'xlsx';
 import { createClient } from '../utils/supabase/client';
 
 interface ImportResult {

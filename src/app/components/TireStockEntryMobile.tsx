@@ -22,7 +22,7 @@ import { Badge } from './ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Textarea } from './ui/textarea';
 import { Progress } from './ui/progress';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { BarcodeScanner } from './BarcodeScanner';
 import { useHaptic } from './TouchFeedback';
 import { BarcodeConfirmationAnimation } from './BarcodeConfirmationAnimation';

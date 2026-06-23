@@ -12,7 +12,7 @@ import { Button } from './ui/button';
 import { createClient } from '../utils/supabase/client';
 import { LoadingSpinner } from './LoadingSpinner';
 import { exportContainerOccupancyToExcel } from '../utils/excelExport';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 
 interface ContainerOccupancy {
   id: string;

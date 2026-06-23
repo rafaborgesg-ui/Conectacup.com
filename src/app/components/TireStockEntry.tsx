@@ -17,7 +17,7 @@ import { Progress } from './ui/progress';
 import { Skeleton } from './ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Textarea } from './ui/textarea';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { PageHeader } from './PageHeader';
 import { EmptyState } from './EmptyState';
 import { StockEntrySkeleton } from './LoadingSkeleton';

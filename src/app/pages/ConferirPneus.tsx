@@ -1,6 +1,6 @@
 /**
- * 🔧 Conferir Pneus - v4.8.9
- * Footer fixo no modo coletor (rodapé) + logs detalhados para debug de validação
+ * 🔧 Conferir Pneus - v4.10.0
+ * Fila rápida de bipagem + contrato para bridge nativo Zebra RFID
  */
 import { ClipboardCheck, Search, Upload, FileSpreadsheet, X, ChevronRight, Loader2, Scan, AlertTriangle, RotateCcw, RefreshCw, CheckCircle2, AlertOctagon, Zap, Info, ChevronLeft, MessageSquare, ChevronDown, ChevronUp, Edit, Eraser, Download, Keyboard } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
@@ -15,6 +15,129 @@ import { UpdateStatusModal } from '../components/UpdateStatusModal';
 import { CollectorStyles } from '../components/CollectorStyles';
 import * as XLSX from 'xlsx';
 import { sanitizeFileName } from '../utils/stringUtils';
+
+type NativeRFIDPayload = string | {
+  epc?: string;
+  barcode?: string;
+  code?: string;
+  cai?: string;
+  rssi?: number;
+  seenCount?: number;
+  source?: string;
+  timestamp?: number;
+};
+
+interface NativeRFIDStatus {
+  available?: boolean;
+  connected?: boolean;
+  reader?: string;
+  mode?: 'sdk' | 'datawedge' | 'unknown';
+  message?: string;
+}
+
+interface NativeRFIDStatusState extends NativeRFIDStatus {
+  acceptedReads: number;
+  ignoredDuplicates: number;
+  lastReadAt?: string;
+  lastBarcode?: string;
+  lastEpc?: string;
+  lastRssi?: number;
+}
+
+interface NormalizedNativeRFIDScan {
+  code: string;
+  epc?: string;
+  cai?: string;
+  rssi?: number;
+  seenCount?: number;
+  source: string;
+}
+
+interface NativeRFIDBridgeApi {
+  version: string;
+  receiveTag: (payload: NativeRFIDPayload) => void;
+  receiveStatus: (status: NativeRFIDStatus) => void;
+}
+
+declare global {
+  interface Window {
+    ConectaCupRFIDBridge?: NativeRFIDBridgeApi;
+    ZebraRFIDBridge?: {
+      startInventory?: () => void;
+      stopInventory?: () => void;
+      configure?: (config: unknown) => void;
+    };
+  }
+}
+
+const NATIVE_RFID_EVENT_NAME = 'conectacup:rfid-tag';
+const NATIVE_RFID_STATUS_EVENT_NAME = 'conectacup:rfid-status';
+const NATIVE_RFID_BRIDGE_VERSION = '1.0.0';
+const RFID_RECENT_DUPLICATE_WINDOW_MS = 5000;
+const RFID_RECENT_CACHE_TTL_MS = 30000;
+const RFID_PENDING_NATIVE_EVENTS_LIMIT = 64;
+
+let nativeRFIDTagSubscriber: ((payload: NativeRFIDPayload) => void) | null = null;
+let nativeRFIDStatusSubscriber: ((status: NativeRFIDStatus) => void) | null = null;
+let nativeRFIDBridgeEventsRegistered = false;
+let nativeRFIDBridgeReadyDispatched = false;
+const pendingNativeRFIDPayloads: NativeRFIDPayload[] = [];
+const pendingNativeRFIDStatuses: NativeRFIDStatus[] = [];
+
+const pushBoundedNativeEvent = <T,>(queue: T[], value: T) => {
+  queue.push(value);
+  if (queue.length > RFID_PENDING_NATIVE_EVENTS_LIMIT) {
+    queue.shift();
+  }
+};
+
+const deliverNativeRFIDTag = (payload: NativeRFIDPayload) => {
+  if (nativeRFIDTagSubscriber) {
+    nativeRFIDTagSubscriber(payload);
+    return;
+  }
+
+  pushBoundedNativeEvent(pendingNativeRFIDPayloads, payload);
+};
+
+const deliverNativeRFIDStatus = (status: NativeRFIDStatus) => {
+  if (nativeRFIDStatusSubscriber) {
+    nativeRFIDStatusSubscriber(status);
+    return;
+  }
+
+  pushBoundedNativeEvent(pendingNativeRFIDStatuses, status);
+};
+
+const ensureConectaCupRFIDBridge = () => {
+  if (typeof window === 'undefined') return;
+
+  window.ConectaCupRFIDBridge = {
+    version: NATIVE_RFID_BRIDGE_VERSION,
+    receiveTag: deliverNativeRFIDTag,
+    receiveStatus: deliverNativeRFIDStatus
+  };
+
+  if (!nativeRFIDBridgeEventsRegistered) {
+    window.addEventListener(NATIVE_RFID_EVENT_NAME, event => {
+      deliverNativeRFIDTag((event as CustomEvent<NativeRFIDPayload>).detail);
+    });
+    window.addEventListener(NATIVE_RFID_STATUS_EVENT_NAME, event => {
+      deliverNativeRFIDStatus((event as CustomEvent<NativeRFIDStatus>).detail);
+    });
+    nativeRFIDBridgeEventsRegistered = true;
+  }
+
+  if (!nativeRFIDBridgeReadyDispatched) {
+    console.log('📡 Bridge JS ConectaCupRFIDBridge registrado para leituras nativas Zebra');
+    window.dispatchEvent(new CustomEvent('conectacup:rfid-bridge-ready', {
+      detail: { version: NATIVE_RFID_BRIDGE_VERSION }
+    }));
+    nativeRFIDBridgeReadyDispatched = true;
+  }
+};
+
+ensureConectaCupRFIDBridge();
 
 // ✅ Função auxiliar para normalizar nomes de pilotos e garantir comparação precisa
 function normalizePilotName(name: string | null | undefined): string {
@@ -287,10 +410,18 @@ interface TireSet {
 
 interface QueuedTireScan {
   code: string;
+  epc?: string;
   jogo: number;
   position: number;
   inputKey: string;
   chassisIndex: number;
+}
+
+interface InlineScanOptions {
+  source?: 'keyboard' | 'inline' | 'native-rfid';
+  epc?: string;
+  rssi?: number;
+  suppressDecodeToast?: boolean;
 }
 
 interface TireSubmitContext {
@@ -301,8 +432,8 @@ interface TireSubmitContext {
 const SCANNER_AUTO_SUBMIT_DELAY_MS = 40;
 
 export function ConferirPneus() {
-  // 🔥 VERSÃO DA CORREÇÃO: v4.9.0 - Fila rápida de bipagem com salvamento seguro
-  console.log('🔥🔥🔥 ConferirPneus v4.9.0 - Fila rápida de bipagem com salvamento seguro');
+  // 🔥 VERSÃO DA CORREÇÃO: v4.10.0 - Bridge nativo Zebra RFID + anti-duplicidade
+  console.log('🔥🔥🔥 ConferirPneus v4.10.0 - Bridge nativo Zebra RFID + anti-duplicidade');
   console.log('📌 Correções aplicadas:');
   console.log('   ✅ v4.8.9: Footer fixo no modo coletor (rodapé com sombra superior)');
   console.log('   ✅ v4.8.9: Padding-bottom ajustado (pb-24) para conteúdo não ficar escondido');
@@ -310,6 +441,8 @@ export function ConferirPneus() {
   console.log('   ✅ v4.9.0: Fila serializada permite bipar o próximo pneu enquanto o anterior salva');
   console.log('   ✅ v4.9.0: Validação busca por _originalIndex ao invés de índice direto');
   console.log('   ✅ v4.9.0: Foco muda imediatamente para o próximo campo vazio');
+  console.log('   ✅ v4.10.0: Bridge JS para app nativo Zebra RFID');
+  console.log('   ✅ v4.10.0: Anti-duplicidade por EPC/barcode recente, fila e chassis atual');
   console.log('   ✅ v4.8.2: Logs de debug para rastrear quando chassis somem');
   console.log('   ✅ v4.8.2: Botão "Recarregar Sessão" quando lista fica vazia');
   console.log('   ✅ v4.8.3: Botão X circular perfeito (32x32px)');
@@ -322,7 +455,7 @@ export function ConferirPneus() {
   console.log('   ✅ v4.8.6: Timeout otimizado com cache-first no ProtectedRoute');
   console.log('   ✅ v4.8.7: Botão X dos toasts circular perfeito (aspectRatio + !important)');
   console.log('');
-  console.log('📝 FLUXO DA BIPAGEM (v4.9.0):');
+  console.log('📝 FLUXO DA BIPAGEM (v4.10.0):');
   console.log('   1️⃣ Usuário bipa código');
   console.log('   2️⃣ Campo atual entra na fila e mostra Salvando...');
   console.log('   3️⃣ Próximo campo vazio recebe foco imediatamente');
@@ -396,6 +529,10 @@ export function ConferirPneus() {
   const tireSetsRef = useRef<TireSet[]>([]);
   const scanQueueRef = useRef<Promise<void>>(Promise.resolve());
   const queuedInputKeysRef = useRef<Set<string>>(new Set());
+  const queuedScanCodesRef = useRef<Set<string>>(new Set());
+  const recentRFIDReadsRef = useRef<Map<string, number>>(new Map());
+  const nativeRFIDHandlerRef = useRef<(payload: NativeRFIDPayload) => void>(() => undefined);
+  const nativeRFIDStatusHandlerRef = useRef<(status: NativeRFIDStatus) => void>(() => undefined);
   
   // 🔥🔥🔥 WRAPPER COM LOG EXTREMO para rastrear TODAS as atualizações
   const setTireSets = (value: TireSet[] | ((prev: TireSet[]) => TireSet[])) => {
@@ -414,6 +551,8 @@ export function ConferirPneus() {
   const [isEditMode, setIsEditMode] = useState(false); // Controla se está em modo de edição
   const [activeJogo, setActiveJogo] = useState(1);
   const [activePneuPosition, setActivePneuPosition] = useState(0); // 0-3 (posição dentro do jogo)
+  const activeJogoRef = useRef(1);
+  const activePneuPositionRef = useRef(0);
   const [tireCodeInput, setTireCodeInput] = useState('');
   const tireInputRef = useRef<HTMLInputElement>(null);
   const autoSubmitTimerRef = useRef<NodeJS.Timeout | null>(null); // Timer para auto-submit após scanner
@@ -439,6 +578,40 @@ export function ConferirPneus() {
   // 🔥 NOVO v4.7.0: Estado para rastrear inputs em processamento (evita "piscar" no mobile)
   const [processingInputs, setProcessingInputs] = useState<Record<string, boolean>>({});
   // Key format: "jogo-position" (ex: "1-0", "2-3")
+  const [nativeRFIDStatus, setNativeRFIDStatus] = useState<NativeRFIDStatusState>({
+    available: false,
+    connected: false,
+    mode: 'unknown',
+    acceptedReads: 0,
+    ignoredDuplicates: 0
+  });
+
+  useEffect(() => {
+    const tagSubscriber = (payload: NativeRFIDPayload) => nativeRFIDHandlerRef.current(payload);
+    const statusSubscriber = (status: NativeRFIDStatus) => nativeRFIDStatusHandlerRef.current(status);
+
+    nativeRFIDTagSubscriber = tagSubscriber;
+    nativeRFIDStatusSubscriber = statusSubscriber;
+    ensureConectaCupRFIDBridge();
+
+    while (pendingNativeRFIDStatuses.length > 0) {
+      statusSubscriber(pendingNativeRFIDStatuses.shift() as NativeRFIDStatus);
+    }
+
+    while (pendingNativeRFIDPayloads.length > 0) {
+      tagSubscriber(pendingNativeRFIDPayloads.shift() as NativeRFIDPayload);
+    }
+
+    return () => {
+      if (nativeRFIDTagSubscriber === tagSubscriber) {
+        nativeRFIDTagSubscriber = null;
+      }
+
+      if (nativeRFIDStatusSubscriber === statusSubscriber) {
+        nativeRFIDStatusSubscriber = null;
+      }
+    };
+  }, []);
   
   // 🎉 NOVO: Estados para modal de resumo e progresso de salvamento
   const [showSummaryModal, setShowSummaryModal] = useState(false);
@@ -521,6 +694,14 @@ export function ConferirPneus() {
   useEffect(() => {
     selectedChassisIndexRef.current = selectedChassisIndex;
   }, [selectedChassisIndex]);
+
+  useEffect(() => {
+    activeJogoRef.current = activeJogo;
+  }, [activeJogo]);
+
+  useEffect(() => {
+    activePneuPositionRef.current = activePneuPosition;
+  }, [activePneuPosition]);
 
   useEffect(() => {
     activeSessionIdRef.current = activeSessionId;
@@ -4501,8 +4682,168 @@ export function ConferirPneus() {
     }
   };
 
-  const releaseProcessingInput = (inputKey: string) => {
+  const normalizeNativeRFIDPayload = (payload: NativeRFIDPayload): NormalizedNativeRFIDScan | null => {
+    const rawPayload = typeof payload === 'string' ? { epc: payload, source: 'native-rfid' } : payload;
+    const source = rawPayload.source || 'native-rfid';
+    const epc = rawPayload.epc ? normalizeScannerCode(rawPayload.epc) : undefined;
+    const explicitCode = normalizeScannerCode(rawPayload.barcode || rawPayload.code || '');
+
+    if (explicitCode && isBarcodeCode(explicitCode)) {
+      return {
+        code: explicitCode,
+        epc,
+        cai: rawPayload.cai,
+        rssi: rawPayload.rssi,
+        seenCount: rawPayload.seenCount,
+        source
+      };
+    }
+
+    if (epc && isRFIDCode(epc)) {
+      const decoded = decodeRFID(epc);
+      if (!decoded) return null;
+
+      return {
+        code: decoded.barcode,
+        epc,
+        cai: rawPayload.cai || decoded.cai,
+        rssi: rawPayload.rssi,
+        seenCount: rawPayload.seenCount,
+        source
+      };
+    }
+
+    return null;
+  };
+
+  const pruneRecentRFIDReads = (now = Date.now()) => {
+    for (const [key, timestamp] of recentRFIDReadsRef.current.entries()) {
+      if (now - timestamp > RFID_RECENT_CACHE_TTL_MS) {
+        recentRFIDReadsRef.current.delete(key);
+      }
+    }
+  };
+
+  const registerIgnoredRFIDRead = () => {
+    setNativeRFIDStatus(prev => ({
+      ...prev,
+      available: true,
+      ignoredDuplicates: prev.ignoredDuplicates + 1
+    }));
+  };
+
+  const isCodeAlreadyInCurrentTireSets = (code: string, sourceSets: TireSet[] = tireSetsRef.current) => {
+    const normalizedCode = normalizeScannerCode(code);
+    return sourceSets.some(set =>
+      set.tires.some(tire => normalizeScannerCode(tire.codigo || '') === normalizedCode)
+    );
+  };
+
+  const shouldRejectDuplicateScan = ({
+    code,
+    epc,
+    source
+  }: {
+    code: string;
+    epc?: string;
+    source: InlineScanOptions['source'];
+  }) => {
+    const normalizedCode = normalizeScannerCode(code);
+    const normalizedEpc = epc ? normalizeScannerCode(epc) : undefined;
+    const now = Date.now();
+    const identifiers = [`code:${normalizedCode}`];
+
+    if (normalizedEpc) {
+      identifiers.push(`epc:${normalizedEpc}`);
+    }
+
+    pruneRecentRFIDReads(now);
+
+    const recentlyRead = identifiers.some(identifier => {
+      const lastReadAt = recentRFIDReadsRef.current.get(identifier);
+      return lastReadAt !== undefined && now - lastReadAt < RFID_RECENT_DUPLICATE_WINDOW_MS;
+    });
+
+    const alreadyQueued = queuedScanCodesRef.current.has(normalizedCode);
+    const alreadyRegistered = isCodeAlreadyInCurrentTireSets(normalizedCode);
+
+    if (recentlyRead || alreadyQueued || alreadyRegistered) {
+      console.log('🚫 Leitura duplicada ignorada:', {
+        code: normalizedCode,
+        epc: normalizedEpc,
+        source,
+        recentlyRead,
+        alreadyQueued,
+        alreadyRegistered
+      });
+
+      if (source === 'native-rfid') {
+        registerIgnoredRFIDRead();
+      } else if (alreadyRegistered || alreadyQueued) {
+        toast.warning('Código já registrado neste chassis', {
+          description: normalizedCode,
+          duration: 1800
+        });
+      }
+
+      return true;
+    }
+
+    identifiers.forEach(identifier => {
+      recentRFIDReadsRef.current.set(identifier, now);
+    });
+
+    return false;
+  };
+
+  const findAvailableInlineScanTarget = (sourceSets: TireSet[] = tireSetsRef.current): { jogo: number; position: number } | null => {
+    const activeJogoValue = activeJogoRef.current;
+    const activePositionValue = activePneuPositionRef.current;
+    const isAvailable = (set: TireSet, tire: TireData, visualIndex: number) => {
+      const originalIndex = tire._originalIndex ?? visualIndex;
+      return (!tire.codigo || tire.codigo === '-') && !queuedInputKeysRef.current.has(`${set.jogo}-${originalIndex}`);
+    };
+
+    const activeSet = sourceSets.find(set => set.jogo === activeJogoValue);
+    if (activeSet) {
+      const activeVisualIndex = activeSet.tires.findIndex((tire, idx) => (tire._originalIndex ?? idx) === activePositionValue);
+      if (activeVisualIndex !== -1 && isAvailable(activeSet, activeSet.tires[activeVisualIndex], activeVisualIndex)) {
+        return { jogo: activeJogoValue, position: activePositionValue };
+      }
+
+      for (let index = Math.max(activeVisualIndex + 1, 0); index < activeSet.tires.length; index++) {
+        const tire = activeSet.tires[index];
+        if (isAvailable(activeSet, tire, index)) {
+          return { jogo: activeSet.jogo, position: tire._originalIndex ?? index };
+        }
+      }
+    }
+
+    for (const set of sourceSets.filter(set => set.jogo > activeJogoValue)) {
+      const visualIndex = set.tires.findIndex((tire, idx) => isAvailable(set, tire, idx));
+      if (visualIndex !== -1) {
+        const tire = set.tires[visualIndex];
+        return { jogo: set.jogo, position: tire._originalIndex ?? visualIndex };
+      }
+    }
+
+    for (const set of sourceSets) {
+      const visualIndex = set.tires.findIndex((tire, idx) => isAvailable(set, tire, idx));
+      if (visualIndex !== -1) {
+        const tire = set.tires[visualIndex];
+        return { jogo: set.jogo, position: tire._originalIndex ?? visualIndex };
+      }
+    }
+
+    return null;
+  };
+
+  const releaseProcessingInput = (inputKey: string, code?: string) => {
     queuedInputKeysRef.current.delete(inputKey);
+    if (code) {
+      queuedScanCodesRef.current.delete(normalizeScannerCode(code));
+    }
+
     setProcessingInputs(prev => {
       const updated = { ...prev };
       delete updated[inputKey];
@@ -4586,7 +4927,7 @@ export function ConferirPneus() {
             duration: 5000
           });
         } finally {
-          releaseProcessingInput(scan.inputKey);
+          releaseProcessingInput(scan.inputKey, scan.code);
         }
       });
   };
@@ -4649,12 +4990,13 @@ export function ConferirPneus() {
   };
 
   // 🆕 Função para submeter código inline (direto na linha)
-  const handleTireCodeSubmitInline = (code: string, jogo: number, position: number) => {
+  const handleTireCodeSubmitInline = (code: string, jogo: number, position: number, options: InlineScanOptions = {}): boolean => {
     const inputKey = `${jogo}-${position}`;
     const normalizedCode = normalizeScannerCode(code);
     const currentTireSets = tireSetsRef.current.length > 0 ? tireSetsRef.current : tireSets;
     const currentSelectedChassisIndex = selectedChassisIndexRef.current ?? selectedChassisIndex;
     const currentExtractedData = extractedDataRef.current.length > 0 ? extractedDataRef.current : extractedData;
+    const scanSource = options.source || 'inline';
 
     clearInlineAutoSubmitTimer(inputKey);
 
@@ -4664,16 +5006,17 @@ export function ConferirPneus() {
 
     if (!normalizedCode) {
       console.log('❌ Input vazio, abortando');
-      return;
+      return false;
     }
 
     if (queuedInputKeysRef.current.has(inputKey)) {
       console.log(`🚫 Input ${inputKey} já está na fila de salvamento.`);
-      return;
+      return false;
     }
 
     // 📡 Detecta e decodifica RFID antes de processar
     let processedCode = normalizedCode;
+    let epcCode = options.epc ? normalizeScannerCode(options.epc) : undefined;
     if (isRFIDCode(normalizedCode)) {
       console.log('📡 RFID detectado no input inline:', normalizedCode);
       const rfidData = decodeRFID(normalizedCode);
@@ -4682,28 +5025,31 @@ export function ConferirPneus() {
         toast.error('Erro ao decodificar RFID', {
           description: 'O código RFID não pôde ser decodificado.',
         });
-        return;
+        return false;
       }
 
       console.log('✅ RFID decodificado:', rfidData.barcode, '(CAI:', rfidData.cai + ')');
       processedCode = rfidData.barcode;
+      epcCode = normalizedCode;
 
-      toast.success('RFID Decodificado', {
-        description: `CAI: ${rfidData.cai} | Código: ${rfidData.barcode}`,
-        duration: 2000,
-      });
+      if (!options.suppressDecodeToast) {
+        toast.success('RFID Decodificado', {
+          description: `CAI: ${rfidData.cai} | Código: ${rfidData.barcode}`,
+          duration: 2000,
+        });
+      }
     }
 
     if (currentSelectedChassisIndex === null) {
       console.error('❌ Nenhum chassis selecionado!');
       toast.error('Selecione um chassis antes de conferir pneus');
-      return;
+      return false;
     }
 
     if (currentTireSets.length === 0) {
       console.error('❌ TireSets não inicializado!', { jogo, tireSets: currentTireSets });
       toast.error('Erro: Sessão de conferência não inicializada. Feche e abra o chassis novamente.');
-      return;
+      return false;
     }
 
     console.log('🔍 Procurando jogo no tireSets...');
@@ -4715,7 +5061,7 @@ export function ConferirPneus() {
       console.error('❌ Procurando jogo:', jogo, '(type:', typeof jogo, ')');
       console.error('❌ tireSets:', currentTireSets);
       toast.error(`Erro: Jogo ${jogo} não encontrado!`);
-      return;
+      return false;
     }
 
     const tiresWithIndex = currentSet.tires.map((t, idx) => ({
@@ -4728,22 +5074,27 @@ export function ConferirPneus() {
       console.error('❌ Pneu com _originalIndex', position, 'não encontrado!');
       console.error('❌ Pneus disponíveis:', tiresWithIndex.map((t, i) => ({ idx: i, _originalIndex: t._originalIndex, posicao: t.posicao })));
       toast.error(`Erro: Pneu na posição ${position} não encontrado!`);
-      return;
+      return false;
     }
 
     if (position < 0 || position > 3) {
       console.error('❌ Posição inválida!', { position });
       toast.error('Erro: Posição inválida');
-      return;
+      return false;
     }
 
     if (!currentExtractedData[currentSelectedChassisIndex]) {
       console.error('❌ Chassis não encontrado para a fila de bipagem!', { currentSelectedChassisIndex });
       toast.error('Erro: chassis não encontrado. Feche e abra novamente.');
-      return;
+      return false;
+    }
+
+    if (shouldRejectDuplicateScan({ code: processedCode, epc: epcCode, source: scanSource })) {
+      return false;
     }
 
     queuedInputKeysRef.current.add(inputKey);
+    queuedScanCodesRef.current.add(processedCode);
     setIsProcessingTireCode(true);
     setProcessingInputs(prev => ({ ...prev, [inputKey]: true }));
 
@@ -4753,11 +5104,85 @@ export function ConferirPneus() {
 
     enqueueInlineScan({
       code: processedCode,
+      epc: epcCode,
       jogo,
       position,
       inputKey,
       chassisIndex: currentSelectedChassisIndex
     });
+
+    return true;
+  };
+
+  const handleNativeRFIDTag = (payload: NativeRFIDPayload) => {
+    const scan = normalizeNativeRFIDPayload(payload);
+
+    if (!scan) {
+      console.warn('⚠️ Leitura RFID nativa ignorada: payload inválido', payload);
+      registerIgnoredRFIDRead();
+      return;
+    }
+
+    const currentTireSets = tireSetsRef.current.length > 0 ? tireSetsRef.current : tireSets;
+    const currentSelectedChassisIndex = selectedChassisIndexRef.current;
+
+    setNativeRFIDStatus(prev => ({
+      ...prev,
+      available: true,
+      connected: true,
+      mode: prev.mode === 'unknown' ? 'sdk' : prev.mode,
+      lastReadAt: new Date().toISOString(),
+      lastBarcode: scan.code,
+      lastEpc: scan.epc,
+      lastRssi: scan.rssi
+    }));
+
+    if (!isEditMode || currentSelectedChassisIndex === null || currentTireSets.length === 0) {
+      console.log('🚫 Leitura RFID nativa recebida fora do modo de edição:', {
+        isEditMode,
+        currentSelectedChassisIndex,
+        tireSetsLength: currentTireSets.length
+      });
+      registerIgnoredRFIDRead();
+      return;
+    }
+
+    const target = findAvailableInlineScanTarget(currentTireSets);
+    if (!target) {
+      console.log('🚫 Leitura RFID nativa ignorada: nenhum campo vazio disponível', scan);
+      registerIgnoredRFIDRead();
+      toast.info('Todos os campos deste chassis já foram preenchidos', {
+        duration: 1800
+      });
+      return;
+    }
+
+    const accepted = handleTireCodeSubmitInline(scan.epc || scan.code, target.jogo, target.position, {
+      source: 'native-rfid',
+      epc: scan.epc,
+      rssi: scan.rssi,
+      suppressDecodeToast: true
+    });
+
+    if (accepted) {
+      setNativeRFIDStatus(prev => ({
+        ...prev,
+        acceptedReads: prev.acceptedReads + 1,
+        lastReadAt: new Date().toISOString(),
+        lastBarcode: scan.code,
+        lastEpc: scan.epc,
+        lastRssi: scan.rssi
+      }));
+    }
+  };
+
+  nativeRFIDHandlerRef.current = handleNativeRFIDTag;
+  nativeRFIDStatusHandlerRef.current = (status: NativeRFIDStatus) => {
+    setNativeRFIDStatus(prev => ({
+      ...prev,
+      ...status,
+      available: status.available ?? true
+    }));
   };
 
   // 🔥 FUNÇÃO DE AUTO-SALVAMENTO NO SUPABASE (tempo real com auditoria)
@@ -5291,6 +5716,7 @@ export function ConferirPneus() {
     }
     
     let code = normalizeScannerCode(codeOverride || tireCodeInput);
+    let epcCode: string | undefined;
     const targetIndex = positionOverride !== undefined ? positionOverride : activePneuPosition; // 🔥 Usa positionOverride se fornecido
     const targetJogo = context?.jogo ?? activeJogo;
     const targetChassisIndex = context?.chassisIndex ?? selectedChassisIndexRef.current ?? selectedChassisIndex;
@@ -5310,6 +5736,7 @@ export function ConferirPneus() {
 
     // 📡 Detecta e decodifica RFID
     if (isRFIDCode(code)) {
+      epcCode = code;
       console.log('📡 ========================================');
       console.log('📡 CÓDIGO RFID DETECTADO!');
       console.log('📡 Código:', code);
@@ -5371,6 +5798,11 @@ export function ConferirPneus() {
     if (!currentSet) {
       console.error('❌ Jogo ativo não encontrado!', { targetJogo, tireSets: currentTireSets });
       toast.error(`Erro: Jogo ${targetJogo} não encontrado. Feche e abra o chassis novamente.`);
+      clearTireInput();
+      return;
+    }
+
+    if (!context && shouldRejectDuplicateScan({ code, epc: epcCode, source: 'keyboard' })) {
       clearTireInput();
       return;
     }
@@ -7574,6 +8006,21 @@ onKeyDown={(e) => {
                   >
                     Jogo {activeJogo} - Pneu {activePneuPosition + 1}/4
                   </div>
+                  {nativeRFIDStatus.available && (
+                    <div
+                      className="px-2 py-1 rounded text-xs font-semibold collector-adapt-badge"
+                      style={{
+                        background: nativeRFIDStatus.connected ? '#DCFCE7' : '#FEF3C7',
+                        color: nativeRFIDStatus.connected ? '#166534' : '#92400E',
+                        border: nativeRFIDStatus.connected ? '1px solid #86EFAC' : '1px solid #FCD34D'
+                      }}
+                      title="Status do bridge nativo Zebra RFID"
+                    >
+                      RFID nativo {nativeRFIDStatus.connected ? 'ativo' : 'aguardando'}
+                      {nativeRFIDStatus.lastRssi !== undefined ? ` • RSSI ${nativeRFIDStatus.lastRssi}` : ''}
+                      {nativeRFIDStatus.ignoredDuplicates > 0 ? ` • ${nativeRFIDStatus.ignoredDuplicates} dup.` : ''}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

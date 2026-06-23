@@ -5,7 +5,7 @@
  */
 import { useState, useEffect, useRef } from 'react';
 import { generateUUID } from '../utils/uuid';
-import { Search, CheckCircle, X, Package as PackageIcon, AlertCircle, Keyboard, CheckCircle2, Camera, Focus, FileUp, Layers, Plus, Upload, Undo2, Zap, ChevronDown, Download } from 'lucide-react';
+import { Search, CheckCircle, X, Package as PackageIcon, AlertCircle, Keyboard, CheckCircle2, Camera, Focus, FileUp, Layers, Plus, Upload, Undo2, Zap, ChevronDown, Download, Radio } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
@@ -17,7 +17,7 @@ import { Progress } from './ui/progress';
 import { Skeleton } from './ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Textarea } from './ui/textarea';
-import { toast } from 'sonner';
+import { toast } from 'sonner@2.0.3';
 import { PageHeader } from './PageHeader';
 import { EmptyState } from './EmptyState';
 import { StockEntrySkeleton } from './LoadingSkeleton';
@@ -41,17 +41,18 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from './ui/alert-dialog';
-import { 
-  getTireModels, 
-  getContainers, 
+import {
+  getTireModels,
+  getContainers,
   getStockEntries,
-  saveStockEntry, 
+  saveStockEntry,
   deleteStockEntry,
   checkBarcodeExists,
-  type TireModel, 
+  type TireModel,
   type Container,
-  type StockEntry 
+  type StockEntry
 } from '../utils/storage';
+import { RFIDStockPortal } from './RFIDStockPortal';
 
 export interface TireEntry {
   id: string;
@@ -95,12 +96,13 @@ export function TireStockEntry({ onEntriesChange, hideFinishButton = false }: Ti
   const [modelCounts, setModelCounts] = useState<Record<string, number>>({});
   const [autoFocusEnabled, setAutoFocusEnabled] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'individual' | 'bulk' | 'spreadsheet'>('individual');
+  const [activeTab, setActiveTab] = useState<'individual' | 'bulk' | 'spreadsheet' | 'rfid'>('individual');
   const [isQuickSelectionExpanded, setIsQuickSelectionExpanded] = useState(false);
   const [isContainerSectionExpanded, setIsContainerSectionExpanded] = useState(false);
   const [noBarcode, setNoBarcode] = useState(false); // 🆕 Modo "Sem Código de Barras"
   const [setupStep, setSetupStep] = useState<'container' | 'model' | 'scanning'>('container'); // 🆕 Wizard de configuração inicial
   const inputRef = useRef<HTMLInputElement>(null);
+  const activeTabRef = useRef(activeTab);
   const lastShortcutTime = useRef<number>(0);
   const allowAutoFocus = useRef<boolean>(true);
   const tableScrollRef = useRef<HTMLDivElement>(null); // 🎯 Ref para scroll automático da tabela
@@ -374,7 +376,8 @@ export function TireStockEntry({ onEntriesChange, hideFinishButton = false }: Ti
 
   // 🆕 Reset setupStep quando mudar de aba
   useEffect(() => {
-    if (activeTab !== 'individual') {
+    activeTabRef.current = activeTab;
+    if (activeTab !== 'individual' && activeTab !== 'rfid') {
       setSetupStep('scanning');
     }
   }, [activeTab]);
@@ -400,6 +403,9 @@ export function TireStockEntry({ onEntriesChange, hideFinishButton = false }: Ti
   // 🛡️ PROTEÇÃO: Previne navegação acidental com teclas do coletor
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Não interfere com o Portal RFID
+      if (activeTabRef.current === 'rfid') return;
+
       // Previne ESC de sair da página
       if (e.key === 'Escape') {
         e.preventDefault();
@@ -444,6 +450,9 @@ export function TireStockEntry({ onEntriesChange, hideFinishButton = false }: Ti
     const SCANNER_THRESHOLD = 50; // Tempo em ms para detectar scanner (muito rápido)
 
     const handleKeyPress = (e: KeyboardEvent) => {
+      // Não interfere com o Portal RFID
+      if (activeTabRef.current === 'rfid') return;
+
       const currentTime = Date.now();
       const timeDiff = currentTime - lastKeyTime;
       lastKeyTime = currentTime;
@@ -517,7 +526,7 @@ export function TireStockEntry({ onEntriesChange, hideFinishButton = false }: Ti
       return;
     }
 
-    // 🎯 Apenas no modo Individual
+    // 🎯 Apenas no modo Individual (RFID tem seu próprio listener)
     if (activeTab !== 'individual') {
       return;
     }
@@ -2484,7 +2493,7 @@ export function TireStockEntry({ onEntriesChange, hideFinishButton = false }: Ti
         actions={
           <div className="flex items-center gap-2 flex-shrink-0">
           {/* Selector de Modo (Individual/Lote/Planilha) */}
-          <Select value={activeTab} onValueChange={(value) => setActiveTab(value as 'individual' | 'bulk' | 'spreadsheet')}>
+          <Select value={activeTab} onValueChange={(value) => setActiveTab(value as 'individual' | 'bulk' | 'spreadsheet' | 'rfid')}>
             <SelectTrigger className="w-[140px] sm:w-[160px] h-9 text-xs sm:text-sm bg-white">
               <SelectValue>
                 {activeTab === 'individual' && (
@@ -2503,6 +2512,12 @@ export function TireStockEntry({ onEntriesChange, hideFinishButton = false }: Ti
                   <span className="flex items-center gap-1.5">
                     <FileUp size={14} />
                     Planilha
+                  </span>
+                )}
+                {activeTab === 'rfid' && (
+                  <span className="flex items-center gap-1.5">
+                    <Radio size={14} />
+                    Portal RFID
                   </span>
                 )}
               </SelectValue>
@@ -2524,6 +2539,12 @@ export function TireStockEntry({ onEntriesChange, hideFinishButton = false }: Ti
                 <div className="flex items-center gap-2">
                   <FileUp size={16} />
                   <span>Entrada Planilha</span>
+                </div>
+              </SelectItem>
+              <SelectItem value="rfid">
+                <div className="flex items-center gap-2">
+                  <Radio size={16} />
+                  <span>Portal RFID</span>
                 </div>
               </SelectItem>
             </SelectContent>
@@ -2748,12 +2769,21 @@ export function TireStockEntry({ onEntriesChange, hideFinishButton = false }: Ti
                 {tireModels.find(m => m.id === selectedModel)?.name || 'Modelo'}
               </span>
             </button>
+            {/* Botão Portal RFID visível no mobile */}
+            <button
+              onClick={() => setActiveTab('rfid')}
+              className="flex items-center gap-1.5 px-2 py-1 bg-blue-50 hover:bg-blue-100 border border-blue-300 rounded text-xs transition-all hover:border-blue-400"
+              title="Abrir Portal RFID"
+            >
+              <Radio size={12} className="text-blue-600" />
+              <span className="text-blue-700 font-medium">Portal RFID</span>
+            </button>
           </div>
         )}
       </div>
       )}
 
-      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'individual' | 'bulk' | 'spreadsheet')} className="space-y-3 sm:space-y-4 mt-[5px]">
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'individual' | 'bulk' | 'spreadsheet' | 'rfid')} className="space-y-3 sm:space-y-4 mt-[5px]">
 
         {/* ABA: ENTRADA INDIVIDUAL */}
         <TabsContent value="individual" className="space-y-3 sm:space-y-4">
@@ -3506,6 +3536,18 @@ export function TireStockEntry({ onEntriesChange, hideFinishButton = false }: Ti
               })()}
             </div>
           </div>
+        </TabsContent>
+
+        {/* ABA: PORTAL RFID */}
+        <TabsContent value="rfid" className="space-y-3 sm:space-y-4">
+          <RFIDStockPortal
+            tireModels={tireModels}
+            containers={containers}
+            onEntriesAdded={(newEntries) => {
+              setEntries(prev => [...newEntries, ...prev]);
+              onEntriesChange?.([...newEntries, ...entries]);
+            }}
+          />
         </TabsContent>
       </Tabs>
 

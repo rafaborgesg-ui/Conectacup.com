@@ -11,7 +11,7 @@ import { Checkbox } from './ui/checkbox';
 import { Progress } from './ui/progress';
 import { Textarea } from './ui/textarea';
 import { Skeleton } from './ui/skeleton';
-import { toast } from 'sonner';
+import { toast } from 'sonner@2.0.3';
 import { toastMovement, toastUndoable } from '../utils/toastHelpers';
 import { RFIDPortal } from './RFIDPortal';
 import {

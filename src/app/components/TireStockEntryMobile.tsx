@@ -13,16 +13,16 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { generateUUID } from '../utils/uuid';
-import { 
-  PackageIcon, CheckCircle, Trash2, BarChart3, Wifi, WifiOff, 
-  Camera, RefreshCw, Layers, FileUp, AlertCircle, X, Zap 
+import {
+  PackageIcon, CheckCircle, Trash2, BarChart3, Wifi, WifiOff,
+  Camera, RefreshCw, Layers, FileUp, AlertCircle, X, Zap, Radio
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Textarea } from './ui/textarea';
 import { Progress } from './ui/progress';
-import { toast } from 'sonner';
+import { toast } from 'sonner@2.0.3';
 import { BarcodeScanner } from './BarcodeScanner';
 import { useHaptic } from './TouchFeedback';
 import { BarcodeConfirmationAnimation } from './BarcodeConfirmationAnimation';
@@ -36,6 +36,7 @@ import {
   type Container,
   type StockEntry
 } from '../utils/storage';
+import { RFIDStockPortal } from './RFIDStockPortal';
 
 interface TireEntry {
   id: string;
@@ -712,10 +713,13 @@ export function TireStockEntryMobile() {
 
       {/* Tabs */}
       <Tabs defaultValue="individual" className="flex-1 flex flex-col overflow-hidden">
-        <TabsList className="grid grid-cols-3 mx-4 mt-2 flex-shrink-0">
+        <TabsList className="grid grid-cols-4 mx-4 mt-2 flex-shrink-0">
           <TabsTrigger value="individual" className="text-xs">Individual</TabsTrigger>
           <TabsTrigger value="bulk" className="text-xs">Lote</TabsTrigger>
           <TabsTrigger value="spreadsheet" className="text-xs">Planilha</TabsTrigger>
+          <TabsTrigger value="rfid" className="text-xs flex items-center gap-1">
+            <Radio className="w-3 h-3" />RFID
+          </TabsTrigger>
         </TabsList>
 
         {/* TAB: INDIVIDUAL */}
@@ -1029,6 +1033,14 @@ export function TireStockEntryMobile() {
               )}
             </Button>
           </div>
+        </TabsContent>
+
+        {/* TAB: PORTAL RFID */}
+        <TabsContent value="rfid" className="flex-1 overflow-y-auto p-4 mt-0">
+          <RFIDStockPortal
+            tireModels={tireModels}
+            containers={containers}
+          />
         </TabsContent>
       </Tabs>
 

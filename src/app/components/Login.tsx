@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router';
 import { Eye, EyeOff, Mail, Lock, LogIn, Loader2, ArrowLeft, CheckCircle2, AlertCircle } from 'lucide-react';
 import { createClient } from '../utils/supabase/client';
 import { getCurrentUser } from '../utils/supabase/client';
-import { toast } from 'sonner';
+import { toast } from 'sonner@2.0.3';
 import porscheCupLogo from 'figma:asset/3ae08ff326060d9638298673cda23da363101b9f.png';
 import bgImage from 'figma:asset/259c0344182d6b72c303b23272de9d50609534c2.png';
 import { SplashScreen } from './SplashScreen';

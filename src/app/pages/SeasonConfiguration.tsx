@@ -14,7 +14,7 @@ import { useState, useEffect } from 'react';
 import { CategoryModal, CategoryFormData } from '../components/CategoryModal';
 import { SeasonModal, SeasonFormData } from '../components/SeasonModal';
 import { getMasterData, getTireModels, type MasterDataItem } from '../utils/storage';
-import { toast } from 'sonner';
+import { toast } from 'sonner@2.0.3';
 import {
   fetchSeasonCategories,
   createSeasonCategory,

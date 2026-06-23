@@ -3,7 +3,7 @@
  * Wrapper consistente ao redor do Sonner com estilos padronizados da marca
  */
 
-import { toast } from 'sonner';
+import { toast } from 'sonner@2.0.3';
 import { CheckCircle, XCircle, AlertTriangle, Info, Trash2, Package, ArrowRightLeft } from 'lucide-react';
 
 // Configurações padrão para diferentes tipos de ação

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Radio, Zap, CheckCircle2, Clock, TrendingUp, Box, ArrowRight } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Radio, Zap, CheckCircle2, Clock, TrendingUp, Box, ArrowRight, Maximize2, Minimize2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { toast } from 'sonner';
@@ -66,12 +67,13 @@ export function RFIDPortal() {
   const [selectedContainer, setSelectedContainer] = useState<string>('');
   const [isMoving, setIsMoving] = useState(false);
   const [scanBuffer, setScanBuffer] = useState<string>('');
+  const [isTableFullscreen, setIsTableFullscreen] = useState(false);
   const [stats, setStats] = useState({
     totalReads: 0,
     uniqueTags: 0,
     duplicates: 0,
     readsPerMinute: 0,
-    sessionStart: Date.now(),
+    sessionStart: 0,
   });
 
   const inputRef = useRef<HTMLInputElement>(null);
@@ -82,6 +84,22 @@ export function RFIDPortal() {
   const scanTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const loadContainers = async () => {
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from('containers')
+        .select('*')
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+      if (data && data.length > 0) {
+        setContainers(data);
+        return;
+      }
+    } catch (error) {
+      console.error('❌ Erro ao buscar contêineres do Supabase:', error);
+    }
+    // fallback para a função original caso Supabase falhe
     const containerList = await getContainers();
     setContainers(containerList);
   };
@@ -530,10 +548,70 @@ export function RFIDPortal() {
     }
   };
 
-  const sessionDuration = Date.now() - stats.sessionStart;
+  const sessionDuration = isActive && stats.sessionStart > 0 ? Date.now() - stats.sessionStart : 0;
+
+  const ReadingRow = ({ reading }: { reading: RFIDReading }) => (
+    <>
+      {/* Mobile card */}
+      <div
+        id={`rfid-${reading.rfid}`}
+        className="sm:hidden flex items-start gap-3 px-4 py-3 border-b border-gray-100 hover:bg-gray-50 transition-colors"
+      >
+        <div className="mt-0.5 flex-shrink-0">
+          {reading.tireData
+            ? <CheckCircle2 className="w-4 h-4 text-green-500" />
+            : <span className="w-4 h-4 rounded-full border-2 border-yellow-400 inline-block" />}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-mono font-semibold text-gray-900">{reading.barcode}</span>
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              {reading.readCount > 1 && (
+                <span className="text-[10px] px-1.5 py-0.5 bg-yellow-100 text-yellow-700 rounded">{reading.readCount}x</span>
+              )}
+              <span className="text-xs text-gray-400">{new Date(reading.timestamp).toLocaleTimeString('pt-BR')}</span>
+            </div>
+          </div>
+          {reading.tireData ? (
+            <div className="mt-0.5 text-xs text-gray-500 truncate">
+              {[reading.tireData.model_name, reading.tireData.pilot, reading.tireData.container_name].filter(Boolean).join(' · ')}
+            </div>
+          ) : (
+            <div className="mt-0.5 text-xs text-yellow-600">Não encontrado no estoque</div>
+          )}
+        </div>
+      </div>
+
+      {/* Desktop table row */}
+      <div
+        id={`rfid-${reading.rfid}`}
+        className="hidden sm:grid grid-cols-[2rem_1fr_1fr_1fr_1fr_1fr_6rem] items-center gap-x-4 px-4 py-2 hover:bg-gray-50 transition-colors duration-150 text-sm border-b border-gray-100"
+      >
+        <div className="flex justify-center">
+          {reading.tireData
+            ? <CheckCircle2 className="w-4 h-4 text-green-500" />
+            : <span className="w-4 h-4 rounded-full border-2 border-yellow-400 inline-block" />}
+        </div>
+        <div className="font-mono text-gray-900 font-medium truncate">
+          {reading.barcode}
+          <div className="text-[10px] text-gray-400 font-normal truncate">{reading.rfid}</div>
+        </div>
+        <div className="text-gray-700 truncate">{reading.tireData?.model_name || <span className="text-gray-300">-</span>}</div>
+        <div className="text-gray-700 truncate">{reading.tireData?.pilot || <span className="text-gray-300">-</span>}</div>
+        <div className="text-gray-700 truncate">{reading.tireData?.categoria || <span className="text-gray-300">-</span>}</div>
+        <div className="text-gray-700 truncate">{reading.tireData?.container_name || <span className="text-gray-300">-</span>}</div>
+        <div className="flex flex-col items-end gap-1">
+          <span className="text-xs text-gray-400">{new Date(reading.timestamp).toLocaleTimeString('pt-BR')}</span>
+          {reading.readCount > 1 && (
+            <span className="text-[10px] px-1.5 py-0.5 bg-yellow-100 text-yellow-700 rounded">{reading.readCount}x</span>
+          )}
+        </div>
+      </div>
+    </>
+  );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white">
+    <div className="w-full text-gray-900 space-y-4">
       {/* Hidden input for RFID scanner */}
       <input
         ref={inputRef}
@@ -572,301 +650,215 @@ export function RFIDPortal() {
       {/* Flash effect overlay */}
       <div id="read-flash" className="fixed inset-0 pointer-events-none transition-opacity duration-200 opacity-0" />
 
-      {/* Header */}
-      <div className="border-b border-gray-700 bg-gray-900/50 backdrop-blur-sm">
-        <div className="max-w-[1600px] mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-3">
-                <Radio className="w-8 h-8 text-green-400" />
-                <div>
-                  <h1 className="text-2xl font-bold text-white">Portal RFID</h1>
-                  <p className="text-sm text-gray-400">Leitura automática em tempo real</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-4">
-              {/* Status Indicator */}
-              <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-800/50 border border-gray-700">
-                <div className={`w-3 h-3 rounded-full ${isActive ? 'bg-green-500 animate-pulse' : 'bg-gray-600'}`} />
-                <span className="text-sm font-medium">
-                  {isActive ? 'ONLINE' : 'OFFLINE'}
-                </span>
-              </div>
-
-              {!isActive ? (
-                <Button
-                  onClick={handleStartPortal}
-                  className="bg-green-600 hover:bg-green-700 text-white font-semibold px-6"
-                >
-                  <Zap className="w-4 h-4 mr-2" />
-                  Iniciar Portal
-                </Button>
-              ) : (
-                <Button
-                  onClick={handleStopPortal}
-                  variant="outline"
-                  className="border-gray-600 text-gray-300 hover:bg-gray-800"
-                >
-                  Pausar
-                </Button>
-              )}
+      {/* Control bar */}
+      <div className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
+        <div className="flex items-center gap-3">
+          <Radio className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-green-500' : 'text-gray-400'}`} />
+          <div>
+            <div className="font-semibold text-sm text-gray-900 leading-tight">Portal RFID</div>
+            <div className="text-xs text-gray-500 leading-tight">
+              {isActive
+                ? scanBuffer
+                  ? `Capturando: ${scanBuffer} (${scanBuffer.length}/24)`
+                  : 'Aguardando tags...'
+                : 'Leitura automática em tempo real'}
             </div>
           </div>
+        </div>
+
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${
+            isActive
+              ? 'border-green-200 text-green-700 bg-green-50'
+              : 'border-gray-200 text-gray-500 bg-gray-50'
+          }`}>
+            <div className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
+            {isActive ? 'ON' : 'OFF'}
+          </div>
+
+          {!isActive ? (
+            <Button
+              onClick={handleStartPortal}
+              size="sm"
+              className="bg-green-600 hover:bg-green-700 text-white font-semibold"
+            >
+              <Zap className="w-3.5 h-3.5 mr-1.5" />
+              Iniciar
+            </Button>
+          ) : (
+            <Button
+              onClick={handleStopPortal}
+              size="sm"
+              variant="outline"
+              className="border-gray-300 text-gray-700 hover:bg-gray-100"
+            >
+              Pausar
+            </Button>
+          )}
         </div>
       </div>
 
-      {/* Debug Panel - TEMPORÁRIO */}
-      {isActive && (
-        <div className="bg-blue-900/30 border-b border-blue-700/50 backdrop-blur-sm">
-          <div className="max-w-[1600px] mx-auto px-6 py-3">
-            <div className="text-xs text-blue-300 space-y-1">
-              <div className="flex items-center gap-2">
-                <span className="font-semibold">🔧 DEBUG MODE:</span>
-                <span>Portal Ativo: {isActive ? '✅' : '❌'}</span>
-                <span>|</span>
-                <span>Buffer: "{scanBuffer}" ({scanBuffer.length} chars)</span>
-                <span>|</span>
-                <span>Leituras: {readings.length}</span>
-              </div>
-              <div className="text-blue-400">
-                Pressione qualquer tecla para verificar se está capturando. Abra o Console (F12) para ver logs detalhados.
-              </div>
-            </div>
+      {/* Stats row */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          { icon: <CheckCircle2 className="w-4 h-4" />, label: 'Tags únicas', value: stats.uniqueTags, color: 'text-green-600' },
+          { icon: <Radio className="w-4 h-4" />, label: 'Total leituras', value: stats.totalReads, color: 'text-blue-600' },
+          { icon: <TrendingUp className="w-4 h-4" />, label: 'Tags/min', value: stats.readsPerMinute, color: 'text-purple-600' },
+          { icon: <Clock className="w-4 h-4" />, label: 'Tempo', value: formatTime(sessionDuration), color: 'text-orange-500' },
+        ].map(({ icon, label, value, color }) => (
+          <div key={label} className="rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
+            <div className="flex items-center gap-1.5 text-gray-500 text-xs mb-1">{icon}{label}</div>
+            <div className={`text-2xl font-bold ${color}`}>{value}</div>
           </div>
-        </div>
-      )}
+        ))}
+      </div>
 
-      {/* Main Content */}
-      <div className="max-w-[1600px] mx-auto px-6 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left - Stats Cards */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Stats Grid */}
-            <div className="grid grid-cols-4 gap-4">
-              <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-4">
-                <div className="flex items-center gap-2 text-gray-400 text-sm mb-1">
-                  <CheckCircle2 className="w-4 h-4" />
-                  Tags Únicas
-                </div>
-                <div className="text-3xl font-bold text-green-400">{stats.uniqueTags}</div>
-              </div>
+      {/* Main grid: readings + sidebar */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
-              <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-4">
-                <div className="flex items-center gap-2 text-gray-400 text-sm mb-1">
-                  <Radio className="w-4 h-4" />
-                  Total Leituras
-                </div>
-                <div className="text-3xl font-bold text-blue-400">{stats.totalReads}</div>
-              </div>
+        {/* Readings panel */}
+        <div className="lg:col-span-2 rounded-xl border border-gray-200 bg-white overflow-hidden shadow-sm">
+          <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+            <span className="font-semibold text-sm text-gray-900">
+              Leituras ao Vivo
+              {readings.length > 0 && <span className="ml-2 text-xs text-gray-400">{readings.length}</span>}
+            </span>
+            <button
+              type="button"
+              onPointerDown={(e) => { e.stopPropagation(); setIsTableFullscreen(prev => !prev); }}
+              className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+              title={isTableFullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
+            >
+              {isTableFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+            </button>
+          </div>
 
-              <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-4">
-                <div className="flex items-center gap-2 text-gray-400 text-sm mb-1">
-                  <TrendingUp className="w-4 h-4" />
-                  Tags/min
-                </div>
-                <div className="text-3xl font-bold text-purple-400">{stats.readsPerMinute}</div>
-              </div>
-
-              <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-4">
-                <div className="flex items-center gap-2 text-gray-400 text-sm mb-1">
-                  <Clock className="w-4 h-4" />
-                  Tempo
-                </div>
-                <div className="text-2xl font-bold text-orange-400">{formatTime(sessionDuration)}</div>
-              </div>
-            </div>
-
-            {/* Readings List */}
-            <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-700 flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-white">Leituras ao Vivo</h2>
-                {isActive && (
-                  <div className="flex flex-col items-end gap-1">
-                    <div className="flex items-center gap-2 text-green-400 text-sm">
-                      <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+          {/* Fullscreen overlay via portal */}
+          {isTableFullscreen && createPortal(
+            <div className="fixed inset-0 z-[9999] bg-white flex flex-col text-gray-900">
+              <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between bg-white flex-shrink-0 shadow-sm">
+                <span className="font-semibold text-gray-900">Leituras ao Vivo — {readings.length} pneu{readings.length !== 1 ? 's' : ''}</span>
+                <div className="flex items-center gap-3">
+                  {isActive && (
+                    <div className="flex items-center gap-1.5 text-green-600 text-sm">
+                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
                       Aguardando tags...
                     </div>
-                    {scanBuffer && (
-                      <div className="text-xs text-yellow-400 font-mono bg-yellow-400/10 px-2 py-1 rounded">
-                        Capturando: {scanBuffer} ({scanBuffer.length}/24)
-                      </div>
-                    )}
-                  </div>
-                )}
+                  )}
+                  <button
+                    type="button"
+                    onPointerDown={(e) => { e.stopPropagation(); setIsTableFullscreen(false); }}
+                    className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+                    title="Sair da tela cheia"
+                  >
+                    <Minimize2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
-
-              <div className="max-h-[500px] overflow-y-auto">
+              <div className="flex-1 overflow-y-auto">
                 {readings.length === 0 ? (
-                  <div className="px-6 py-12 text-center text-gray-500">
-                    <Radio className="w-16 h-16 mx-auto mb-4 opacity-20" />
-                    <p className="text-lg">Nenhuma tag detectada</p>
-                    <p className="text-sm mt-1">Passe os pneus pelo portal para iniciar a leitura</p>
+                  <div className="py-16 text-center text-gray-400">
+                    <Radio className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                    <p>Nenhuma tag detectada</p>
                   </div>
                 ) : (
-                  <div className="divide-y divide-gray-700">
-                    {readings.map((reading) => (
-                      <div
-                        key={reading.id}
-                        id={`rfid-${reading.rfid}`}
-                        className="px-6 py-4 hover:bg-gray-700/30 transition-all duration-200"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-3 mb-2">
-                              <CheckCircle2 className="w-5 h-5 text-green-400 flex-shrink-0" />
-                              <div>
-                                <div className="font-mono text-sm text-gray-400">
-                                  RFID: {reading.rfid}
-                                </div>
-                                <div className="font-semibold text-white">
-                                  Código: {reading.barcode}
-                                </div>
-                              </div>
-                            </div>
-
-                            {reading.tireData ? (
-                              <div className="ml-8 grid grid-cols-4 gap-4 text-sm">
-                                <div>
-                                  <span className="text-gray-500">Modelo:</span>
-                                  <span className="ml-2 text-gray-300">{reading.tireData.model_name || '-'}</span>
-                                </div>
-                                <div>
-                                  <span className="text-gray-500">Piloto:</span>
-                                  <span className="ml-2 text-gray-300">{reading.tireData.pilot || '-'}</span>
-                                </div>
-                                <div>
-                                  <span className="text-gray-500">Categoria:</span>
-                                  <span className="ml-2 text-gray-300">{reading.tireData.categoria || '-'}</span>
-                                </div>
-                                <div>
-                                  <span className="text-gray-500">Container:</span>
-                                  <span className="ml-2 text-gray-300">{reading.tireData.container_name || '-'}</span>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="ml-8 text-sm text-yellow-400">
-                                Pneu não encontrado no estoque. A tag foi lida, mas não será movimentada.
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="flex flex-col items-end gap-1 ml-4">
-                            <div className="text-xs text-gray-500">
-                              {new Date(reading.timestamp).toLocaleTimeString('pt-BR')}
-                            </div>
-                            {reading.readCount > 1 && (
-                              <div className="text-xs px-2 py-1 bg-yellow-500/20 text-yellow-400 rounded">
-                                {reading.readCount}x lido
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+                  <div>
+                    <div className="hidden sm:grid grid-cols-[2rem_1fr_1fr_1fr_1fr_1fr_6rem] gap-x-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-gray-400 border-b border-gray-100 sticky top-0 bg-white">
+                      <div /><div>Código</div><div>Modelo</div><div>Piloto</div><div>Categoria</div><div>Container</div><div className="text-right">Hora</div>
+                    </div>
+                    {readings.map((r) => <ReadingRow key={r.id} reading={r} />)}
                   </div>
                 )}
               </div>
-            </div>
-          </div>
+            </div>,
+            document.body
+          )}
 
-          {/* Right - Movement Panel */}
-          <div className="space-y-6">
-            {/* Summary */}
-            <div className="bg-gradient-to-br from-gray-800 to-gray-900 border border-gray-700 rounded-xl p-6">
-              <h3 className="text-lg font-semibold text-white mb-4">Resumo da Operação</h3>
-
-              <div className="space-y-3">
-                <div className="flex justify-between items-center py-2 border-b border-gray-700">
-                  <span className="text-gray-400">Pneus detectados</span>
-                  <span className="text-xl font-bold text-green-400">{stats.uniqueTags}</span>
-                </div>
-
-                <div className="flex justify-between items-center py-2 border-b border-gray-700">
-                  <span className="text-gray-400">Leituras duplicadas</span>
-                  <span className="text-xl font-bold text-yellow-400">{stats.duplicates}</span>
-                </div>
-
-                <div className="flex justify-between items-center py-2 border-b border-gray-700">
-                  <span className="text-gray-400">Taxa de leitura</span>
-                  <span className="text-xl font-bold text-purple-400">{stats.readsPerMinute}/min</span>
-                </div>
-
-                <div className="flex justify-between items-center py-2">
-                  <span className="text-gray-400">Tempo de sessão</span>
-                  <span className="text-xl font-bold text-orange-400">{formatTime(sessionDuration)}</span>
-                </div>
+          <div className="max-h-[420px] overflow-y-auto">
+            {readings.length === 0 ? (
+              <div className="py-14 text-center text-gray-400">
+                <Radio className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                <p className="text-sm">Nenhuma tag detectada</p>
+                <p className="text-xs mt-1 text-gray-300">Passe os pneus pelo portal para iniciar</p>
               </div>
-            </div>
-
-            {/* Movement */}
-            {readings.length > 0 && (
-              <div className="bg-gradient-to-br from-blue-900/20 to-purple-900/20 border border-blue-700/50 rounded-xl p-6">
-                <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                  <Box className="w-5 h-5" />
-                  Movimentação em Massa
-                </h3>
-
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-sm text-gray-400 mb-2 block">
-                      Mover {stats.uniqueTags} pneus para:
-                    </label>
-                    <Select value={selectedContainer} onValueChange={setSelectedContainer}>
-                      <SelectTrigger className="bg-gray-800 border-gray-600 text-white">
-                        <SelectValue placeholder="Selecione o container" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {containers.map((container) => (
-                          <SelectItem key={container.id} value={container.id}>
-                            {container.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <Button
-                    onClick={handleConfirmMovement}
-                    disabled={!selectedContainer || isMoving}
-                    className="w-full bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-semibold py-6 text-lg"
-                  >
-                    {isMoving ? (
-                      <>Movendo pneus...</>
-                    ) : (
-                      <>
-                        <ArrowRight className="w-5 h-5 mr-2" />
-                        Confirmar Movimentação
-                      </>
-                    )}
-                  </Button>
+            ) : (
+              <div>
+                <div className="hidden sm:grid grid-cols-[2rem_1fr_1fr_1fr_1fr_1fr_6rem] gap-x-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-gray-400 border-b border-gray-100 sticky top-0 bg-white">
+                  <div /><div>Código</div><div>Modelo</div><div>Piloto</div><div>Categoria</div><div>Container</div><div className="text-right">Hora</div>
                 </div>
+                {readings.map((r) => <ReadingRow key={r.id} reading={r} />)}
               </div>
             )}
           </div>
         </div>
+
+        {/* Sidebar: summary + movement */}
+        <div className="space-y-4">
+          {/* Summary */}
+          <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+            <h3 className="text-sm font-semibold text-gray-700 mb-3">Resumo da Operação</h3>
+            <div className="space-y-2 text-sm">
+              {[
+                { label: 'Pneus detectados', value: stats.uniqueTags, color: 'text-green-600' },
+                { label: 'Duplicadas', value: stats.duplicates, color: 'text-yellow-600' },
+                { label: 'Tags/min', value: stats.readsPerMinute, color: 'text-purple-600' },
+                { label: 'Tempo de sessão', value: formatTime(sessionDuration), color: 'text-orange-500' },
+              ].map(({ label, value, color }) => (
+                <div key={label} className="flex justify-between items-center py-1.5 border-b border-gray-100 last:border-0">
+                  <span className="text-gray-500">{label}</span>
+                  <span className={`font-bold ${color}`}>{value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Movement */}
+          {readings.length > 0 && (
+            <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-4">
+              <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                <Box className="w-4 h-4 text-blue-500" />
+                Movimentação em Massa
+              </h3>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs text-gray-500 mb-1.5 block">
+                    Mover {stats.uniqueTags} pneu{stats.uniqueTags !== 1 ? 's' : ''} para:
+                  </label>
+                  <Select value={selectedContainer} onValueChange={setSelectedContainer}>
+                    <SelectTrigger className="bg-white border-gray-200 text-gray-900 text-sm h-9">
+                      <SelectValue placeholder="Selecione o container" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {containers.map((container) => (
+                        <SelectItem key={container.id} value={container.id}>
+                          {container.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button
+                  onClick={handleConfirmMovement}
+                  disabled={!selectedContainer || isMoving}
+                  className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold"
+                >
+                  {isMoving ? 'Movendo...' : (
+                    <><ArrowRight className="w-4 h-4 mr-2" />Confirmar Movimentação</>
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Custom Animations */}
       <style>{`
         @keyframes pulse-green {
-          0%, 100% {
-            box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
-          }
-          50% {
-            box-shadow: 0 0 0 10px rgba(34, 197, 94, 0);
-          }
+          0%, 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0.7); }
+          50% { box-shadow: 0 0 0 10px rgba(34,197,94,0); }
         }
-
-        .animate-pulse-green {
-          animation: pulse-green 0.5s ease-out;
-        }
-
-        .flash-green {
-          background: rgba(34, 197, 94, 0.1);
-          opacity: 1 !important;
-        }
+        .animate-pulse-green { animation: pulse-green 0.5s ease-out; }
+        .flash-green { background: rgba(34,197,94,0.08); opacity: 1 !important; }
       `}</style>
     </div>
   );

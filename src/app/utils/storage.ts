@@ -161,19 +161,26 @@ const DEFAULT_TIRE_STATUS: TireStatus[] = [
 
 // Helper para aguardar token com retry
 async function waitForToken(): Promise<string> {
-  // SEMPRE tenta obter token real do Supabase Auth primeiro
-  const token = await getAccessToken();
+  // Tenta obter token da sessão ativa
+  let token = await getAccessToken();
   if (token) {
-    console.log(`✅ Token Supabase Auth obtido: ${token.substring(0, 20)}...${token.substring(token.length - 10)}`);
     return token;
   }
-  
-  // Se não houver token, usa publicAnonKey como fallback
-  // IMPORTANTE: Isso NÃO funciona mais - o servidor requer autenticação real
-  console.warn('⚠️ SEM SESSÃO ATIVA! Você precisa fazer login.');
-  console.warn('⚠️ Enviando publicAnonKey (isso FALHARÁ com 401)');
-  console.warn(`⚠️ Token enviado: ${publicAnonKey.substring(0, 20)}...${publicAnonKey.substring(publicAnonKey.length - 10)}`);
-  return publicAnonKey;
+
+  // Sessão expirada — tenta refresh automático
+  try {
+    const supabase = createClient();
+    const { data, error } = await supabase.auth.refreshSession();
+    if (!error && data.session?.access_token) {
+      token = data.session.access_token;
+      console.log('✅ Sessão renovada com sucesso');
+      return token;
+    }
+  } catch (e) {
+    // refresh falhou — segue para erro de login
+  }
+
+  throw new Error('Sessão expirada. Por favor, faça login novamente.');
 }
 
 // Helper para fazer requests autenticadas
@@ -208,15 +215,6 @@ async function apiRequest(endpoint: string, options: RequestInit = {}) {
       
       // Tratamento específico por status code
       if (response.status === 401) {
-        console.error('❌ Erro de autenticação (401)');
-        console.error('❌ FAÇA LOGIN COM: rafael.borges@porschegt3cup.com.br / Porschegt3cupHere');
-        
-        // Verifica se o usuário está usando publicAnonKey
-        if (token === publicAnonKey) {
-          console.error('❌ CAUSA: Tentando usar publicAnonKey sem login!');
-          throw new Error('VOCÊ PRECISA FAZER LOGIN! Use: rafael.borges@porschegt3cup.com.br / Porschegt3cupHere');
-        }
-        
         throw new Error('Sessão expirada. Por favor, faça login novamente.');
       }
       

@@ -10,7 +10,7 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
-import { toast } from 'sonner';
+import { toast } from 'sonner@2.0.3';
 import {
   AlertDialog,
   AlertDialogAction,

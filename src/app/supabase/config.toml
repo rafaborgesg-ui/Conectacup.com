@@ -1,10 +1,15 @@
-project_id = "nflgqugaabtxzifyhjor"
+# Configuração do Supabase
+# Criado em: 20/01/2026
 
 # ============================================
 # EDGE FUNCTIONS - DESABILITADAS
 # ============================================
 # O Figma Make não tem permissão para deploy (erro 403)
 # O app funciona 100% com Supabase direto, sem Edge Functions
+
+[functions]
+# Desabilita deploy automático de Edge Functions
+enabled = false
 
 [functions.make-server]
 # Função específica desabilitada

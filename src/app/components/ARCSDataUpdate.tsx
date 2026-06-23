@@ -4,7 +4,7 @@ import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { Alert, AlertDescription } from './ui/alert';
 import { Progress } from './ui/progress';
-import { toast } from 'sonner';
+import { toast } from 'sonner@2.0.3';
 import * as XLSX from 'xlsx';
 import { getStockEntries, updateStockEntryByBarcode, getTireModels, getContainers, saveStockEntry, type StockEntry, type TireModel, type Container } from '../utils/storage';
 

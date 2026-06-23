@@ -8,7 +8,7 @@ import {
 } from './ui/popover';
 import { Checkbox } from './ui/checkbox';
 import { Label } from './ui/label';
-import { toast } from 'sonner';
+import { toast } from 'sonner@2.0.3';
 
 export interface ColumnOption {
   key: string;

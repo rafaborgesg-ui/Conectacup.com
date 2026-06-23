@@ -1,4 +1,4 @@
-import { toast } from 'sonner';
+import { toast } from 'sonner@2.0.3';
 import { getTireModels, getTireModelsSync, getContainers, checkBarcodeExists, getStockEntries, getStockEntriesSync, saveStockEntry, type StockEntry } from '../utils/storage';
 import { projectId, publicAnonKey } from '../utils/supabase/info.tsx';
 import { getAccessToken, createClient } from '../utils/supabase/client';

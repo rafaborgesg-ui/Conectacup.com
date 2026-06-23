@@ -5,7 +5,7 @@ import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { formatDate, formatSession, createWatermarkData, type WatermarkData } from '../utils/watermarkGenerator';
 import { copyToClipboard } from '../utils/clipboard';
-import { toast } from 'sonner';
+import { toast } from 'sonner@2.0.3';
 import { createClient } from '../utils/supabase/client';
 import ImageEditor from './ImageEditor';
 import { deleteDamagePhoto } from '../utils/wheelDamageStorage';

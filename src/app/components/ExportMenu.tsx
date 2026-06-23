@@ -14,7 +14,7 @@ import { Checkbox } from './ui/checkbox';
 import { Label } from './ui/label';
 import { cn } from './ui/utils';
 import { ActionFeedback } from './VisualFeedback';
-import { toast } from 'sonner';
+import { toast } from 'sonner@2.0.3';
 
 export type ExportFormat = 'excel' | 'pdf' | 'csv' | 'print' | 'protheus';
 

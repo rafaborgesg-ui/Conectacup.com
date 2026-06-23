@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Textarea } from './ui/textarea';
 import { Progress } from './ui/progress';
-import { toast } from 'sonner';
+import { toast } from 'sonner@2.0.3';
 import { toastDiscard, toastUndoable } from '../utils/toastHelpers';
 import { useFormValidation } from '../utils/useFormValidation';
 import { ValidatedInput, ValidatedTextarea } from './ValidatedInput';

@@ -5,7 +5,7 @@ import { Button } from './ui/button';
 import { Label } from './ui/label';
 import { Badge } from './ui/badge';
 import { Checkbox } from './ui/checkbox';
-import { toast } from 'sonner';
+import { toast } from 'sonner@2.0.3';
 import { ActionButton } from './ActionFeedback';
 import { createClient } from '../utils/supabase/client';
 import {

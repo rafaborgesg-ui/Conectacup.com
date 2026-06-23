@@ -9,12 +9,19 @@ import { getSeasons, getSeasonStages, type Season, type SeasonStage } from '../u
 import { getTireByBarcode, type StockEntry } from '../utils/storage';
 import { saveTireCheckSession, updateConferenceSessionRealtime, saveTireDivergence, type ChassisCheckData, type TireSetData, type TireCheckData } from '../utils/tireCheckSupabase';
 import { createClient } from '../utils/supabase/client';
-import { toast } from 'sonner';
 import excelIcon from 'figma:asset/965426fb8fba07bdea96952e8ddb22442ab7638d.png';
 import { UpdateStatusModal } from '../components/UpdateStatusModal';
 import { CollectorStyles } from '../components/CollectorStyles';
 import * as XLSX from 'xlsx';
 import { sanitizeFileName } from '../utils/stringUtils';
+
+const silentPageToast = (..._args: unknown[]) => undefined;
+const toast = {
+  success: silentPageToast,
+  error: silentPageToast,
+  warning: silentPageToast,
+  info: silentPageToast
+};
 
 type NativeRFIDPayload = string | {
   epc?: string;

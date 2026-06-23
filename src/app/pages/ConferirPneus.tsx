@@ -4682,6 +4682,25 @@ export function ConferirPneus() {
     }
   };
 
+  const clearInlineScanInput = (jogo: number, position: number, shouldFocus = true) => {
+    if (typeof document === 'undefined') return;
+
+    const input = document.querySelector(
+      `input[data-jogo="${jogo}"][data-position="${position}"]`
+    ) as HTMLInputElement | null;
+
+    if (!input) return;
+
+    input.value = '';
+
+    if (shouldFocus) {
+      setTimeout(() => {
+        input.focus();
+        input.select();
+      }, 0);
+    }
+  };
+
   const normalizeNativeRFIDPayload = (payload: NativeRFIDPayload): NormalizedNativeRFIDScan | null => {
     const rawPayload = typeof payload === 'string' ? { epc: payload, source: 'native-rfid' } : payload;
     const source = rawPayload.source || 'native-rfid';
@@ -5011,6 +5030,7 @@ export function ConferirPneus() {
 
     if (queuedInputKeysRef.current.has(inputKey)) {
       console.log(`🚫 Input ${inputKey} já está na fila de salvamento.`);
+      clearInlineScanInput(jogo, position);
       return false;
     }
 
@@ -5025,6 +5045,7 @@ export function ConferirPneus() {
         toast.error('Erro ao decodificar RFID', {
           description: 'O código RFID não pôde ser decodificado.',
         });
+        clearInlineScanInput(jogo, position);
         return false;
       }
 
@@ -5090,6 +5111,7 @@ export function ConferirPneus() {
     }
 
     if (shouldRejectDuplicateScan({ code: processedCode, epc: epcCode, source: scanSource })) {
+      clearInlineScanInput(jogo, position);
       return false;
     }
 

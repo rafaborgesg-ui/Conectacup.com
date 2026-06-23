@@ -285,16 +285,31 @@ interface TireSet {
   tires: TireData[];
 }
 
+interface QueuedTireScan {
+  code: string;
+  jogo: number;
+  position: number;
+  inputKey: string;
+  chassisIndex: number;
+}
+
+interface TireSubmitContext {
+  jogo?: number;
+  chassisIndex?: number;
+}
+
+const SCANNER_AUTO_SUBMIT_DELAY_MS = 40;
+
 export function ConferirPneus() {
-  // 🔥 VERSÃO DA CORREÇÃO: v4.8.16 - Footer TC22 Acima dos Botões Nativos + Safe Area
-  console.log('🔥🔥🔥 ConferirPneus v4.8.16 - Footer TC22 Acima dos Botões Nativos + Safe Area');
+  // 🔥 VERSÃO DA CORREÇÃO: v4.9.0 - Fila rápida de bipagem com salvamento seguro
+  console.log('🔥🔥🔥 ConferirPneus v4.9.0 - Fila rápida de bipagem com salvamento seguro');
   console.log('📌 Correções aplicadas:');
   console.log('   ✅ v4.8.9: Footer fixo no modo coletor (rodapé com sombra superior)');
   console.log('   ✅ v4.8.9: Padding-bottom ajustado (pb-24) para conteúdo não ficar escondido');
   console.log('   ✅ v4.8.8: Logs detalhados de debug em todo fluxo de salvamento');
-  console.log('   ✅ v4.8.0: Estado isProcessingTireCode controla fluxo de bipagem');
-  console.log('   ✅ v4.8.1: Validação busca por _originalIndex ao invés de índice direto');
-  console.log('   ✅ v4.8.1: Foco só muda APÓS 100% do processo (save + validate + toast)');
+  console.log('   ✅ v4.9.0: Fila serializada permite bipar o próximo pneu enquanto o anterior salva');
+  console.log('   ✅ v4.9.0: Validação busca por _originalIndex ao invés de índice direto');
+  console.log('   ✅ v4.9.0: Foco muda imediatamente para o próximo campo vazio');
   console.log('   ✅ v4.8.2: Logs de debug para rastrear quando chassis somem');
   console.log('   ✅ v4.8.2: Botão "Recarregar Sessão" quando lista fica vazia');
   console.log('   ✅ v4.8.3: Botão X circular perfeito (32x32px)');
@@ -307,16 +322,14 @@ export function ConferirPneus() {
   console.log('   ✅ v4.8.6: Timeout otimizado com cache-first no ProtectedRoute');
   console.log('   ✅ v4.8.7: Botão X dos toasts circular perfeito (aspectRatio + !important)');
   console.log('');
-  console.log('📝 FLUXO DA BIPAGEM (v4.8.1):');
+  console.log('📝 FLUXO DA BIPAGEM (v4.9.0):');
   console.log('   1️⃣ Usuário bipa código');
-  console.log('   2️⃣ isProcessingTireCode = true (BLOQUEIA novas bipagens)');
-  console.log('   3️⃣ Salva no Supabase com retry e validação (200ms)');
-  console.log('   4️⃣ Validação busca pneu por _originalIndex (corrigido!)');
-  console.log('   5️⃣ Mostra toast de confirmação (OK/Warning)');
-  console.log('   6️⃣ AGORA: Agenda foco para próximo campo (setPendingFocusAfterSubmit)');
-  console.log('   7️⃣ isProcessingTireCode = false (LIBERA próxima bipagem)');
-  console.log('   8️⃣ useEffect detecta e foca automaticamente no próximo campo vazio');
-  console.log('   ✅ Próxima bipagem liberada E campo correto focado!');
+  console.log('   2️⃣ Campo atual entra na fila e mostra Salvando...');
+  console.log('   3️⃣ Próximo campo vazio recebe foco imediatamente');
+  console.log('   4️⃣ Salva no Supabase em ordem, com retry e validação');
+  console.log('   5️⃣ Histórico, excel_data e progress precisam confirmar sucesso');
+  console.log('   6️⃣ Toast informa o resultado sem travar a próxima leitura');
+  console.log('   ✅ Próxima bipagem liberada sem abrir mão da integridade!');
   console.log('');
   console.log('🔍 DEBUG v4.8.2:');
   console.log('   📊 Logs em closeChassisModal para verificar extractedData');
@@ -361,6 +374,7 @@ export function ConferirPneus() {
   const [isProcessingTireCode, setIsProcessingTireCode] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [extractedData, setExtractedData] = useState<ExcelChassisData[]>([]);
+  const extractedDataRef = useRef<ExcelChassisData[]>([]);
   
   // 🔥 v4.8.3: Estados para swipe-to-close
   const [dragStartY, setDragStartY] = useState<number | null>(null);
@@ -379,10 +393,14 @@ export function ConferirPneus() {
   const [useCollectorMode, setUseCollectorMode] = useState(false); // Modo coletor (níveis ao invés de modal)
   const [showCollectorConference, setShowCollectorConference] = useState(false); // Controla se está na tela de conferência no modo coletor
   const [tireSets, setTireSetsOriginal] = useState<TireSet[]>([]);
+  const tireSetsRef = useRef<TireSet[]>([]);
+  const scanQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const queuedInputKeysRef = useRef<Set<string>>(new Set());
   
   // 🔥🔥🔥 WRAPPER COM LOG EXTREMO para rastrear TODAS as atualizações
   const setTireSets = (value: TireSet[] | ((prev: TireSet[]) => TireSet[])) => {
-    const newValue = typeof value === 'function' ? value(tireSets) : value;
+    const newValue = typeof value === 'function' ? value(tireSetsRef.current) : value;
+    tireSetsRef.current = newValue;
     const codes = newValue.flatMap(s => s.tires.map(t => t.codigo)).filter(c => c !== '-');
     console.log('🔥🔥🔥 setTireSets CHAMADO:', {
       totalCodes: codes.length,
@@ -437,6 +455,10 @@ export function ConferirPneus() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null); // ID do usuário atual
   const [currentUserName, setCurrentUserName] = useState<string>(''); // 🆕 Nome do usuário atual
   const [chassisLocks, setChassisLocks] = useState<Record<number, { userId: string; userName: string; lockedAt: string } | null>>({}); // Locks de chassis
+  const selectedChassisIndexRef = useRef<number | null>(null);
+  const activeSessionIdRef = useRef<string | null>(null);
+  const currentUserIdRef = useRef<string | null>(null);
+  const currentUserNameRef = useRef<string>('');
   
   // 🆕 PROTEÇÃO CONTRA SOBRESCRITA - Rastreia versão dos dados quando abrimos o modal
   const [chassisVersionWhenOpened, setChassisVersionWhenOpened] = useState<Record<number, string>>({}); // timestamp de quando abrimos cada chassis
@@ -487,6 +509,30 @@ export function ConferirPneus() {
       inlineAutoSubmitTimersRef.current = {};
     };
   }, []);
+
+  useEffect(() => {
+    tireSetsRef.current = tireSets;
+  }, [tireSets]);
+
+  useEffect(() => {
+    extractedDataRef.current = extractedData;
+  }, [extractedData]);
+
+  useEffect(() => {
+    selectedChassisIndexRef.current = selectedChassisIndex;
+  }, [selectedChassisIndex]);
+
+  useEffect(() => {
+    activeSessionIdRef.current = activeSessionId;
+  }, [activeSessionId]);
+
+  useEffect(() => {
+    currentUserIdRef.current = currentUserId;
+  }, [currentUserId]);
+
+  useEffect(() => {
+    currentUserNameRef.current = currentUserName;
+  }, [currentUserName]);
 
   // 🔥 FUNÇÃO HELPER: Adiciona índices originais únicos e estáveis
   const addOriginalIndexes = (data: ExcelChassisData[]): ExcelChassisData[] => {
@@ -4435,7 +4481,7 @@ export function ConferirPneus() {
         console.log('   Código de barras:', cleanValue);
         console.log('✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅');
         handleTireCodeSubmit(cleanValue);
-      }, 300);
+      }, SCANNER_AUTO_SUBMIT_DELAY_MS);
     } else {
       console.log('⏹️ Aguardando mais caracteres ou ENTER manual');
       console.log('   Tamanho atual:', cleanValue.length);
@@ -4453,6 +4499,96 @@ export function ConferirPneus() {
       clearTimeout(timer);
       delete inlineAutoSubmitTimersRef.current[inputKey];
     }
+  };
+
+  const releaseProcessingInput = (inputKey: string) => {
+    queuedInputKeysRef.current.delete(inputKey);
+    setProcessingInputs(prev => {
+      const updated = { ...prev };
+      delete updated[inputKey];
+      return updated;
+    });
+
+    if (queuedInputKeysRef.current.size === 0) {
+      setIsProcessingTireCode(false);
+    }
+  };
+
+  const focusNextInlineInput = (jogo: number, position: number, sourceSets: TireSet[] = tireSetsRef.current) => {
+    const findNextTarget = (): { jogo: number; position: number } | null => {
+      const currentSetIndex = sourceSets.findIndex(set => set.jogo === jogo);
+
+      if (currentSetIndex !== -1) {
+        const currentSet = sourceSets[currentSetIndex];
+        const currentVisualIndex = currentSet.tires.findIndex((tire, idx) => (tire._originalIndex ?? idx) === position);
+
+        const nextInCurrentSet = currentSet.tires.find((tire, idx) => {
+          const originalIndex = tire._originalIndex ?? idx;
+          return idx > currentVisualIndex && (!tire.codigo || tire.codigo === '-') && !queuedInputKeysRef.current.has(`${jogo}-${originalIndex}`);
+        });
+
+        if (nextInCurrentSet) {
+          const nextVisualIndex = currentSet.tires.indexOf(nextInCurrentSet);
+          return {
+            jogo,
+            position: nextInCurrentSet._originalIndex ?? nextVisualIndex
+          };
+        }
+      }
+
+      for (const nextSet of sourceSets.filter(set => set.jogo > jogo)) {
+        const firstEmptyVisualIndex = nextSet.tires.findIndex((tire, idx) => {
+          const originalIndex = tire._originalIndex ?? idx;
+          return (!tire.codigo || tire.codigo === '-') && !queuedInputKeysRef.current.has(`${nextSet.jogo}-${originalIndex}`);
+        });
+
+        if (firstEmptyVisualIndex !== -1) {
+          const firstEmptyTire = nextSet.tires[firstEmptyVisualIndex];
+          return {
+            jogo: nextSet.jogo,
+            position: firstEmptyTire._originalIndex ?? firstEmptyVisualIndex
+          };
+        }
+      }
+
+      return null;
+    };
+
+    const nextTarget = findNextTarget();
+    if (!nextTarget) return;
+
+    setActiveJogo(nextTarget.jogo);
+    setActivePneuPosition(nextTarget.position);
+    setPendingFocusAfterSubmit(null);
+
+    setTimeout(() => {
+      const nextInput = document.querySelector(`input[data-jogo="${nextTarget.jogo}"][data-position="${nextTarget.position}"]`) as HTMLInputElement;
+      if (nextInput) {
+        nextInput.focus();
+        console.log(`⚡ Foco liberado imediatamente: jogo=${nextTarget.jogo}, position=${nextTarget.position}`);
+      }
+    }, 0);
+  };
+
+  const enqueueInlineScan = (scan: QueuedTireScan) => {
+    scanQueueRef.current = scanQueueRef.current
+      .catch(() => undefined)
+      .then(async () => {
+        try {
+          await handleTireCodeSubmit(scan.code, scan.position, {
+            jogo: scan.jogo,
+            chassisIndex: scan.chassisIndex
+          });
+        } catch (error) {
+          console.error('❌ Erro ao processar bipagem em fila:', error);
+          toast.error('Erro ao processar código', {
+            description: 'A leitura foi recebida, mas não foi possível concluir o salvamento.',
+            duration: 5000
+          });
+        } finally {
+          releaseProcessingInput(scan.inputKey);
+        }
+      });
   };
 
   // 🆕 Funções para observações
@@ -4513,27 +4649,26 @@ export function ConferirPneus() {
   };
 
   // 🆕 Função para submeter código inline (direto na linha)
-  const handleTireCodeSubmitInline = async (code: string, jogo: number, position: number) => {
+  const handleTireCodeSubmitInline = (code: string, jogo: number, position: number) => {
     const inputKey = `${jogo}-${position}`;
     const normalizedCode = normalizeScannerCode(code);
+    const currentTireSets = tireSetsRef.current.length > 0 ? tireSetsRef.current : tireSets;
+    const currentSelectedChassisIndex = selectedChassisIndexRef.current ?? selectedChassisIndex;
+    const currentExtractedData = extractedDataRef.current.length > 0 ? extractedDataRef.current : extractedData;
+
     clearInlineAutoSubmitTimer(inputKey);
 
     console.log('🚀🚀🚀 handleTireCodeSubmitInline CHAMADO!');
     console.log('📦 Parâmetros recebidos:', { code, normalizedCode, jogo: `${jogo} (${typeof jogo})`, position: `${position} (${typeof position})` });
-    console.log('📦 Estado atual:', { activeJogo, activePneuPosition, isProcessingTireCode });
-
-    // 🔥 v4.8.0: BLOQUEIA novas leituras se já há um registro sendo processado
-    if (isProcessingTireCode) {
-      console.log('🚫 BIPAGEM BLOQUEADA! Aguarde o registro atual ser concluído.');
-      toast.warning('Aguarde o registro anterior ser concluído', {
-        description: 'A próxima bipagem será liberada após a confirmação',
-        duration: 2000
-      });
-      return;
-    }
+    console.log('📦 Estado atual:', { activeJogo, activePneuPosition, isProcessingTireCode, queued: queuedInputKeysRef.current.size });
 
     if (!normalizedCode) {
       console.log('❌ Input vazio, abortando');
+      return;
+    }
+
+    if (queuedInputKeysRef.current.has(inputKey)) {
+      console.log(`🚫 Input ${inputKey} já está na fila de salvamento.`);
       return;
     }
 
@@ -4558,151 +4693,71 @@ export function ConferirPneus() {
         duration: 2000,
       });
     }
-    
-    // 🔥 v4.8.0: Marca como processando GLOBALMENTE (bloqueia todas as bipagens)
-    console.log(`🔒 BLOQUEANDO novas bipagens até confirmação...`);
-    setIsProcessingTireCode(true);
-    
-    // 🔥 NOVO v4.7.0: Marca input como "processando" para evitar "piscar"
-    console.log(`🔒 Marcando input ${inputKey} como PROCESSANDO...`);
-    setProcessingInputs(prev => ({ ...prev, [inputKey]: true }));
-    
-    // 🔥 VALIDAÇÃO: Verifica se há chassis selecionado e tireSets inicializado
-    if (selectedChassisIndex === null) {
+
+    if (currentSelectedChassisIndex === null) {
       console.error('❌ Nenhum chassis selecionado!');
       toast.error('Selecione um chassis antes de conferir pneus');
-      setIsProcessingTireCode(false); // Desbloqueia em caso de erro
-      setProcessingInputs(prev => {
-        const updated = { ...prev };
-        delete updated[inputKey];
-        return updated;
-      });
       return;
     }
-    
-    if (tireSets.length === 0) {
-      console.error('❌ TireSets não inicializado!', { jogo, tireSets });
+
+    if (currentTireSets.length === 0) {
+      console.error('❌ TireSets não inicializado!', { jogo, tireSets: currentTireSets });
       toast.error('Erro: Sessão de conferência não inicializada. Feche e abra o chassis novamente.');
-      setIsProcessingTireCode(false); // Desbloqueia em caso de erro
-      setProcessingInputs(prev => {
-        const updated = { ...prev };
-        delete updated[inputKey];
-        return updated;
-      });
       return;
     }
-    
+
     console.log('🔍 Procurando jogo no tireSets...');
-    console.log('📚 tireSets disponíveis:', tireSets.map(s => ({ jogo: s.jogo, type: typeof s.jogo, label: s.label, tiresCount: s.tires.length })));
-    
-    // Encontra o jogo específico
-    const currentSet = tireSets.find(s => s.jogo === jogo);
+    console.log('📚 tireSets disponíveis:', currentTireSets.map(s => ({ jogo: s.jogo, type: typeof s.jogo, label: s.label, tiresCount: s.tires.length })));
+
+    const currentSet = currentTireSets.find(s => s.jogo === jogo);
     if (!currentSet) {
       console.error('❌ Jogo não encontrado!');
       console.error('❌ Procurando jogo:', jogo, '(type:', typeof jogo, ')');
-      console.error('❌ tireSets:', tireSets);
+      console.error('❌ tireSets:', currentTireSets);
       toast.error(`Erro: Jogo ${jogo} não encontrado!`);
-      setIsProcessingTireCode(false); // Desbloqueia em caso de erro
-      setProcessingInputs(prev => {
-        const updated = { ...prev };
-        delete updated[inputKey];
-        return updated;
-      });
       return;
     }
-    
-    console.log('✅ Jogo encontrado:', { jogo: currentSet.jogo, label: currentSet.label, tiresLength: currentSet.tires.length });
-    
-    // 🔥 FIX CRÍTICO: Garante que todos os pneus têm _originalIndex
+
     const tiresWithIndex = currentSet.tires.map((t, idx) => ({
       ...t,
       _originalIndex: t._originalIndex ?? idx
     }));
-    
-    // 🔥 Busca o pneu pelo _originalIndex
     const targetTire = tiresWithIndex.find(t => t._originalIndex === position);
-    
+
     if (!targetTire) {
       console.error('❌ Pneu com _originalIndex', position, 'não encontrado!');
       console.error('❌ Pneus disponíveis:', tiresWithIndex.map((t, i) => ({ idx: i, _originalIndex: t._originalIndex, posicao: t.posicao })));
       toast.error(`Erro: Pneu na posição ${position} não encontrado!`);
-      setIsProcessingTireCode(false); // Desbloqueia em caso de erro
-      setProcessingInputs(prev => {
-        const updated = { ...prev };
-        delete updated[inputKey];
-        return updated;
-      });
       return;
     }
-    
-    // 🔥 REMOVIDO: setTireSets intermediário que causava "pisca" no input
-    // O handleTireCodeSubmit já vai atualizar o estado com o código correto
-    // setTireSets(prev => prev.map(set => 
-    //   set.jogo === jogo ? { ...set, tires: tiresWithIndex } : set
-    // ));
-    
-    console.log('🎯 Pneu ALVO encontrado:', targetTire);
-    console.log('🔍 _originalIndex do pneu alvo:', targetTire._originalIndex);
-    console.log('🔍 TODOS os pneus do jogo com _originalIndex:');
-    currentSet.tires.forEach((t, i) => {
-      console.log(`   [índice visual: ${i}] posição=${t.posicao}, código=${t.codigo}, _originalIndex=${t._originalIndex}`);
-    });
-    
-    // Valida se a posição está dentro dos limites (0-3)
+
     if (position < 0 || position > 3) {
       console.error('❌ Posição inválida!', { position });
       toast.error('Erro: Posição inválida');
-      setIsProcessingTireCode(false); // Desbloqueia em caso de erro
-      setProcessingInputs(prev => {
-        const updated = { ...prev };
-        delete updated[inputKey];
-        return updated;
-      });
       return;
     }
-    
-    console.log('✅ Posição válida! Configurando activeJogo e activePneuPosition...');
 
-    // Define a posição ativa temporariamente para a lógica funcionar
-    setActiveJogo(jogo);
-    setActivePneuPosition(position); // 🔥 Usa position (que é o _originalIndex)
-
-    console.log('🚀 Chamando handleTireCodeSubmit com código:', processedCode, '| position:', position);
-
-    try {
-      // 🔥 Chama a função original com o código DECODIFICADO (não RFID) E a posição correta
-      await handleTireCodeSubmit(processedCode, position);
-      
-      // 🔥 v4.8.1: Registro concluído! Desbloqueia bipagens e foca próximo campo
-      console.log(`✅ Registro concluído! Desbloqueando bipagens...`);
-      
-      // Desmarca input como "processando"
-      setProcessingInputs(prev => {
-        const updated = { ...prev };
-        delete updated[inputKey];
-        return updated;
-      });
-      
-      // 🔥 v4.8.1: Agenda o auto-foco SOMENTE DEPOIS que todo o processo terminou
-      // Isso garante que o foco só muda após salvamento + validação + toast
-      setPendingFocusAfterSubmit({ jogo, position });
-      
-      // 🔥 v4.8.1: LIBERA novas bipagens (após toast ter sido exibido)
-      setIsProcessingTireCode(false);
-    } catch (error) {
-      // 🔥 v4.8.0: Em caso de erro, SEMPRE desbloqueia
-      console.error('❌ Erro crítico durante handleTireCodeSubmit:', error);
-      setIsProcessingTireCode(false);
-      setProcessingInputs(prev => {
-        const updated = { ...prev };
-        delete updated[inputKey];
-        return updated;
-      });
-      toast.error('Erro ao processar código', {
-        description: 'Tente novamente ou entre em contato com o suporte',
-        duration: 5000
-      });
+    if (!currentExtractedData[currentSelectedChassisIndex]) {
+      console.error('❌ Chassis não encontrado para a fila de bipagem!', { currentSelectedChassisIndex });
+      toast.error('Erro: chassis não encontrado. Feche e abra novamente.');
+      return;
     }
+
+    queuedInputKeysRef.current.add(inputKey);
+    setIsProcessingTireCode(true);
+    setProcessingInputs(prev => ({ ...prev, [inputKey]: true }));
+
+    setActiveJogo(jogo);
+    setActivePneuPosition(position);
+    focusNextInlineInput(jogo, position, currentTireSets);
+
+    enqueueInlineScan({
+      code: processedCode,
+      jogo,
+      position,
+      inputKey,
+      chassisIndex: currentSelectedChassisIndex
+    });
   };
 
   // 🔥 FUNÇÃO DE AUTO-SALVAMENTO NO SUPABASE (tempo real com auditoria)
@@ -4713,10 +4768,14 @@ export function ConferirPneus() {
     tireCode: string,
     action: 'BIPAR' | 'LIMPAR',
     tireData: TireData
-  ) => {
-    if (!activeSessionId || !currentUserId || !currentUserName) {
+  ): Promise<boolean> => {
+    const sessionId = activeSessionIdRef.current ?? activeSessionId;
+    const userId = currentUserIdRef.current ?? currentUserId;
+    const userName = currentUserNameRef.current || currentUserName;
+
+    if (!sessionId || !userId || !userName) {
       console.warn('⚠️ Salvamento ignorado: sessão, usuário ou nome não disponível');
-      return;
+      return false;
     }
 
     try {
@@ -4738,7 +4797,7 @@ export function ConferirPneus() {
         posicao: posicaoNome,
         codigo: tireCode,
         action,
-        usuario: currentUserName,
+        usuario: userName,
         timestamp: now
       });
 
@@ -4746,14 +4805,14 @@ export function ConferirPneus() {
       const { error: historyError } = await supabase
         .from('tire_scan_history')
         .insert({
-          session_id: activeSessionId,
+          session_id: sessionId,
           chassis: chassisNumber,
           jogo: jogoNumber,
           posicao: posicaoNome,
           tire_code: tireCode || null,
           action: action,
-          user_id: currentUserId,
-          user_name: currentUserName,
+          user_id: userId,
+          user_name: userName,
           tire_data: tireData,
           created_at: now
         });
@@ -4763,7 +4822,7 @@ export function ConferirPneus() {
         toast.error('Erro ao salvar histórico', {
           description: 'A bipagem foi registrada localmente mas pode não estar sincronizada'
         });
-        return;
+        return false;
       }
 
       console.log('✅ Histórico de bipagem salvo no Supabase!');
@@ -4772,12 +4831,12 @@ export function ConferirPneus() {
       const { data: sessionData, error: sessionError } = await supabase
         .from('conference_sessions')
         .select('excel_data')
-        .eq('id', activeSessionId)
+        .eq('id', sessionId)
         .single();
 
       if (sessionError || !sessionData) {
         console.error('❌ Erro ao buscar sessão:', sessionError);
-        return;
+        return false;
       }
 
       // Atualiza os dados do excel_data com a nova bipagem
@@ -4809,21 +4868,24 @@ export function ConferirPneus() {
         .update({
           excel_data: updatedExcelData,
           updated_at: now,
-          updated_by: currentUserId
+          updated_by: userId
         })
-        .eq('id', activeSessionId);
+        .eq('id', sessionId);
 
       if (updateError) {
         console.error('❌ Erro ao atualizar sessão:', updateError);
+        return false;
       } else {
         console.log('✅ Sessão atualizada no Supabase com sucesso!');
       }
 
+      return true;
     } catch (error) {
       console.error('❌ Erro ao salvar no Supabase:', error);
       toast.error('Erro ao sincronizar', {
         description: 'Os dados foram salvos localmente'
       });
+      return false;
     }
   };
 
@@ -4837,6 +4899,7 @@ export function ConferirPneus() {
   ): Promise<boolean> => {
     try {
       const supabase = createClient();
+      const userId = currentUserIdRef.current ?? currentUserId;
       
       console.log('🔒 Salvando progress IMEDIATAMENTE...', {
         sessionId,
@@ -4899,7 +4962,7 @@ export function ConferirPneus() {
           })),
           tiresChecked: countCheckedTires(tireSets),
           completed: false,
-          lockedBy: currentUserId,
+          lockedBy: userId,
           lockedAt: new Date().toISOString()
         }
       };
@@ -4916,7 +4979,7 @@ export function ConferirPneus() {
         .update({
           progress: updatedProgress,
           updated_at: new Date().toISOString(),
-          updated_by: currentUserId
+          updated_by: userId
         })
         .eq('id', sessionId);
       
@@ -5101,6 +5164,12 @@ export function ConferirPneus() {
     allTireSets: TireSet[]
   ): Promise<boolean> => {
     const MAX_RETRIES = 3;
+    const sessionId = activeSessionIdRef.current ?? activeSessionId;
+
+    if (!sessionId) {
+      console.error('❌ Salvamento abortado: sessão ativa não disponível');
+      return false;
+    }
     
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       try {
@@ -5115,7 +5184,7 @@ export function ConferirPneus() {
         });
         
         // 1️⃣ Salva no histórico e excel_data
-        await saveToSupabaseRealtime(
+        const realtimeSaved = await saveToSupabaseRealtime(
           chassisNumber,
           jogoNumber,
           positionIndex,
@@ -5123,6 +5192,10 @@ export function ConferirPneus() {
           'BIPAR',
           tireData
         );
+
+        if (!realtimeSaved) {
+          throw new Error('Falha ao salvar histórico ou excel_data');
+        }
         
         // 🔍 DEBUG CRÍTICO: Valida allTireSets ANTES de salvar
         const tireToSave = allTireSets[jogoNumber - 1]?.tires?.find(
@@ -5137,7 +5210,7 @@ export function ConferirPneus() {
         
         // 2️⃣ Salva no progress IMEDIATAMENTE
         const progressSaved = await updateProgressImmediately(
-          activeSessionId!,
+          sessionId,
           chassisIndex,
           allTireSets
         );
@@ -5154,7 +5227,7 @@ export function ConferirPneus() {
         const { data: verification } = await supabase
           .from('conference_sessions')
           .select('progress')
-          .eq('id', activeSessionId)
+          .eq('id', sessionId)
           .single();
         
         // 🔍 DEBUG CRÍTICO: Verifica TODOS os pneus salvos
@@ -5210,7 +5283,7 @@ export function ConferirPneus() {
     return false;
   };
 
-  const handleTireCodeSubmit = async (codeOverride?: string, positionOverride?: number) => {
+  const handleTireCodeSubmit = async (codeOverride?: string, positionOverride?: number, context?: TireSubmitContext) => {
     // 🔥 Cancela o timer de auto-submit se existir
     if (autoSubmitTimerRef.current) {
       clearTimeout(autoSubmitTimerRef.current);
@@ -5219,8 +5292,16 @@ export function ConferirPneus() {
     
     let code = normalizeScannerCode(codeOverride || tireCodeInput);
     const targetIndex = positionOverride !== undefined ? positionOverride : activePneuPosition; // 🔥 Usa positionOverride se fornecido
+    const targetJogo = context?.jogo ?? activeJogo;
+    const targetChassisIndex = context?.chassisIndex ?? selectedChassisIndexRef.current ?? selectedChassisIndex;
+    const currentTireSets = tireSetsRef.current.length > 0 ? tireSetsRef.current : tireSets;
+    const currentExtractedData = extractedDataRef.current.length > 0 ? extractedDataRef.current : extractedData;
+    const currentActiveSessionId = activeSessionIdRef.current ?? activeSessionId;
+    const currentUserNameForSubmit = currentUserNameRef.current || currentUserName;
+    const targetChassisData = targetChassisIndex !== null ? currentExtractedData[targetChassisIndex] : null;
+    const shouldManageFocusAfterSave = !context;
 
-    console.log('🚀 handleTireCodeSubmit CHAMADO! Input:', code, '| targetIndex:', targetIndex, '| positionOverride:', positionOverride);
+    console.log('🚀 handleTireCodeSubmit CHAMADO! Input:', code, '| targetJogo:', targetJogo, '| targetIndex:', targetIndex, '| positionOverride:', positionOverride);
 
     if (!code) {
       console.log('❌ Input vazio, abortando');
@@ -5269,27 +5350,27 @@ export function ConferirPneus() {
     }
 
     // 🔥 VALIDAÇÃO: Verifica se há chassis selecionado e tireSets inicializado
-    if (selectedChassisIndex === null) {
+    if (targetChassisIndex === null || !targetChassisData) {
       console.error('❌ Nenhum chassis selecionado!');
       toast.error('Selecione um chassis antes de conferir pneus');
       clearTireInput();
       return;
     }
     
-    if (tireSets.length === 0) {
-      console.error('❌ TireSets não inicializado!', { activeJogo, tireSets });
+    if (currentTireSets.length === 0) {
+      console.error('❌ TireSets não inicializado!', { targetJogo, tireSets: currentTireSets });
       toast.error('Erro: Sessão de conferência não inicializada. Feche e abra o chassis novamente.');
       clearTireInput();
       return;
     }
     
-    console.log('🎯 Estado atual:', { activeJogo, tireSetsLength: tireSets.length, code });
+    console.log('🎯 Estado atual:', { targetJogo, tireSetsLength: currentTireSets.length, code });
     
     // Encontra o jogo ativo
-    const currentSet = tireSets.find(s => s.jogo === activeJogo);
+    const currentSet = currentTireSets.find(s => s.jogo === targetJogo);
     if (!currentSet) {
-      console.error('❌ Jogo ativo não encontrado!', { activeJogo, tireSets });
-      toast.error(`Erro: Jogo ${activeJogo} não encontrado. Feche e abra o chassis novamente.`);
+      console.error('❌ Jogo ativo não encontrado!', { targetJogo, tireSets: currentTireSets });
+      toast.error(`Erro: Jogo ${targetJogo} não encontrado. Feche e abra o chassis novamente.`);
       clearTireInput();
       return;
     }
@@ -5313,17 +5394,19 @@ export function ConferirPneus() {
     console.log('   É RFID?', isRFIDCode(tempCode) ? '❌ SIM (ERRO!)' : '✅ NÃO (CORRETO)');
     // 🔥 NÃO LIMPA O INPUT - deixa React fazer a transição natural
 
-    // 🔥 CORRIGIDO: Avança APENAS para próxima posição VAZIA ABAIXO (nunca volta para cima)
-    const nextEmptyIdx = currentSet.tires.findIndex((t, i) => i > targetIndex && t.codigo === '-');
-    if (nextEmptyIdx !== -1) {
-      // Encontrou campo vazio abaixo - avança para ele
-      const nextEmptyTire = currentSet.tires[nextEmptyIdx];
-      const nextEmptyOriginalIndex = nextEmptyTire._originalIndex ?? nextEmptyIdx;
-      setActivePneuPosition(nextEmptyOriginalIndex);
-      console.log(`🎯 Avançando foco para baixo: ��ndice visual ${nextEmptyIdx} → _originalIndex ${nextEmptyOriginalIndex}`);
-    } else {
-      // Não há campo vazio abaixo - mantém no campo atual (NÃO VOLTA PARA CIMA)
-      console.log(`🎯 Nenhum campo vazio abaixo. Mantendo foco na posição atual (targetIndex: ${targetIndex})`);
+    if (shouldManageFocusAfterSave) {
+      // 🔥 CORRIGIDO: Avança APENAS para próxima posição VAZIA ABAIXO (nunca volta para cima)
+      const nextEmptyIdx = currentSet.tires.findIndex((t, i) => i > targetIndex && t.codigo === '-');
+      if (nextEmptyIdx !== -1) {
+        // Encontrou campo vazio abaixo - avança para ele
+        const nextEmptyTire = currentSet.tires[nextEmptyIdx];
+        const nextEmptyOriginalIndex = nextEmptyTire._originalIndex ?? nextEmptyIdx;
+        setActivePneuPosition(nextEmptyOriginalIndex);
+        console.log(`🎯 Avançando foco para baixo: índice visual ${nextEmptyIdx} -> _originalIndex ${nextEmptyOriginalIndex}`);
+      } else {
+        // Não há campo vazio abaixo - mantém no campo atual (NÃO VOLTA PARA CIMA)
+        console.log(`🎯 Nenhum campo vazio abaixo. Mantendo foco na posição atual (targetIndex: ${targetIndex})`);
+      }
     }
     
     // 🔥 v4.8.0: Não foca aqui - será feito apenas após registro completo
@@ -5362,16 +5445,16 @@ export function ConferirPneus() {
           observacao: '', // Observação vazia
           validacao: 'TROCAR PNEU', // 🔥 Pneus não cadastrados devem ser trocados
           _originalIndex: targetIndex, // 🔥 Preserva o índice original (targetIndex é o _originalIndex)
-          registeredBy: currentUserName, // 🆕 Nome do usuário que registrou
+          registeredBy: currentUserNameForSubmit, // 🆕 Nome do usuário que registrou
           registeredAt: new Date().toISOString() // 🆕 Data/hora do registro
         };
         
         console.log('✅ Pneu não cadastrado criado:', newTire);
-        console.log('📍 targetIndex (_originalIndex):', targetIndex, '| activeJogo:', activeJogo);
+        console.log('📍 targetIndex (_originalIndex):', targetIndex, '| targetJogo:', targetJogo);
         
         // 🔥 FIX: Atualiza os jogos buscando pelo _originalIndex
-        const newSets = tireSets.map(set => {
-          if (set.jogo === activeJogo) {
+        const newSets = (tireSetsRef.current.length > 0 ? tireSetsRef.current : currentTireSets).map(set => {
+          if (set.jogo === targetJogo) {
             // 🔥 Garante que todos os pneus têm _originalIndex
             const newTires = set.tires.map((t, idx) => ({
               ...t,
@@ -5382,7 +5465,7 @@ export function ConferirPneus() {
             const visualIndex = newTires.findIndex(t => t._originalIndex === targetIndex);
             
             if (visualIndex !== -1) {
-              console.log('🔄 Atualizando tire com _originalIndex', targetIndex, 'no índice visual', visualIndex, 'do jogo', activeJogo);
+              console.log('🔄 Atualizando tire com _originalIndex', targetIndex, 'no índice visual', visualIndex, 'do jogo', targetJogo);
               console.log('🔄 Tire anterior:', newTires[visualIndex]);
               newTires[visualIndex] = newTire;
               console.log('🔄 Tire atualizado:', newTires[visualIndex]);
@@ -5402,7 +5485,7 @@ export function ConferirPneus() {
         setTireSets(newSets);
         
         // 🔍 DEBUG CRÍTICO: Verifica newSets ANTES de salvar (pneu NÃO cadastrado)
-        const tireInNewSets = newSets[activeJogo - 1]?.tires?.find(
+        const tireInNewSets = newSets[targetJogo - 1]?.tires?.find(
           (t: TireData) => t._originalIndex === targetIndex
         );
         console.log('🔍 TIRE NO NEWSETS NÃO CADASTRADO (antes de saveTireWithRetry):', {
@@ -5410,17 +5493,17 @@ export function ConferirPneus() {
           _originalIndex: tireInNewSets?._originalIndex,
           expectedCode: tempCode,
           match: tireInNewSets?.codigo === tempCode,
-          jogoIndex: activeJogo - 1,
+          jogoIndex: targetJogo - 1,
           targetIndex
         });
         
         // 🔥🔒 SALVA NO SUPABASE COM RETRY E VALIDAÇÃO (pneu não cadastrado)
-        if (selectedChassisIndex !== null) {
-          const chassisData = extractedData[selectedChassisIndex];
+        if (targetChassisIndex !== null) {
+          const chassisData = currentExtractedData[targetChassisIndex];
           const saved = await saveTireWithRetry(
             chassisData.chassis,
-            selectedChassisIndex,
-            activeJogo,
+            targetChassisIndex,
+            targetJogo,
             targetIndex,
             tempCode,
             newTire,
@@ -5440,19 +5523,19 @@ export function ConferirPneus() {
         });
         
         // Verifica se completou o jogo atual (4 pneus)
-        const tiresInCurrentSet = newSets.find(s => s.jogo === activeJogo)?.tires.filter(t => t.codigo !== '-').length || 0;
+        const tiresInCurrentSet = newSets.find(s => s.jogo === targetJogo)?.tires.filter(t => t.codigo !== '-').length || 0;
         
         if (tiresInCurrentSet === 4) {
           // Jogo completo! Avança automaticamente para o próximo jogo
-          toast.success(`Jogo ${activeJogo} completo!`, {
-            description: activeJogo < 4 ? `Avançando para Jogo ${activeJogo + 1}` : 'Todos os jogos completos!'
+          toast.success(`Jogo ${targetJogo} completo!`, {
+            description: targetJogo < 4 ? `Avançando para Jogo ${targetJogo + 1}` : 'Todos os jogos completos!'
           });
           
           // 🔥 Se o jogo montado no carro foi completado, marca flag para mover ao fechar modal
           const jogoMontado = newSets.find(s => s.montadoNoCarro === true);
           console.log('🔍 DEBUG (não cadastrado): jogoMontado:', jogoMontado);
-          console.log('🔍 DEBUG (não cadastrado): activeJogo:', activeJogo);
-          if (jogoMontado && jogoMontado.jogo === activeJogo) {
+          console.log('🔍 DEBUG (não cadastrado): targetJogo:', targetJogo);
+          if (jogoMontado && jogoMontado.jogo === targetJogo) {
             console.log('🚗 Jogo montado no carro completado! Será movido ao fechar o modal...');
             console.log('🔍 Setando shouldMoveChassisToEnd = true');
             setShouldMoveChassisToEnd(true);
@@ -5461,19 +5544,21 @@ export function ConferirPneus() {
             });
           }
           
-          if (activeJogo < 4) {
-            setActiveJogo(activeJogo + 1);
-            setActivePneuPosition(0);
-          } else {
-            setActivePneuPosition(3); // Última posição válida (0-3)
+          if (shouldManageFocusAfterSave) {
+            if (targetJogo < 4) {
+              setActiveJogo(targetJogo + 1);
+              setActivePneuPosition(0);
+            } else {
+              setActivePneuPosition(3); // Última posição válida (0-3)
+            }
           }
         } else {
           // 🔥 FIX: Avança para próxima posição vazia DENTRO DO JOGO ATUAL
           console.log('🔍 Buscando próxima posição vazia no jogo atual...');
-          console.log('🔍 Jogo atual:', activeJogo, '| targetIndex:', targetIndex);
+          console.log('🔍 Jogo atual:', targetJogo, '| targetIndex:', targetIndex);
           
           // Busca próxima posição vazia no JOGO ATUAL (após a posição atual)
-          const updatedCurrentSet = newSets.find(s => s.jogo === activeJogo);
+          const updatedCurrentSet = newSets.find(s => s.jogo === targetJogo);
           if (updatedCurrentSet) {
             const nextEmptyIndexInCurrentGame = updatedCurrentSet.tires.findIndex((t, i) => i > targetIndex && t.codigo === '-');
             
@@ -5483,49 +5568,53 @@ export function ConferirPneus() {
               // Encontrou próxima posição vazia ABAIXO - avança para ela
               const nextTire = updatedCurrentSet.tires[nextEmptyIndexInCurrentGame];
               const nextOriginalIndex = nextTire._originalIndex ?? nextEmptyIndexInCurrentGame;
-              console.log(`✅ Avançando para baixo: posição visual ${nextEmptyIndexInCurrentGame} (_originalIndex ${nextOriginalIndex}) no jogo ${activeJogo}`);
-              setActivePneuPosition(nextOriginalIndex);
+              console.log(`✅ Avançando para baixo: posição visual ${nextEmptyIndexInCurrentGame} (_originalIndex ${nextOriginalIndex}) no jogo ${targetJogo}`);
+              if (shouldManageFocusAfterSave) {
+                setActivePneuPosition(nextOriginalIndex);
+              }
             } else {
               // 🔥 CORRIGIDO: Não há mais posições vazias ABAIXO - mantém no campo atual (NÃO VOLTA PARA CIMA)
-              console.log(`🎯 Nenhum campo vazio abaixo no jogo ${activeJogo}. Mantendo posição atual.`);
+              console.log(`🎯 Nenhum campo vazio abaixo no jogo ${targetJogo}. Mantendo posição atual.`);
               // Mantém no campo atual - não volta para cima
             }
           }
         }
         
         // Atualiza contagem total e verifica auto-save
-        if (selectedChassisIndex !== null) {
+        if (targetChassisIndex !== null) {
           const totalChecked = countCheckedTires(newSets);
           
-          const newData = [...extractedData];
-          newData[selectedChassisIndex].tiresChecked = totalChecked;
-          setExtractedData(ensureCorrectIndexes(newData)); // 🔥 Garante índices corretos
+          const newData = [...currentExtractedData];
+          newData[targetChassisIndex].tiresChecked = totalChecked;
+          const ensuredData = ensureCorrectIndexes(newData);
+          extractedDataRef.current = ensuredData;
+          setExtractedData(ensuredData); // 🔥 Garante índices corretos
           
           // 🔥 Atualiza sessão ativa em tempo real
-          updateActiveSessionInRealTime(newData, newSets, selectedChassisIndex);
+          updateActiveSessionInRealTime(ensuredData, newSets, targetChassisIndex);
           
           // 🔥 AUTO-SAVE: Verifica se todos os pneus obrigatórios foram lidos e finaliza automaticamente
-          const chassisData = newData[selectedChassisIndex];
+          const chassisData = ensuredData[targetChassisIndex];
           const requiredTotalTires = getRequiredTiresCount(chassisData);
           
-          if (totalChecked >= requiredTotalTires && !completedChassis[selectedChassisIndex]) {
+          if (totalChecked >= requiredTotalTires && !completedChassis[targetChassisIndex]) {
             // Todos os pneus obrigatórios foram lidos! Finaliza automaticamente
             console.log(`✅ Conferência completa do Chassis ${chassisData.chassis} - AUTO-FINALIZADA (${totalChecked}/${requiredTotalTires} pneus)`);
             
             // Marca como conferência finalizada
             setCompletedChassis(prev => ({
               ...prev,
-              [selectedChassisIndex]: true
+              [targetChassisIndex]: true
             }));
             
             // Salva os dados
             setSavedTireSets(prev => ({
               ...prev,
-              [selectedChassisIndex]: newSets
+              [targetChassisIndex]: newSets
             }));
             
             // 🔥 Atualiza sessão compartilhada no Supabase
-            updateSessionProgress(selectedChassisIndex, {
+            updateSessionProgress(targetChassisIndex, {
               tireSets: newSets,
               completed: true,
               tiresChecked: totalChecked,
@@ -5550,7 +5639,7 @@ export function ConferirPneus() {
       console.log('✅ Dados do pneu carregados do Supabase:', tireData);
       
       // ✅ Pneu encontrado - valida piloto
-      const expectedPilot = selectedChassisIndex !== null ? extractedData[selectedChassisIndex].piloto : '';
+      const expectedPilot = targetChassisData?.piloto || '';
       
       console.log('🔍 VALIDAÇÃO DE PILOTO:');
       console.log('   Piloto do pneu (Supabase):', `"${tireData.pilot}"`);
@@ -5598,7 +5687,7 @@ export function ConferirPneus() {
       }
       
       // 🔥 Calcula validação do pneu baseado nas regras de negócio
-      const chassisData = selectedChassisIndex !== null ? extractedData[selectedChassisIndex] : null;
+      const chassisData = targetChassisData;
       const chassisStatus = chassisData?.corrida || '';
       const isPneuNovo = !tireData.pilot || tireData.pilot.trim() === '';
       const isPilotCorrect = !isPneuNovo && normalizePilotName(tireData.pilot) === normalizePilotName(expectedPilot);
@@ -5650,12 +5739,12 @@ export function ConferirPneus() {
         observacao: '',
         validacao: validacao,
         _originalIndex: targetIndex, // 🔥 Preserva o índice original
-        registeredBy: currentUserName, // 🆕 Nome do usuário que registrou
+        registeredBy: currentUserNameForSubmit, // 🆕 Nome do usuário que registrou
         registeredAt: new Date().toISOString() // 🆕 Data/hora do registro
       };
       
       console.log('📋 Pneu cadastrado mapeado:', newTire);
-      console.log('📍 targetIndex:', targetIndex, '| activeJogo:', activeJogo, '| activePneuPosition:', activePneuPosition);
+      console.log('📍 targetIndex:', targetIndex, '| targetJogo:', targetJogo, '| activePneuPosition:', activePneuPosition);
       console.log('🔍 VALIDAÇÃO CALCULADA:', {
         codigo: newTire.codigo,
         validacao: validacao,
@@ -5668,8 +5757,8 @@ export function ConferirPneus() {
       });
       
       // 🔥 FIX: Atualiza os jogos buscando pelo _originalIndex
-      const newSets = tireSets.map(set => {
-        if (set.jogo === activeJogo) {
+      const newSets = (tireSetsRef.current.length > 0 ? tireSetsRef.current : currentTireSets).map(set => {
+        if (set.jogo === targetJogo) {
           // 🔥 Garante que todos os pneus têm _originalIndex
           const newTires = set.tires.map((t, idx) => ({
             ...t,
@@ -5680,7 +5769,7 @@ export function ConferirPneus() {
           const visualIndex = newTires.findIndex(t => t._originalIndex === targetIndex);
           
           if (visualIndex !== -1) {
-            console.log('🔄 Atualizando tire CADASTRADO com _originalIndex', targetIndex, 'no índice visual', visualIndex, 'do jogo', activeJogo);
+            console.log('🔄 Atualizando tire CADASTRADO com _originalIndex', targetIndex, 'no índice visual', visualIndex, 'do jogo', targetJogo);
             console.log('🔄 Tire anterior:', newTires[visualIndex]);
             newTires[visualIndex] = newTire;
             console.log('🔄 Tire atualizado:', newTires[visualIndex]);
@@ -5700,7 +5789,7 @@ export function ConferirPneus() {
       setTireSets(newSets);
       
       // 🔍 DEBUG CRÍTICO: Verifica newSets ANTES de salvar
-      const tireInNewSets = newSets[activeJogo - 1]?.tires?.find(
+      const tireInNewSets = newSets[targetJogo - 1]?.tires?.find(
         (t: TireData) => t._originalIndex === targetIndex
       );
       console.log('🔍 TIRE NO NEWSETS (antes de saveTireWithRetry):', {
@@ -5708,17 +5797,17 @@ export function ConferirPneus() {
         _originalIndex: tireInNewSets?._originalIndex,
         expectedCode: tireData.barcode || tempCode,
         match: tireInNewSets?.codigo === (tireData.barcode || tempCode),
-        jogoIndex: activeJogo - 1,
+        jogoIndex: targetJogo - 1,
         targetIndex
       });
       
       // 🔥🔒 SALVA NO SUPABASE COM RETRY E VALIDAÇÃO (pneu cadastrado)
-      if (selectedChassisIndex !== null) {
-        const chassisData = extractedData[selectedChassisIndex];
+      if (targetChassisIndex !== null) {
+        const chassisData = currentExtractedData[targetChassisIndex];
         const saved = await saveTireWithRetry(
           chassisData.chassis,
-          selectedChassisIndex,
-          activeJogo,
+          targetChassisIndex,
+          targetJogo,
           targetIndex,
           tireData.barcode || tempCode,
           newTire,
@@ -5745,38 +5834,38 @@ export function ConferirPneus() {
       
       // 🔥 SALVA DIVERGÊNCIA EM TEMPO REAL (verifica validação "TROCAR PNEU")
       console.log('🔍 VERIFICANDO SE DEVE SALVAR DIVERGÊNCIA:', {
-        activeSessionId,
-        selectedChassisIndex,
+        activeSessionId: currentActiveSessionId,
+        targetChassisIndex,
         validacao: newTire.validacao
       });
       
-      if (activeSessionId && selectedChassisIndex !== null) {
-        const chassisData = extractedData[selectedChassisIndex];
+      if (currentActiveSessionId && targetChassisIndex !== null) {
+        const chassisData = currentExtractedData[targetChassisIndex];
         console.log('🔥 CHAMANDO saveTireDivergenceRealtime...');
         await saveTireDivergenceRealtime(
-          activeSessionId,
+          currentActiveSessionId,
           chassisData.chassis,
-          activeJogo,
+          targetJogo,
           newTire
         );
       } else {
-        console.log('⚠️ NÃO VAI SALVAR - activeSessionId ou selectedChassisIndex está null');
+        console.log('⚠️ NÃO VAI SALVAR - activeSessionId ou targetChassisIndex está null');
       }
       
       // Verifica se completou o jogo atual (4 pneus)
-      const tiresInCurrentSet = newSets.find(s => s.jogo === activeJogo)?.tires.filter(t => t.codigo !== '-').length || 0;
+      const tiresInCurrentSet = newSets.find(s => s.jogo === targetJogo)?.tires.filter(t => t.codigo !== '-').length || 0;
       
       if (tiresInCurrentSet === 4) {
         // Jogo completo! Avança automaticamente para o próximo jogo
-        toast.success(`Jogo ${activeJogo} completo!`, {
-          description: activeJogo < 4 ? `Avançando para Jogo ${activeJogo + 1}` : 'Todos os jogos completos!'
+        toast.success(`Jogo ${targetJogo} completo!`, {
+          description: targetJogo < 4 ? `Avançando para Jogo ${targetJogo + 1}` : 'Todos os jogos completos!'
         });
         
         // 🔥 Se o jogo montado no carro foi completado, marca flag para mover ao fechar modal
         const jogoMontado = newSets.find(s => s.montadoNoCarro === true);
         console.log('🔍 DEBUG: jogoMontado:', jogoMontado);
-        console.log('🔍 DEBUG: activeJogo:', activeJogo);
-        if (jogoMontado && jogoMontado.jogo === activeJogo) {
+        console.log('🔍 DEBUG: targetJogo:', targetJogo);
+        if (jogoMontado && jogoMontado.jogo === targetJogo) {
           console.log('🚗 Jogo montado no carro completado! Será movido ao fechar o modal...');
           console.log('🔍 Setando shouldMoveChassisToEnd = true');
           setShouldMoveChassisToEnd(true);
@@ -5785,20 +5874,22 @@ export function ConferirPneus() {
           });
         }
         
-        if (activeJogo < 4) {
-          setActiveJogo(activeJogo + 1);
-          setActivePneuPosition(0);
-        } else {
-          // Último jogo completado
-          setActivePneuPosition(3); // Última posição válida (0-3)
+        if (shouldManageFocusAfterSave) {
+          if (targetJogo < 4) {
+            setActiveJogo(targetJogo + 1);
+            setActivePneuPosition(0);
+          } else {
+            // Último jogo completado
+            setActivePneuPosition(3); // Última posição válida (0-3)
+          }
         }
       } else {
         // 🔥 FIX: Avança para próxima posição vazia DENTRO DO JOGO ATUAL
         console.log('🔍 Buscando próxima posição vazia no jogo atual (pneu cadastrado)...');
-        console.log('🔍 Jogo atual:', activeJogo, '| targetIndex:', targetIndex);
+        console.log('🔍 Jogo atual:', targetJogo, '| targetIndex:', targetIndex);
         
         // Busca próxima posição vazia no JOGO ATUAL (após a posição atual)
-        const updatedCurrentSet = newSets.find(s => s.jogo === activeJogo);
+        const updatedCurrentSet = newSets.find(s => s.jogo === targetJogo);
         if (updatedCurrentSet) {
           const nextEmptyIndexInCurrentGame = updatedCurrentSet.tires.findIndex((t, i) => i > targetIndex && t.codigo === '-');
           
@@ -5808,49 +5899,53 @@ export function ConferirPneus() {
             // Encontrou próxima posição vazia ABAIXO - avança para ela
             const nextTire = updatedCurrentSet.tires[nextEmptyIndexInCurrentGame];
             const nextOriginalIndex = nextTire._originalIndex ?? nextEmptyIndexInCurrentGame;
-            console.log(`✅ Avançando para baixo: posição visual ${nextEmptyIndexInCurrentGame} (_originalIndex ${nextOriginalIndex}) no jogo ${activeJogo}`);
-            setActivePneuPosition(nextOriginalIndex);
+            console.log(`✅ Avançando para baixo: posição visual ${nextEmptyIndexInCurrentGame} (_originalIndex ${nextOriginalIndex}) no jogo ${targetJogo}`);
+            if (shouldManageFocusAfterSave) {
+              setActivePneuPosition(nextOriginalIndex);
+            }
           } else {
             // 🔥 CORRIGIDO: Não há mais posições vazias ABAIXO - mantém no campo atual (NÃO VOLTA PARA CIMA)
-            console.log(`🎯 Nenhum campo vazio abaixo no jogo ${activeJogo}. Mantendo posição atual.`);
+            console.log(`🎯 Nenhum campo vazio abaixo no jogo ${targetJogo}. Mantendo posição atual.`);
             // Mantém no campo atual - não volta para cima
           }
         }
       }
       
       // Atualiza contagem total
-      if (selectedChassisIndex !== null) {
+      if (targetChassisIndex !== null) {
         const totalChecked = countCheckedTires(newSets);
         
-        const newData = [...extractedData];
-        newData[selectedChassisIndex].tiresChecked = totalChecked;
-        setExtractedData(ensureCorrectIndexes(newData)); // 🔥 Garante índices corretos
+        const newData = [...currentExtractedData];
+        newData[targetChassisIndex].tiresChecked = totalChecked;
+        const ensuredData = ensureCorrectIndexes(newData);
+        extractedDataRef.current = ensuredData;
+        setExtractedData(ensuredData); // 🔥 Garante índices corretos
         
         // 🔥 Atualiza sessão ativa em tempo real
-        updateActiveSessionInRealTime(newData, newSets, selectedChassisIndex);
+        updateActiveSessionInRealTime(ensuredData, newSets, targetChassisIndex);
         
         // 🔥 AUTO-SAVE: Verifica se todos os pneus obrigatórios foram lidos e finaliza automaticamente
-        const chassisData = newData[selectedChassisIndex];
+        const chassisData = ensuredData[targetChassisIndex];
         const requiredTotalTires = getRequiredTiresCount(chassisData);
         
-        if (totalChecked >= requiredTotalTires && !completedChassis[selectedChassisIndex]) {
+        if (totalChecked >= requiredTotalTires && !completedChassis[targetChassisIndex]) {
           // Todos os pneus obrigatórios foram lidos! Finaliza automaticamente
           console.log(`✅ Conferência completa do Chassis ${chassisData.chassis} - AUTO-FINALIZADA (${totalChecked}/${requiredTotalTires} pneus)`);
           
           // Marca como conferência finalizada
           setCompletedChassis(prev => ({
             ...prev,
-            [selectedChassisIndex]: true
+            [targetChassisIndex]: true
           }));
           
           // Salva os dados
           setSavedTireSets(prev => ({
             ...prev,
-            [selectedChassisIndex]: newSets
+            [targetChassisIndex]: newSets
           }));
           
           // 🔥 Atualiza sessão compartilhada no Supabase
-          updateSessionProgress(selectedChassisIndex, {
+          updateSessionProgress(targetChassisIndex, {
             tireSets: newSets,
             completed: true,
             tiresChecked: totalChecked,
@@ -8344,7 +8439,7 @@ onKeyDown={(e) => {
                                             console.log(`📍 Código: "${value}"`);
                                             inlineAutoSubmitTimersRef.current[inputKey] = setTimeout(() => {
                                               handleTireCodeSubmitInline(value, currentJogo, currentPosition);
-                                            }, 300);
+                                            }, SCANNER_AUTO_SUBMIT_DELAY_MS);
                                           }
                                         }}
                                         onKeyDown={(e) => {

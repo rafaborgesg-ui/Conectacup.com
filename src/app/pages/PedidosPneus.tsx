@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { ShoppingCart, Package, TrendingUp, AlertCircle, ChevronDown, ChevronRight, Plus, Trash2, Save, FileDown, Send, Calendar, CheckSquare, Square, Edit, X, ClipboardCheck, History } from 'lucide-react';
 import { createClient } from '../utils/supabase/client';
 import { TireStockEntry, type TireEntry } from '../components/TireStockEntry';
-import { toast } from 'sonner@2.0.3';
 
 interface Season {
   id: string;

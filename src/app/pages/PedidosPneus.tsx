@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ShoppingCart, Package, TrendingUp, AlertCircle, ChevronDown, ChevronRight, Plus, Trash2, Save, FileDown, Send, Calendar, CheckSquare, Square, Edit, X, ClipboardCheck, History } from 'lucide-react';
 import { createClient } from '../utils/supabase/client';
 import { TireStockEntry, type TireEntry } from '../components/TireStockEntry';
-import { toast } from 'sonner';
+import { toast } from 'sonner@2.0.3';
 
 interface Season {
   id: string;
@@ -790,7 +790,8 @@ export default function PedidosPneus() {
         })),
         created_by: order.created_by,
         notes: order.notes || '',
-        selected_stages: order.selected_stages || []
+        selected_stages: order.selected_stages || [],
+        target_stage_id: order.target_stage_id || null
       }));
 
       console.log('✅ Pedidos formatados:', formattedPedidos.length, 'pedidos');
@@ -971,20 +972,16 @@ export default function PedidosPneus() {
         setSelectedStages(new Set(pedido.selected_stages));
       }
       
-      // Busca a etapa de destino do pedido em demand_calculations
-      const { data: demandData } = await supabase
-        .from('demand_calculations')
-        .select('stage_id')
-        .eq('order_id', pedido.id)
-        .limit(1)
-        .single();
-      
-      if (demandData?.stage_id) {
-        console.log('📍 Etapa de destino carregada:', demandData.stage_id);
-        setTargetStageId(demandData.stage_id);
+      // Carrega etapa de destino: primeiro tenta target_stage_id direto, depois fallback em demand_calculations
+      if (pedido.target_stage_id) {
+        setTargetStageId(pedido.target_stage_id);
       } else {
-        console.log('ℹ️ Pedido não possui etapa de destino definida');
-        setTargetStageId('');
+        const { data: demandData } = await supabase
+          .from('demand_calculations')
+          .select('stage_id')
+          .eq('order_id', pedido.id)
+          .maybeSingle();
+        setTargetStageId(demandData?.stage_id || '');
       }
       
       // Agora define a temporada (já que as etapas já foram definidas manualmente)
@@ -1967,6 +1964,15 @@ export default function PedidosPneus() {
       }
 
       const supabase = createClient();
+
+      // Sempre força refresh do token para garantir que o JWT está válido antes de operações RLS
+      const { data: refreshData } = await supabase.auth.refreshSession();
+      const session = refreshData.session;
+      if (!session) {
+        alert('Sessão expirada. Faça login novamente.');
+        return;
+      }
+
       
       // Busca o nome da temporada
       const { data: seasonData } = await supabase
@@ -1978,12 +1984,7 @@ export default function PedidosPneus() {
       const seasonName = seasonData ? `${seasonData.name} ${seasonData.year}` : 'Temporada';
 
       // Busca o usuário atual
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        alert('Usuário não autenticado');
-        return;
-      }
+      const user = session.user;
 
       const { totalQuantity, totalValue } = calculateTotals();
 
@@ -1992,17 +1993,14 @@ export default function PedidosPneus() {
       if (editingPedidoId) {
         // MODO EDIÇÃO: Atualiza pedido existente
         
-        // Primeiro, limpa os dados antigos do pedido em demand_calculations
+        // Limpa dados antigos do pedido em demand_calculations (por order_id E por stage_id anterior)
         console.log('🧹 Limpando dados antigos do pedido em demand_calculations...');
-        await supabase
-          .from('demand_calculations')
-          .update({
-            ordered_tires: null,
-            order_name: null,
-            order_id: null,
-            order_date: null
-          })
-          .eq('order_id', editingPedidoId);
+        const cleanPayload = { ordered_tires: null, order_name: null, order_id: null, order_date: null };
+        await supabase.from('demand_calculations').update(cleanPayload).eq('order_id', editingPedidoId);
+        // Limpa também pela etapa anterior caso o order_id já tenha sido sobrescrito por outro pedido
+        if (targetStageId) {
+          await supabase.from('demand_calculations').update(cleanPayload).eq('stage_id', targetStageId).eq('order_id', editingPedidoId);
+        }
         
         const { error: pedidoError } = await supabase
           .from('tire_orders')
@@ -2015,7 +2013,8 @@ export default function PedidosPneus() {
             total_quantity: totalQuantity,
             total_value: totalValue,
             notes: notes,
-            selected_stages: Array.from(selectedStages)
+            selected_stages: Array.from(selectedStages),
+            target_stage_id: targetStageId || null
           })
           .eq('id', editingPedidoId);
 
@@ -2047,7 +2046,8 @@ export default function PedidosPneus() {
             total_value: totalValue,
             notes: notes,
             created_by: user.id,
-            selected_stages: Array.from(selectedStages)
+            selected_stages: Array.from(selectedStages),
+            target_stage_id: targetStageId || null
           })
           .select()
           .single();
@@ -2187,6 +2187,15 @@ export default function PedidosPneus() {
       }
 
       const supabase = createClient();
+
+      // Sempre força refresh do token para garantir que o JWT está válido antes de operações RLS
+      const { data: refreshData } = await supabase.auth.refreshSession();
+      const session = refreshData.session;
+      if (!session) {
+        alert('Sessão expirada. Faça login novamente.');
+        return;
+      }
+
       
       // Busca o nome da temporada
       const { data: seasonData } = await supabase
@@ -2198,12 +2207,7 @@ export default function PedidosPneus() {
       const seasonName = seasonData ? `${seasonData.name} ${seasonData.year}` : 'Temporada';
 
       // Busca o usuário atual
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        alert('Usuário não autenticado');
-        return;
-      }
+      const user = session.user;
 
       const { totalQuantity, totalValue } = calculateTotals();
 
@@ -2223,6 +2227,7 @@ export default function PedidosPneus() {
             total_value: totalValue,
             notes: notes,
             selected_stages: Array.from(selectedStages),
+            target_stage_id: targetStageId || null,
             sent_at: new Date().toISOString()
           })
           .eq('id', editingPedidoId);
@@ -2256,6 +2261,7 @@ export default function PedidosPneus() {
             notes: notes,
             created_by: user.id,
             selected_stages: Array.from(selectedStages),
+            target_stage_id: targetStageId || null,
             sent_at: new Date().toISOString()
           })
           .select()
@@ -2387,6 +2393,15 @@ export default function PedidosPneus() {
       setIsSaving(true);
       const supabase = createClient();
 
+      // Sempre força refresh do token para garantir que o JWT está válido antes de operações RLS
+      const { data: refreshData } = await supabase.auth.refreshSession();
+      const session = refreshData.session;
+      if (!session) {
+        alert('Sessão expirada. Faça login novamente.');
+        return;
+      }
+
+
       // Validações
       if (!selectedSeasonId) {
         alert('Selecione uma temporada');
@@ -2408,12 +2423,7 @@ export default function PedidosPneus() {
       const seasonName = seasonData ? `${seasonData.name} ${seasonData.year}` : 'Temporada';
 
       // Busca o usuário atual
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        alert('Usuário não autenticado');
-        return;
-      }
+      const user = session.user;
 
       const savedOrders: string[] = [];
       const failedOrders: string[] = [];

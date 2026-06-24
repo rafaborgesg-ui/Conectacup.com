@@ -113,6 +113,8 @@ function Demanda() {
   const [initialStock, setInitialStock] = useState<Map<string, number>>(new Map());
   const [stagesWithoutWet, setStagesWithoutWet] = useState<Set<string>>(new Set());
   const [orderConferences, setOrderConferences] = useState<Map<string, any>>(new Map());
+  // Map stageId → lista de pedidos (tire_orders) para suportar múltiplos pedidos por etapa
+  const [ordersPerStage, setOrdersPerStage] = useState<Map<string, any[]>>(new Map());
   
   // Estados para edição de premissas
   const [customPremissas, setCustomPremissas] = useState<Map<string, { slicks: number; wets: number }>>(new Map());
@@ -1174,31 +1176,86 @@ function Demanda() {
         setDemandData(processedData);
         console.log('✅ Estoque: Dados processados:', processedData);
         
-        // Carrega conferências dos pedidos
-        const orderIds = calculationsData
-          .filter(calc => calc.order_id)
-          .map(calc => calc.order_id);
-        
-        if (orderIds.length > 0) {
-          console.log('🔍 Estoque: Buscando conferências para pedidos:', orderIds);
+        // Busca TODOS os pedidos (tire_orders) da temporada selecionada
+        const { data: allOrdersData } = await supabase
+          .from('tire_orders')
+          .select('*, tire_order_items(*)')
+          .eq('season_id', selectedSeasonId)
+          .order('created_at', { ascending: true });
+
+        if (allOrdersData && allOrdersData.length > 0) {
+          // Fallback: demand_calculations → mapeia order_id → stage_id (para pedidos antigos sem target_stage_id)
+          const calcOrderMap = new Map<string, string>(); // order_id → stage_id
+          calculationsData.forEach((calc: any) => {
+            if (calc.order_id) calcOrderMap.set(calc.order_id, calc.stage_id);
+          });
+
+          // Agrupa pedidos por stage_id
+          // Prioridade: 1) target_stage_id (novo campo direto), 2) demand_calculations, 3) selected_stages com 1 etapa
+          const newOrdersPerStage = new Map<string, any[]>();
+          allOrdersData.forEach(order => {
+            let stageId: string | null = null;
+
+            if (order.target_stage_id && stageIds.includes(order.target_stage_id)) {
+              // ✅ Fonte direta e confiável — funciona para múltiplos pedidos na mesma etapa
+              stageId = order.target_stage_id;
+            } else if (calcOrderMap.has(order.id)) {
+              // Pedido antigo sem target_stage_id mas registrado em demand_calculations
+              stageId = calcOrderMap.get(order.id)!;
+            } else {
+              // Último fallback: selected_stages com exatamente 1 etapa
+              const sel: string[] = order.selected_stages || [];
+              if (sel.length === 1 && stageIds.includes(sel[0])) stageId = sel[0];
+            }
+
+            if (stageId) {
+              if (!newOrdersPerStage.has(stageId)) newOrdersPerStage.set(stageId, []);
+              if (!newOrdersPerStage.get(stageId)!.find((o: any) => o.id === order.id)) {
+                newOrdersPerStage.get(stageId)!.push(order);
+              }
+            }
+          });
+          setOrdersPerStage(newOrdersPerStage);
+          console.log('✅ Estoque: Pedidos por etapa carregados', Object.fromEntries(newOrdersPerStage));
+
+          // Busca conferências para todos os pedidos encontrados
+          const allOrderIds = allOrdersData.map(o => o.id);
           const { data: conferencesData, error: conferencesError } = await supabase
             .from('order_conferences')
             .select('*')
-            .in('order_id', orderIds)
+            .in('order_id', allOrderIds)
             .order('conference_date', { ascending: false });
-          
+
           if (conferencesError) {
             console.error('❌ Estoque: Erro ao carregar conferências:', conferencesError);
           } else if (conferencesData) {
             const conferencesMap = new Map<string, any>();
             conferencesData.forEach(conf => {
-              // Pega apenas a conferência mais recente de cada pedido
               if (!conferencesMap.has(conf.order_id)) {
                 conferencesMap.set(conf.order_id, conf);
               }
             });
             console.log('✅ Estoque: Conferências carregadas:', Object.fromEntries(conferencesMap));
             setOrderConferences(conferencesMap);
+          }
+        } else {
+          // Fallback: usa order_id do demand_calculations (comportamento anterior)
+          const orderIds = calculationsData
+            .filter(calc => calc.order_id)
+            .map(calc => calc.order_id);
+          if (orderIds.length > 0) {
+            const { data: conferencesData } = await supabase
+              .from('order_conferences')
+              .select('*')
+              .in('order_id', orderIds)
+              .order('conference_date', { ascending: false });
+            if (conferencesData) {
+              const conferencesMap = new Map<string, any>();
+              conferencesData.forEach(conf => {
+                if (!conferencesMap.has(conf.order_id)) conferencesMap.set(conf.order_id, conf);
+              });
+              setOrderConferences(conferencesMap);
+            }
           }
         }
       } else {
@@ -2016,9 +2073,6 @@ function Demanda() {
                                   });
                                 }
                                 
-                                // Verifica se este pedido tem conferência
-                                const conference = demand.order_id ? orderConferences.get(demand.order_id) : null;
-
                               // Linha 1: Estoque Inicial
                               rows.push(
                                 <tr key={`${demand.stage_id}-inicial`} style={{ borderBottom: '1px solid #F3F4F6' }}>
@@ -2064,88 +2118,83 @@ function Demanda() {
                                 </tr>
                               );
 
-                              // Linha 2: Pedidos Realizados (se houver)
-                              if (demand.order_name && demand.ordered_tires) {
-                                // Define cor do fundo: verde se NÃO foi conferido, cinza se foi conferido
-                                const pedidoBackground = conference ? '#F3F4F6' : '#ECFDF5';
-                                const pedidoColor = conference ? '#6B7280' : '#059669';
+                              // Linha 2+: Todos os Pedidos desta etapa (somente via ordersPerStage — sem fallback de demand_calculations para evitar pedidos fantasma)
+                              const ordersToRender = ordersPerStage.get(demand.stage_id) || [];
+
+                              ordersToRender.forEach((order: any, orderIdx: number) => {
+                                const ordConference = orderConferences.get(order.id);
+                                const pedidoBackground = ordConference ? '#F3F4F6' : '#ECFDF5';
+                                const pedidoColor = ordConference ? '#6B7280' : '#059669';
+
+                                // Monta mapa de quantidades: usa tire_order_items se disponível, senão _legacyOrderedTires
+                                const thisOrderedTiresMap = new Map<string, number>();
+                                if (order.tire_order_items && order.tire_order_items.length > 0) {
+                                  order.tire_order_items.forEach((item: any) => {
+                                    if (item.model_code) {
+                                      const cur = thisOrderedTiresMap.get(item.model_code) || 0;
+                                      thisOrderedTiresMap.set(item.model_code, cur + (item.quantity_ordered || item.quantity_needed || 0));
+                                    }
+                                  });
+                                } else if (order._legacyOrderedTires) {
+                                  order._legacyOrderedTires.forEach((t: any) => {
+                                    thisOrderedTiresMap.set(t.model, t.quantity || 0);
+                                  });
+                                }
+
+                                const conferencedTiresMap = ordConference?.items_detail ? new Map<string, number>() : null;
+                                if (ordConference?.items_detail) {
+                                  ordConference.items_detail.forEach((item: any) => {
+                                    conferencedTiresMap!.set(item.model_code, item.quantity_scanned || 0);
+                                  });
+                                }
 
                                 rows.push(
-                                  <tr key={`${demand.stage_id}-pedido`} style={{ borderBottom: '1px solid #F3F4F6', background: pedidoBackground }}>
-                                    <td className="px-1.5 py-2 text-[10px] text-gray-900" style={{ width: '10%' }}>
-                                      {/* Não repete o campeonato */}
-                                    </td>
-                                    <td className="px-1.5 py-2 text-[10px] text-gray-900" style={{ width: '8%' }}>
-                                      {/* Não repete a etapa */}
-                                    </td>
+                                  <tr key={`${demand.stage_id}-pedido-${order.id || orderIdx}`} style={{ borderBottom: '1px solid #F3F4F6', background: pedidoBackground }}>
+                                    <td className="px-1.5 py-2 text-[10px] text-gray-900" style={{ width: '10%' }} />
+                                    <td className="px-1.5 py-2 text-[10px] text-gray-900" style={{ width: '8%' }} />
                                     <td className="px-1.5 py-2 text-[10px] font-medium" style={{ color: pedidoColor, width: '10%' }}>
                                       <div className="break-words leading-tight flex items-center gap-1">
                                         <span>📦</span>
-                                        <span>{demand.order_name}</span>
-                                        {conference && <span className="text-[8px]">(Conferido)</span>}
+                                        <span>{order.order_name}</span>
+                                        {ordConference && <span className="text-[8px]">(Conferido)</span>}
                                       </div>
                                     </td>
                                     {allTireModels.map((tire, tireIdx: number) => {
-                                      const quantityOrdered = orderedTiresMap.get(tire.model) || 0;
-
-                                      // Verifica se há conferência para este modelo
-                                      const conferencedTiresMap = conference?.items_detail ? new Map<string, number>() : null;
-                                      if (conference?.items_detail) {
-                                        conference.items_detail.forEach((item: any) => {
-                                          conferencedTiresMap!.set(item.model_code, item.quantity_scanned || 0);
-                                        });
-                                      }
-
+                                      const quantityOrdered = thisOrderedTiresMap.get(tire.model) || 0;
                                       const quantityConferenced = conferencedTiresMap?.get(tire.model) || 0;
-
-                                      // Se foi conferido alguma quantidade deste modelo, célula fica cinza
-                                      // Senão, se tem pedido, fica verde
                                       const cellBackground = quantityConferenced > 0 ? '#F3F4F6' : (quantityOrdered > 0 ? '#D1FAE5' : '#F3F4F6');
                                       const cellColor = quantityConferenced > 0 ? '#6B7280' : (quantityOrdered > 0 ? '#065F46' : '#9CA3AF');
-
                                       return (
-                                        <td
-                                          key={tireIdx}
-                                          className="px-1 py-2 text-center text-[10px] font-bold"
-                                          style={{
-                                            backgroundColor: cellBackground,
-                                            color: cellColor
-                                          }}
-                                        >
+                                        <td key={tireIdx} className="px-1 py-2 text-center text-[10px] font-bold" style={{ backgroundColor: cellBackground, color: cellColor }}>
                                           {quantityOrdered > 0 ? `+${quantityOrdered}` : '-'}
                                         </td>
                                       );
                                     })}
                                   </tr>
                                 );
-                              }
+                              });
                               
-                              // 🆕 Linha 1.5: Entrada de Estoque (se pedido foi conferido) - APARECE APÓS O PEDIDO
-                              if (conference && conference.items_detail) {
-                                // Criar um Map das quantidades conferidas para lookup rápido
+                              // 🆕 Linhas de Entrada de Estoque — uma por pedido conferido desta etapa
+                              ordersToRender.forEach((order: any, orderIdx: number) => {
+                                const ordConference = orderConferences.get(order.id);
+                                if (!ordConference || !ordConference.items_detail) return;
+
                                 const conferencedTiresMap = new Map<string, number>();
                                 let totalConferenced = 0;
-                                conference.items_detail.forEach((item: any) => {
+                                ordConference.items_detail.forEach((item: any) => {
                                   const qty = item.quantity_scanned || 0;
                                   conferencedTiresMap.set(item.model_code, qty);
                                   totalConferenced += qty;
                                 });
 
-                                // Define cor: verde se tiver dados, cinza se não tiver
                                 const entradaBackground = totalConferenced > 0 ? '#ECFDF5' : '#F3F4F6';
                                 const entradaColor = totalConferenced > 0 ? '#059669' : '#6B7280';
 
                                 rows.push(
-                                  <tr key={`${demand.stage_id}-entrada`} style={{
-                                    borderBottom: '1px solid #F3F4F6',
-                                    background: entradaBackground
-                                  }}>
-                                    <td className="px-1.5 py-2 text-[10px] text-gray-900" style={{ width: '10%' }}></td>
-                                    <td className="px-1.5 py-2 text-[10px] text-gray-900" style={{ width: '8%' }}></td>
-                                    <td className="px-1.5 py-2 text-[10px] font-medium" style={{
-                                      color: entradaColor,
-                                      width: '10%'
-                                    }}>
+                                  <tr key={`${demand.stage_id}-entrada-${order.id || orderIdx}`} style={{ borderBottom: '1px solid #F3F4F6', background: entradaBackground }}>
+                                    <td className="px-1.5 py-2 text-[10px] text-gray-900" style={{ width: '10%' }} />
+                                    <td className="px-1.5 py-2 text-[10px] text-gray-900" style={{ width: '8%' }} />
+                                    <td className="px-1.5 py-2 text-[10px] font-medium" style={{ color: entradaColor, width: '10%' }}>
                                       <div className="break-words leading-tight flex items-center gap-1">
                                         <span>{totalConferenced > 0 ? '✅' : '⚪'}</span>
                                         <span>Entrada de Estoque</span>
@@ -2153,23 +2202,16 @@ function Demanda() {
                                     </td>
                                     {allTireModels.map((tire, tireIdx: number) => {
                                       const quantityConferenced = conferencedTiresMap.get(tire.model) || 0;
-
                                       return (
-                                        <td
-                                          key={tireIdx}
-                                          className="px-1 py-2 text-center text-[10px] font-bold"
-                                          style={{
-                                            backgroundColor: quantityConferenced > 0 ? '#D1FAE5' : '#F9FAFB',
-                                            color: quantityConferenced > 0 ? '#065F46' : '#9CA3AF'
-                                          }}
-                                        >
+                                        <td key={tireIdx} className="px-1 py-2 text-center text-[10px] font-bold"
+                                          style={{ backgroundColor: quantityConferenced > 0 ? '#D1FAE5' : '#F9FAFB', color: quantityConferenced > 0 ? '#065F46' : '#9CA3AF' }}>
                                           {quantityConferenced > 0 ? `+${quantityConferenced}` : '-'}
                                         </td>
                                       );
                                     })}
                                   </tr>
                                 );
-                              }
+                              });
 
                               // Linha 4: Consumo Previsto
                               const hasCustomPremissas = customPremissas.has(demand.stage_id);
@@ -2222,26 +2264,32 @@ function Demanda() {
                                     const estoqueInicial = isInternational ? 0 : (accumulatedStock.get(tire.model) || 0);
                                     const consumo = demandTiresMap.get(tire.model) || 0;
 
-                                    // Calcula entrada (pedido ou entrada de estoque conferida)
+                                    // Calcula entrada somando todos os pedidos desta etapa
                                     let entrada = 0;
-                                    if (!isInternational && demand.ordered_tires) {
-                                      const quantityOrdered = orderedTiresMap.get(tire.model) || 0;
-
-                                      // Se o pedido foi conferido
-                                      if (conference && conference.items_detail) {
-                                        const conferencedTiresMap = new Map<string, number>();
-                                        conference.items_detail.forEach((item: any) => {
-                                          conferencedTiresMap.set(item.model_code, item.quantity_scanned || 0);
-                                        });
-                                        const quantityConferenced = conferencedTiresMap.get(tire.model) || 0;
-
-                                        // Se tem itens conferidos > 0 para este modelo, usa a entrada
-                                        // Senão, usa o pedido
-                                        entrada = quantityConferenced > 0 ? quantityConferenced : quantityOrdered;
-                                      } else {
-                                        // Sem conferência, usa o pedido
-                                        entrada = quantityOrdered;
-                                      }
+                                    if (!isInternational && ordersToRender.length > 0) {
+                                      ordersToRender.forEach((order: any) => {
+                                        const ordConf = orderConferences.get(order.id);
+                                        // Monta mapa de quantidades deste pedido
+                                        const thisMap = new Map<string, number>();
+                                        if (order.tire_order_items?.length > 0) {
+                                          order.tire_order_items.forEach((item: any) => {
+                                            if (item.model_code) thisMap.set(item.model_code, (thisMap.get(item.model_code) || 0) + (item.quantity_ordered || item.quantity_needed || 0));
+                                          });
+                                        } else if (order._legacyOrderedTires) {
+                                          order._legacyOrderedTires.forEach((t: any) => thisMap.set(t.model, t.qty || 0));
+                                        }
+                                        const quantityOrdered = thisMap.get(tire.model) || 0;
+                                        if (ordConf?.items_detail) {
+                                          const confMap = new Map<string, number>();
+                                          ordConf.items_detail.forEach((item: any) => confMap.set(item.model_code, item.quantity_scanned || 0));
+                                          const quantityConferenced = confMap.get(tire.model) || 0;
+                                          entrada += quantityConferenced > 0 ? quantityConferenced : quantityOrdered;
+                                        } else {
+                                          entrada += quantityOrdered;
+                                        }
+                                      });
+                                    } else if (!isInternational && demand.ordered_tires) {
+                                      entrada = orderedTiresMap.get(tire.model) || 0;
                                     }
 
                                     // Fórmula: Estoque final = Estoque inicial + Entrada - Consumo

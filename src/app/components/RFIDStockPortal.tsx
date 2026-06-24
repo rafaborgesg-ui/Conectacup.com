@@ -309,6 +309,22 @@ export function RFIDStockPortal({ tireModels, containers, onEntriesAdded }: Prop
     return codes.length > 0;
   }, [processRFID]);
 
+  const processRFIDPayload = useCallback((rawValue: string): boolean => {
+    const hex = rawValue.toUpperCase().replace(/[^0-9A-F]/g, '');
+    const codes = splitRFIDHexCodes(rawValue);
+
+    if (codes.length === 0) {
+      scanBufferRef.current = hex.length < 24 ? hex : '';
+      setScanBuffer(scanBufferRef.current);
+      return false;
+    }
+
+    scanBufferRef.current = '';
+    setScanBuffer('');
+    codes.forEach(processRFID);
+    return true;
+  }, [processRFID]);
+
   useEffect(() => {
     if (!isActive) return;
 
@@ -507,15 +523,24 @@ export function RFIDStockPortal({ tireModels, containers, onEntriesAdded }: Prop
       {/* Hidden RFID input */}
       <input ref={inputRef} type="text" className="absolute opacity-0 pointer-events-none"
         inputMode="none" autoComplete="off" autoFocus={isActive}
-        onChange={(e) => { e.currentTarget.value = ''; }}
+        onChange={(e) => {
+          if (processRFIDPayload(e.currentTarget.value)) {
+            e.currentTarget.value = '';
+          }
+        }}
+        onKeyDown={(e) => {
+          if (e.key !== 'Enter' && e.key !== 'Tab') return;
+
+          if (processRFIDPayload(e.currentTarget.value || scanBufferRef.current)) {
+            e.preventDefault();
+            e.currentTarget.value = '';
+          }
+        }}
         onPaste={(e) => {
-          e.preventDefault();
           const text = e.clipboardData.getData('text');
-          const hex = text.toUpperCase().replace(/[^0-9A-F]/g, '');
-          let i = 0;
-          while (i + 24 <= hex.length) {
-            processRFID(hex.slice(i, i + 24));
-            i += 24;
+          if (processRFIDPayload(text)) {
+            e.preventDefault();
+            e.currentTarget.value = '';
           }
         }}
       />

@@ -5,7 +5,7 @@ import { Button } from './ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { toast } from 'sonner';
 import { createClient } from '../utils/supabase/client';
-import { checkBarcodeExists, findStockEntryByBarcode, type TireModel, type Container } from '../utils/storage';
+import { checkBarcodeExists, saveStockEntry, type TireModel, type Container } from '../utils/storage';
 import { generateUUID } from '../utils/uuid';
 import type { TireEntry } from './TireStockEntry';
 
@@ -25,6 +25,114 @@ function decodeRFID(hex: string): { barcode: string; cai: string } | null {
       barcode: Math.floor(serial / 4).toString().padStart(8, '0'),
     };
   } catch { return null; }
+}
+
+// ─── Native Zebra RFID bridge ───────────────────────────────────────────────
+
+type NativeRFIDPayload = string | {
+  epc?: string;
+  rfid?: string;
+  tagId?: string;
+  tagID?: string;
+  idHex?: string;
+  barcode?: string;
+  code?: string;
+  tags?: NativeRFIDPayload[];
+  rssi?: number;
+  seenCount?: number;
+  source?: string;
+  timestamp?: number;
+};
+
+interface NativeRFIDStatus {
+  available?: boolean;
+  connected?: boolean;
+  reader?: string;
+  mode?: 'sdk' | 'datawedge' | 'unknown';
+  message?: string;
+}
+
+interface NativeRFIDBridgeApi {
+  version: string;
+  receiveTag: (payload: NativeRFIDPayload) => void;
+  receiveStatus: (status: NativeRFIDStatus) => void;
+}
+
+type WindowWithNativeRFIDBridge = Window & {
+  ConectaCupRFIDBridge?: NativeRFIDBridgeApi;
+  ZebraRFIDBridge?: {
+    startInventory?: () => void;
+    stopInventory?: () => void;
+    configure?: (config: unknown) => void;
+  };
+};
+
+const NATIVE_RFID_EVENT_NAME = 'conectacup:rfid-tag';
+const NATIVE_RFID_STATUS_EVENT_NAME = 'conectacup:rfid-status';
+const NATIVE_RFID_BRIDGE_READY_EVENT_NAME = 'conectacup:rfid-bridge-ready';
+const NATIVE_RFID_BRIDGE_VERSION = '1.0.0';
+
+function splitRFIDHexCodes(value: unknown): string[] {
+  if (value === undefined || value === null) return [];
+
+  const normalized = String(value).toUpperCase();
+  const directMatches = normalized.match(/[0-9A-F]{24}/g);
+
+  if (directMatches?.length) {
+    return directMatches.filter(isRFIDCode);
+  }
+
+  const hex = normalized.replace(/[^0-9A-F]/g, '');
+  const codes: string[] = [];
+
+  for (let i = hex.length % 24; i + 24 <= hex.length; i += 24) {
+    const code = hex.slice(i, i + 24);
+    if (isRFIDCode(code)) codes.push(code);
+  }
+
+  return codes;
+}
+
+function extractRFIDsFromNativePayload(payload: NativeRFIDPayload): string[] {
+  const codes: string[] = [];
+
+  const visit = (value: NativeRFIDPayload | NativeRFIDPayload[] | undefined) => {
+    if (value === undefined || value === null) return;
+
+    if (Array.isArray(value)) {
+      value.forEach(visit);
+      return;
+    }
+
+    if (typeof value === 'object') {
+      visit(value.tags);
+      codes.push(
+        ...splitRFIDHexCodes(value.epc),
+        ...splitRFIDHexCodes(value.rfid),
+        ...splitRFIDHexCodes(value.tagId),
+        ...splitRFIDHexCodes(value.tagID),
+        ...splitRFIDHexCodes(value.idHex),
+        ...splitRFIDHexCodes(value.code),
+        ...splitRFIDHexCodes(value.barcode)
+      );
+      return;
+    }
+
+    codes.push(...splitRFIDHexCodes(value));
+  };
+
+  visit(payload);
+  return Array.from(new Set(codes));
+}
+
+function callNativeInventory(action: 'startInventory' | 'stopInventory') {
+  if (typeof window === 'undefined') return;
+
+  try {
+    (window as WindowWithNativeRFIDBridge).ZebraRFIDBridge?.[action]?.();
+  } catch (error) {
+    console.warn(`Falha ao executar ZebraRFIDBridge.${action}`, error);
+  }
 }
 
 // ─── Types ─────────────────────────────────────────────────────────────────
@@ -52,7 +160,6 @@ interface Props {
 export function RFIDStockPortal({ tireModels, containers, onEntriesAdded }: Props) {
   const [isActive, setIsActive] = useState(false);
   const [selectedContainer, setSelectedContainer] = useState('');
-  const [selectedModel, setSelectedModel] = useState('');
   const [readings, setReadings] = useState<RFIDStockReading[]>([]);
   const [scanBuffer, setScanBuffer] = useState('');
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -63,12 +170,12 @@ export function RFIDStockPortal({ tireModels, containers, onEntriesAdded }: Prop
   const scanTimerRef = useRef<NodeJS.Timeout | null>(null);
   const processedRFIDs = useRef<Set<string>>(new Set());
   const readingsMapRef = useRef<Map<string, RFIDStockReading>>(new Map());
+  const isActiveRef = useRef(false);
+  const processRFIDRef = useRef<(rfid: string) => void | Promise<void>>(() => undefined);
 
   // ── Container lookup ──────────────────────────────────────────────────────
 
   const selectedContainerData = containers.find(c => c.id === selectedContainer);
-  const selectedModelData = tireModels.find(m => m.id === selectedModel);
-  const hasConfiguredCAI = tireModels.some(m => String(m.cai || '').trim());
 
   // ── Process a single RFID ─────────────────────────────────────────────────
 
@@ -89,10 +196,8 @@ export function RFIDStockPortal({ tireModels, containers, onEntriesAdded }: Prop
     const decoded = decodeRFID(clean);
     if (!decoded) return;
 
-    // Find model by CAI. If CAI is not configured yet, use the operator-selected fallback model.
-    const modelByCAI = tireModels.find(m => String(m.cai || '').trim() === decoded.cai);
-    const fallbackModel = selectedModel ? tireModels.find(m => m.id === selectedModel) : undefined;
-    const model = modelByCAI ?? fallbackModel;
+    // Find model by CAI
+    const model = tireModels.find(m => String(m.cai) === decoded.cai);
 
     const reading: RFIDStockReading = {
       id: generateUUID(),
@@ -112,30 +217,83 @@ export function RFIDStockPortal({ tireModels, containers, onEntriesAdded }: Prop
 
     // Validate duplicate in DB
     const exists = await checkBarcodeExists(decoded.barcode);
-    const duplicateEntry = exists ? await findStockEntryByBarcode(decoded.barcode) : null;
     const finalStatus: RFIDStockReading['status'] = exists
       ? 'duplicate'
       : !model
       ? 'no_model'
       : 'ok';
-    const finalReading: RFIDStockReading = {
-      ...reading,
-      status: finalStatus,
-      modelName: exists
-        ? (duplicateEntry?.model_name || model?.name || 'Já cadastrado no estoque')
-        : (model?.name ?? 'Modelo não encontrado'),
-      modelId: model?.id || duplicateEntry?.model_id || ''
-    };
 
-    readingsMapRef.current.set(clean, finalReading);
-    setReadings(prev => prev.map(r => r.rfid === clean ? finalReading : r));
+    readingsMapRef.current.set(clean, { ...reading, status: finalStatus });
+    setReadings(prev => prev.map(r => r.rfid === clean ? { ...r, status: finalStatus } : r));
 
     if (exists) {
       toast.warning(`Pneu ${decoded.barcode} já está no estoque`);
     } else if (!model) {
       toast.error(`CAI ${decoded.cai} não encontrado em nenhum modelo`);
     }
-  }, [tireModels, selectedModel]);
+  }, [tireModels]);
+
+  useEffect(() => {
+    processRFIDRef.current = processRFID;
+  }, [processRFID]);
+
+  useEffect(() => {
+    isActiveRef.current = isActive;
+  }, [isActive]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleNativeRFIDTag = (payload: NativeRFIDPayload) => {
+      const rfids = extractRFIDsFromNativePayload(payload);
+
+      if (rfids.length === 0) {
+        console.warn('Leitura RFID nativa ignorada: payload sem EPC de 24 caracteres', payload);
+        return;
+      }
+
+      if (!isActiveRef.current) {
+        return;
+      }
+
+      scanBufferRef.current = '';
+      setScanBuffer('');
+      rfids.forEach(rfid => void processRFIDRef.current(rfid));
+    };
+
+    const handleNativeRFIDStatus = (_status: NativeRFIDStatus) => undefined;
+
+    const bridgeApi: NativeRFIDBridgeApi = {
+      version: NATIVE_RFID_BRIDGE_VERSION,
+      receiveTag: handleNativeRFIDTag,
+      receiveStatus: handleNativeRFIDStatus
+    };
+    const win = window as WindowWithNativeRFIDBridge;
+
+    win.ConectaCupRFIDBridge = bridgeApi;
+
+    const handleTagEvent = (event: Event) => {
+      handleNativeRFIDTag((event as CustomEvent<NativeRFIDPayload>).detail);
+    };
+    const handleStatusEvent = (event: Event) => {
+      handleNativeRFIDStatus((event as CustomEvent<NativeRFIDStatus>).detail);
+    };
+
+    window.addEventListener(NATIVE_RFID_EVENT_NAME, handleTagEvent);
+    window.addEventListener(NATIVE_RFID_STATUS_EVENT_NAME, handleStatusEvent);
+    window.dispatchEvent(new CustomEvent(NATIVE_RFID_BRIDGE_READY_EVENT_NAME, {
+      detail: { version: NATIVE_RFID_BRIDGE_VERSION, page: 'stock-entry' }
+    }));
+
+    return () => {
+      window.removeEventListener(NATIVE_RFID_EVENT_NAME, handleTagEvent);
+      window.removeEventListener(NATIVE_RFID_STATUS_EVENT_NAME, handleStatusEvent);
+
+      if (win.ConectaCupRFIDBridge === bridgeApi) {
+        delete win.ConectaCupRFIDBridge;
+      }
+    };
+  }, []);
 
   // ── Keyboard buffer ───────────────────────────────────────────────────────
 
@@ -204,24 +362,23 @@ export function RFIDStockPortal({ tireModels, containers, onEntriesAdded }: Prop
 
   const handleStart = () => {
     if (!selectedContainer) { toast.error('Selecione um contêiner antes de iniciar'); return; }
-    if (!hasConfiguredCAI && !selectedModel) {
-      toast.error('Selecione um modelo padrão antes de iniciar', {
-        description: 'Nenhum modelo possui CAI cadastrado para identificação automática via RFID.'
-      });
-      return;
-    }
-
+    isActiveRef.current = true;
     setIsActive(true);
     setReadings([]);
     processedRFIDs.current.clear();
     readingsMapRef.current.clear();
     scanBufferRef.current = '';
     setScanBuffer('');
+    callNativeInventory('startInventory');
     setTimeout(() => inputRef.current?.focus(), 100);
     toast.info('Portal RFID ativado', { description: 'Passe os pneus pelo portal para registrar a entrada.' });
   };
 
-  const handleStop = () => setIsActive(false);
+  const handleStop = () => {
+    isActiveRef.current = false;
+    setIsActive(false);
+    callNativeInventory('stopInventory');
+  };
 
   // ── Finish: save valid readings as stock entries ───────────────────────────
 
@@ -390,7 +547,7 @@ export function RFIDStockPortal({ tireModels, containers, onEntriesAdded }: Prop
       </div>
 
       {/* Setup: container + stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {/* Container selector */}
         <div className="sm:col-span-2 lg:col-span-1 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm space-y-1.5">
           <div className="text-xs text-gray-500 font-medium flex items-center gap-1.5"><Box className="w-3.5 h-3.5" />Contêiner de destino</div>
@@ -404,26 +561,6 @@ export function RFIDStockPortal({ tireModels, containers, onEntriesAdded }: Prop
               ))}
             </SelectContent>
           </Select>
-        </div>
-
-        {/* Fallback model selector */}
-        <div className="sm:col-span-2 lg:col-span-1 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm space-y-1.5">
-          <div className="text-xs text-gray-500 font-medium flex items-center gap-1.5"><Package className="w-3.5 h-3.5" />Modelo padrão</div>
-          <Select value={selectedModel} onValueChange={setSelectedModel} disabled={isActive}>
-            <SelectTrigger className="h-8 text-sm border-gray-200">
-              <SelectValue placeholder="Auto por CAI..." />
-            </SelectTrigger>
-            <SelectContent>
-              {tireModels.map(m => (
-                <SelectItem key={m.id} value={m.id}>
-                  {m.name}{m.cai ? ` · CAI ${m.cai}` : ''}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <div className="text-[10px] text-gray-400 truncate">
-            {selectedModelData ? 'Usado quando o CAI não identifica o modelo.' : 'Opcional se os CAIs estiverem cadastrados.'}
-          </div>
         </div>
 
         {/* Stats */}

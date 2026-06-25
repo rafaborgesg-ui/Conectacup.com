@@ -14,7 +14,6 @@ import { UpdateStatusModal } from '../components/UpdateStatusModal';
 import { CollectorStyles } from '../components/CollectorStyles';
 import * as XLSX from 'xlsx';
 import { sanitizeFileName } from '../utils/stringUtils';
-
 const silentPageToast = (..._args: unknown[]) => undefined;
 const toast = {
   success: silentPageToast,
@@ -8731,7 +8730,7 @@ onKeyDown={(e) => {
                             <th className="text-center py-0.5 px-2 font-semibold text-gray-600 w-12">Status</th>
                             <th className="text-left py-0.5 px-2 font-semibold text-gray-600 w-14">Lado</th>
                             <th className="text-left py-0.5 px-2 font-semibold text-gray-600 w-24">Código</th>
-                            <th className="text-left py-0.5 px-2 font-semibold text-gray-600">Piloto</th>
+                            <th className="text-left py-0.5 px-2 font-semibold text-gray-600 w-28">Piloto</th>
                             <th className="text-center py-0.5 px-2 font-semibold text-gray-600 w-12">Set</th>
                             <th className="text-center py-0.5 px-2 font-semibold text-gray-600 w-16">Tipo</th>
                             <th className="text-center py-0.5 px-2 font-semibold text-gray-600 w-14">Voltas</th>
@@ -9013,10 +9012,14 @@ onKeyDown={(e) => {
                                 </td>
                                 
                                 {/* Piloto */}
-                                <td className={`${cellPadding}`} style={{ height: '20px', maxHeight: '20px', lineHeight: '1', verticalAlign: 'middle', padding: 0 }}>
-                                  <div style={{ height: '20px', display: 'flex', alignItems: 'center', paddingLeft: '8px', paddingRight: '8px' }}>
+                                <td className={`${cellPadding}`} style={{ height: '20px', maxHeight: '20px', lineHeight: '1', verticalAlign: 'middle', padding: 0, overflow: 'hidden' }}>
+                                  <div style={{ height: '20px', display: 'flex', alignItems: 'center', paddingLeft: '8px', paddingRight: '4px', overflow: 'hidden' }}>
                                   {tire.codigo && tire.codigo !== '-' ? (
-                                    <span className="text-gray-900 leading-none" style={{ whiteSpace: 'nowrap' }}>{tire.piloto}</span>
+                                    <span
+                                      className="text-gray-900 leading-none block truncate"
+                                      style={{ maxWidth: '100%' }}
+                                      title={tire.piloto}
+                                    >{tire.piloto}</span>
                                   ) : (
                                     <span className="text-gray-400 leading-none">-</span>
                                   )}

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Search, Scan, Info, Trash2 } from 'lucide-react';
+import { Search, Scan, Info, Trash2, Keyboard, LayoutList, Table2 } from 'lucide-react';
 import { getTireByBarcode } from '../utils/storage';
 import { createClient } from '../utils/supabase/client';
 import { toast } from 'sonner';
@@ -79,6 +79,8 @@ export function ConferenciaSerialDetalhes({ listaId, listaNome, onBack }: Confer
   const [items, setItems] = useState<TireEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeMode, setActiveMode] = useState<'scan' | 'search'>('scan');
+  const [isKeyboardEnabled, setIsKeyboardEnabled] = useState(false);
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -377,17 +379,34 @@ export function ConferenciaSerialDetalhes({ listaId, listaNome, onBack }: Confer
       {/* Header */}
       <div className="bg-white border-b border-gray-200 p-3 shadow-sm flex-shrink-0">
         <div className="flex items-center justify-between mb-2">
-          <h1 className="text-lg font-bold text-gray-900">{listaNome}</h1>
-          
-          {salvando > 0 && (
-            <div className="bg-blue-50 px-3 py-1 rounded-lg border border-blue-200">
-              <span className="text-xs font-semibold text-blue-700">
-                💾 Salvando {salvando}...
-              </span>
-            </div>
-          )}
+          <h1 className="text-lg font-bold text-gray-900 truncate mr-2">{listaNome}</h1>
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            {salvando > 0 && (
+              <div className="bg-blue-50 px-2 py-1 rounded-lg border border-blue-200">
+                <span className="text-xs font-semibold text-blue-700">💾 {salvando}...</span>
+              </div>
+            )}
+            {/* Habilitar Teclado */}
+            <button
+              onClick={() => setIsKeyboardEnabled(p => !p)}
+              title={isKeyboardEnabled ? 'Desabilitar teclado' : 'Habilitar teclado'}
+              className="flex items-center justify-center rounded-full transition-colors hover:bg-gray-100"
+              style={{ width: 36, height: 36, opacity: isKeyboardEnabled ? 1 : 0.4 }}
+            >
+              <Keyboard size={18} className="text-gray-700" />
+            </button>
+            {/* Alternar Cards / Tabela */}
+            <button
+              onClick={() => setViewMode(v => v === 'cards' ? 'table' : 'cards')}
+              title={viewMode === 'cards' ? 'Visualizar como tabela' : 'Visualizar como cards'}
+              className="flex items-center justify-center rounded-full transition-colors hover:bg-gray-100"
+              style={{ width: 36, height: 36 }}
+            >
+              {viewMode === 'cards' ? <Table2 size={18} className="text-gray-700" /> : <LayoutList size={18} className="text-gray-700" />}
+            </button>
+          </div>
         </div>
-        
+
         <div className="flex gap-2">
           <button
             onClick={() => {
@@ -468,6 +487,7 @@ export function ConferenciaSerialDetalhes({ listaId, listaNome, onBack }: Confer
               setSerialNumber('');
             }
           }}
+          inputMode={isKeyboardEnabled ? 'text' : 'none'}
           style={{
             position: 'fixed',
             top: '-9999px',
@@ -500,91 +520,121 @@ export function ConferenciaSerialDetalhes({ listaId, listaNome, onBack }: Confer
                 {items.length === 0 ? 'Nenhum serial conferido' : 'Nenhum resultado'}
               </p>
             </div>
-          ) : (
+          ) : viewMode === 'cards' ? (
+            /* ── Card view (padrão) ─────────────────────────────── */
             <div className="space-y-2">
               {filtered.map((item) => (
-                <div 
-                  key={item.id} 
+                <div
+                  key={item.id}
                   className={`bg-white rounded-lg border p-3 transition-all ${
                     item.isTemp
                       ? 'border-blue-300 bg-blue-50 animate-pulse'
-                      : item.piloto === 'Pneu não cadastrado' 
-                        ? 'border-orange-300 bg-orange-50' 
+                      : item.piloto === 'Pneu não cadastrado'
+                        ? 'border-orange-300 bg-orange-50'
                         : 'border-gray-200'
                   }`}
                 >
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex-1 min-w-0">
-                      <div className="font-mono text-sm font-bold text-gray-900 mb-1">
-                        {item.coluna1}
-                      </div>
+                      <div className="font-mono text-sm font-bold text-gray-900 mb-1">{item.coluna1}</div>
                       <div className={`text-xs font-medium ${
-                        item.isTemp
-                          ? 'text-blue-600'
-                          : item.piloto === 'Pneu não cadastrado' 
-                            ? 'text-orange-700' 
-                            : 'text-gray-600'
-                      }`}>
-                        {item.piloto}
-                      </div>
+                        item.isTemp ? 'text-blue-600' : item.piloto === 'Pneu não cadastrado' ? 'text-orange-700' : 'text-gray-600'
+                      }`}>{item.piloto}</div>
                     </div>
                     <div className="flex items-center gap-1.5 ml-2 flex-shrink-0">
                       {!item.isTemp && (
                         <>
                           <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${
-                            item.situacao === '-'
-                              ? 'bg-gray-100 text-gray-700'
-                              : item.situacao === 'Guardar' 
-                                ? 'bg-green-100 text-green-800' 
-                                : 'bg-red-100 text-red-800'
-                          }`}>
-                            {item.situacao}
-                          </span>
-                          <button
-                            onClick={() => handleDelete(item.id)}
-                            className="p-1 rounded hover:bg-red-100"
-                          >
+                            item.situacao === '-' ? 'bg-gray-100 text-gray-700'
+                              : item.situacao === 'Guardar' ? 'bg-green-100 text-green-800'
+                              : 'bg-red-100 text-red-800'
+                          }`}>{item.situacao}</span>
+                          <button onClick={() => handleDelete(item.id)} className="p-1 rounded hover:bg-red-100">
                             <Trash2 size={14} className="text-red-600" />
                           </button>
                         </>
                       )}
                     </div>
                   </div>
-
                   <div className="grid grid-cols-3 gap-x-3 gap-y-1 text-xs">
-                    <div>
-                      <span className="text-gray-500">Ano:</span>
-                      <span className="ml-1 text-gray-900 font-medium">{item.ano}</span>
-                    </div>
-                    <div>
-                      <span className="text-gray-500">Set:</span>
-                      <span className="ml-1 text-gray-900 font-medium">{item.set}</span>
-                    </div>
-                    <div>
-                      <span className="text-gray-500">Lado:</span>
-                      <span className="ml-1 text-gray-900 font-medium">{item.lado}</span>
-                    </div>
-                    <div className="col-span-2">
-                      <span className="text-gray-500">Tipo:</span>
-                      <span className="ml-1 text-gray-900 font-medium">{item.tipo}</span>
-                    </div>
-                    <div>
-                      <span className="text-gray-500">Voltas:</span>
-                      <span className="ml-1 text-gray-900 font-medium">{item.voltas}</span>
-                    </div>
+                    <div><span className="text-gray-500">Ano:</span><span className="ml-1 text-gray-900 font-medium">{item.ano}</span></div>
+                    <div><span className="text-gray-500">Set:</span><span className="ml-1 text-gray-900 font-medium">{item.set}</span></div>
+                    <div><span className="text-gray-500">Lado:</span><span className="ml-1 text-gray-900 font-medium">{item.lado}</span></div>
+                    <div className="col-span-2"><span className="text-gray-500">Tipo:</span><span className="ml-1 text-gray-900 font-medium">{item.tipo}</span></div>
+                    <div><span className="text-gray-500">Voltas:</span><span className="ml-1 text-gray-900 font-medium">{item.voltas}</span></div>
                     {!item.isTemp && (
                       <div className="col-span-3 text-gray-500 mt-1">
-                        {item.dataConferencia.toLocaleString('pt-BR', {
-                          day: '2-digit',
-                          month: '2-digit',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
+                        {item.dataConferencia.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
                       </div>
                     )}
                   </div>
                 </div>
               ))}
+            </div>
+          ) : (
+            /* ── Table view ─────────────────────────────────────── */
+            <div className="bg-white rounded-lg border border-gray-200 overflow-x-auto">
+              <table className="w-full text-xs" style={{ borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+                <thead>
+                  <tr className="bg-gray-100 border-b border-gray-200">
+                    <th className="text-left py-1.5 px-2 font-semibold text-gray-600 w-24">Código</th>
+                    <th className="text-left py-1.5 px-2 font-semibold text-gray-600">Piloto</th>
+                    <th className="text-center py-1.5 px-1 font-semibold text-gray-600 w-10">Ano</th>
+                    <th className="text-center py-1.5 px-1 font-semibold text-gray-600 w-8">Set</th>
+                    <th className="text-center py-1.5 px-1 font-semibold text-gray-600 w-10">Lado</th>
+                    <th className="text-center py-1.5 px-1 font-semibold text-gray-600 w-12">Tipo</th>
+                    <th className="text-center py-1.5 px-1 font-semibold text-gray-600 w-12">Voltas</th>
+                    <th className="text-center py-1.5 px-1 font-semibold text-gray-600 w-16">Situação</th>
+                    <th className="text-center py-1.5 px-1 font-semibold text-gray-600 w-20">Data</th>
+                    <th className="w-8"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((item) => (
+                    <tr
+                      key={item.id}
+                      className={`border-b border-gray-100 ${
+                        item.isTemp ? 'bg-blue-50 animate-pulse'
+                          : item.piloto === 'Pneu não cadastrado' ? 'bg-orange-50'
+                          : 'hover:bg-gray-50'
+                      }`}
+                    >
+                      <td className="py-1.5 px-2 font-mono font-bold text-gray-900 truncate">{item.coluna1}</td>
+                      <td className="py-1.5 px-2 truncate">
+                        <span className={`${
+                          item.isTemp ? 'text-blue-600'
+                            : item.piloto === 'Pneu não cadastrado' ? 'text-orange-700 font-semibold'
+                            : 'text-gray-700'
+                        }`}>{item.piloto}</span>
+                      </td>
+                      <td className="py-1.5 px-1 text-center text-gray-900">{item.ano || '-'}</td>
+                      <td className="py-1.5 px-1 text-center text-gray-900">{item.set || '-'}</td>
+                      <td className="py-1.5 px-1 text-center text-gray-900">{item.lado || '-'}</td>
+                      <td className="py-1.5 px-1 text-center text-gray-900">{item.tipo || '-'}</td>
+                      <td className="py-1.5 px-1 text-center text-gray-900">{item.voltas || '-'}</td>
+                      <td className="py-1.5 px-1 text-center">
+                        {!item.isTemp && (
+                          <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                            item.situacao === '-' ? 'bg-gray-100 text-gray-700'
+                              : item.situacao === 'Guardar' ? 'bg-green-100 text-green-800'
+                              : 'bg-red-100 text-red-800'
+                          }`}>{item.situacao}</span>
+                        )}
+                      </td>
+                      <td className="py-1.5 px-1 text-center text-gray-500">
+                        {!item.isTemp && item.dataConferencia.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                      </td>
+                      <td className="py-1 px-1 text-center">
+                        {!item.isTemp && (
+                          <button onClick={() => handleDelete(item.id)} className="p-0.5 rounded hover:bg-red-100">
+                            <Trash2 size={12} className="text-red-500" />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </div>

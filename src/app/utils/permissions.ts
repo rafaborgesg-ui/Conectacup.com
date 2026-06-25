@@ -388,6 +388,10 @@ export const PAGE_CATEGORIES = {
     PAGES.TIRE_DISCARD,
     PAGES.TIRE_CONSUMPTION,
   ],
+  'Pneus - Demanda': [
+    PAGES.DEMANDA,
+    PAGES.PEDIDOS_PNEUS,
+  ],
   'Relatórios': [
     PAGES.REPORTS,
     PAGES.DISCARD_REPORTS,

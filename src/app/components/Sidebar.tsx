@@ -121,20 +121,22 @@ export function Sidebar({ onLogout, userRole = 'operator' }: SidebarProps) {
     
     const pneusModules = [
       'tire-stock',
-      'tire-movement', 'reports', 
+      'tire-movement', 'reports',
       'tire-discard-entry',
       'tire-status-change', 'arcs-data-update',
-      'configurar-temporada'
+      'configurar-temporada',
+      'demanda', 'pedidos-pneus'
     ];
     
     const cadastroModules = ['tire-models', 'containers', 'tire-status', 'master-data'];
     
     const administracaoModules = ['users', 'access-profiles', 'stock-adjustment', 'dashboard', 'data-import', 'tire-consumption', 'tire-discard-reports', 'em-desenvolvimento', 'rafael', 'caio', 'cadastros-caio'];
     
-    const jamyliModules = ['shakedown', 'demanda', 'pedidos-pneus', 'rodas', 'rodas-dashboard', 'rodas-pendencias', 'rodas-avarias'];
-    
+    const jamyliModules = ['shakedown'];
+    const rodasModules = ['rodas', 'rodas-dashboard', 'rodas-pendencias', 'rodas-avarias'];
+
     const conferenciaBaiasModules = ['conferir-pneus', 'historico-conferencia', 'divergencias-conferencia', 'conferencia-serial'];
-    
+
     if (pneusModules.includes(currentMenuId)) {
       setExpandedMenus(prev => {
         if (!prev.includes('pneus')) {
@@ -143,7 +145,7 @@ export function Sidebar({ onLogout, userRole = 'operator' }: SidebarProps) {
         return prev;
       });
     }
-    
+
     if (cadastroModules.includes(currentMenuId)) {
       setExpandedMenus(prev => {
         if (!prev.includes('cadastro')) {
@@ -152,7 +154,7 @@ export function Sidebar({ onLogout, userRole = 'operator' }: SidebarProps) {
         return prev;
       });
     }
-    
+
     if (administracaoModules.includes(currentMenuId)) {
       setExpandedMenus(prev => {
         if (!prev.includes('administracao')) {
@@ -161,7 +163,14 @@ export function Sidebar({ onLogout, userRole = 'operator' }: SidebarProps) {
         return prev;
       });
     }
-    
+
+    if (rodasModules.includes(currentMenuId)) {
+      setExpandedMenus(prev => {
+        if (!prev.includes('rodas')) return [...prev, 'rodas'];
+        return prev;
+      });
+    }
+
     if (jamyliModules.includes(currentMenuId)) {
       setExpandedMenus(prev => {
         const newExpanded = [...prev];

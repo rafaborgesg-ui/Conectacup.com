@@ -233,6 +233,22 @@ export const router = createBrowserRouter([
                 <SeasonConfiguration />
               </ProtectedRoute>
             )
+          },
+          {
+            path: 'demanda',
+            element: (
+              <ProtectedRoute page={PAGES.DEMANDA}>
+                <Demanda />
+              </ProtectedRoute>
+            )
+          },
+          {
+            path: 'pedidos-pneus',
+            element: (
+              <ProtectedRoute page={PAGES.PEDIDOS_PNEUS}>
+                <PedidosPneus />
+              </ProtectedRoute>
+            )
           }
         ]
       },
@@ -413,19 +429,11 @@ export const router = createBrowserRouter([
               },
               {
                 path: 'demanda',
-                element: (
-                  <ProtectedRoute page={PAGES.DEMANDA}>
-                    <Demanda />
-                  </ProtectedRoute>
-                )
+                element: <Navigate to="/pneus/demanda" replace />
               },
               {
                 path: 'pedidos-pneus',
-                element: (
-                  <ProtectedRoute page={PAGES.PEDIDOS_PNEUS}>
-                    <PedidosPneus />
-                  </ProtectedRoute>
-                )
+                element: <Navigate to="/pneus/pedidos-pneus" replace />
               },
               
               // Rodas
@@ -531,10 +539,12 @@ export const MENU_ID_TO_ROUTE: Record<string, string> = {
   'caio': '/dev/caio',
   'cadastros-caio': '/dev/caio/cadastros',
   
+  // Pneus - Demanda e Pedidos (movidos de /dev/jamyli)
+  'demanda': '/pneus/demanda',
+  'pedidos-pneus': '/pneus/pedidos-pneus',
+
   // Dev - Jamyli
   'shakedown': '/dev/jamyli/shakedown',
-  'demanda': '/dev/jamyli/demanda',
-  'pedidos-pneus': '/dev/jamyli/pedidos-pneus',
   'rodas-dashboard': '/dev/jamyli/rodas/dashboard',
   'rodas-pendencias': '/dev/jamyli/rodas/pendencias',
   'rodas-avarias': '/dev/jamyli/rodas/avarias',

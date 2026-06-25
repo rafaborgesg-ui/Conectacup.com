@@ -126,24 +126,23 @@ export const MENU_STRUCTURE: MenuItem[] = [
     isMain: true,
     description: 'Gestão de pneus',
     subItems: [
-      { 
-        id: 'tire-stock', 
-        label: 'Entrada de Estoque', 
+      {
+        id: 'demanda',
+        label: 'Demanda',
+        icon: ClipboardList,
+        description: 'Sistema de gestão de demandas'
+      },
+      {
+        id: 'pedidos-pneus',
+        label: 'Pedidos de Pneus',
+        icon: ShoppingCart,
+        description: 'Sistema de pedidos de pneus'
+      },
+      {
+        id: 'tire-stock',
+        label: 'Entrada de Estoque',
         icon: Package,
         description: 'Registro de entrada de pneus no estoque'
-      },
-      { 
-        id: 'tire-movement', 
-        label: 'Movimentação de Pneus', 
-        icon: ArrowRightLeft,
-        description: 'Movimentação de pneus entre contêineres'
-      },
-      { 
-        id: 'arcs-data-update', 
-        label: 'Atualizar Base ARCS', 
-        icon: Database, 
-        adminOnly: true,
-        description: 'Atualização de dados do sistema ARCS'
       },
       {
         id: 'conferencia-baias',
@@ -177,15 +176,28 @@ export const MENU_STRUCTURE: MenuItem[] = [
           }
         ]
       },
-      { 
-        id: 'tire-discard-entry', 
-        label: 'Registro de Descarte DSI', 
+      {
+        id: 'arcs-data-update',
+        label: 'Atualizar Base ARCS',
+        icon: Database,
+        adminOnly: true,
+        description: 'Atualização de dados do sistema ARCS'
+      },
+      {
+        id: 'tire-movement',
+        label: 'Movimentação de Pneus',
+        icon: ArrowRightLeft,
+        description: 'Movimentação de pneus entre contêineres'
+      },
+      {
+        id: 'tire-discard-entry',
+        label: 'Descarte DSI',
         icon: Trash2,
         description: 'Registro de descarte de pneus'
       },
-      { 
-        id: 'reports', 
-        label: 'Relatórios & Histórico', 
+      {
+        id: 'reports',
+        label: 'Relatórios & Histórico',
         icon: BarChart3,
         description: 'Relatórios e histórico de pneus'
       },
@@ -194,32 +206,33 @@ export const MENU_STRUCTURE: MenuItem[] = [
         label: 'Configurar Temporada',
         icon: Calendar,
         description: 'Configuração de temporada'
+      }
+    ]
+  },
+  {
+    id: 'rodas',
+    label: 'Rodas',
+    icon: CircleDot,
+    isMain: true,
+    description: 'Sistema de gestão de rodas',
+    subItems: [
+      {
+        id: 'rodas-dashboard',
+        label: 'Dashboard',
+        icon: LayoutDashboard,
+        description: 'Dashboard de rodas'
       },
       {
-        id: 'rodas',
-        label: 'Rodas',
-        icon: CircleDot,
-        description: 'Sistema de gestão de rodas',
-        subItems: [
-          {
-            id: 'rodas-dashboard',
-            label: 'Dashboard',
-            icon: LayoutDashboard,
-            description: 'Dashboard de rodas'
-          },
-          {
-            id: 'rodas-pendencias',
-            label: 'Pendências',
-            icon: Clock,
-            description: 'Pendências de rodas'
-          },
-          {
-            id: 'rodas-avarias',
-            label: 'Avarias',
-            icon: AlertTriangle,
-            description: 'Avarias de rodas'
-          }
-        ]
+        id: 'rodas-pendencias',
+        label: 'Pendências',
+        icon: Clock,
+        description: 'Pendências de rodas'
+      },
+      {
+        id: 'rodas-avarias',
+        label: 'Avarias',
+        icon: AlertTriangle,
+        description: 'Avarias de rodas'
       }
     ]
   },
@@ -408,18 +421,6 @@ export const MENU_STRUCTURE: MenuItem[] = [
                 icon: ClipboardCheck,
                 description: 'Sistema de Shakedown'
               },
-              {
-                id: 'demanda',
-                label: 'Demanda',
-                icon: ClipboardList,
-                description: 'Sistema de gestão de demandas'
-              },
-              {
-                id: 'pedidos-pneus',
-                label: 'Pedidos de Pneus',
-                icon: ShoppingCart,
-                description: 'Sistema de pedidos de pneus'
-              }
             ]
           },
         ]

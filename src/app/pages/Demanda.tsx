@@ -2032,6 +2032,9 @@ function Demanda() {
                                   </div>
                                 </th>
                               ))}
+                              <th className="px-1 py-2 text-center text-[9px] font-semibold text-gray-700" style={{ background: '#F9FAFB', position: 'sticky', top: 0, zIndex: 10, minWidth: '52px' }}>
+                                Total
+                              </th>
                             </tr>
                           </thead>
                           <tbody>
@@ -2115,6 +2118,9 @@ function Demanda() {
                                       </td>
                                     );
                                   })}
+                                  <td className="px-1 py-2 text-center text-[10px] font-bold" style={{ color: '#374151', borderLeft: '1px solid #E5E7EB' }}>
+                                    {isInternational ? 0 : allTireModels.reduce((s, t) => s + (accumulatedStock.get(t.model) || 0), 0)}
+                                  </td>
                                 </tr>
                               );
 
@@ -2170,6 +2176,9 @@ function Demanda() {
                                         </td>
                                       );
                                     })}
+                                    <td className="px-1 py-2 text-center text-[10px] font-bold" style={{ color: '#059669', borderLeft: '1px solid #E5E7EB' }}>
+                                      {(() => { const t = allTireModels.reduce((s, m) => s + (thisOrderedTiresMap.get(m.model) || 0), 0); return t > 0 ? `+${t}` : '-'; })()}
+                                    </td>
                                   </tr>
                                 );
                               });
@@ -2209,6 +2218,9 @@ function Demanda() {
                                         </td>
                                       );
                                     })}
+                                    <td className="px-1 py-2 text-center text-[10px] font-bold" style={{ color: '#059669', borderLeft: '1px solid #E5E7EB' }}>
+                                      {(() => { const t = allTireModels.reduce((s, m) => s + (conferencedTiresMap.get(m.model) || 0), 0); return t > 0 ? `+${t}` : '-'; })()}
+                                    </td>
                                   </tr>
                                 );
                               });
@@ -2243,6 +2255,9 @@ function Demanda() {
                                       </td>
                                     );
                                   })}
+                                  <td className="px-1 py-2 text-center text-[10px] font-bold" style={{ color: '#DC2626', borderLeft: '1px solid #E5E7EB' }}>
+                                    {(() => { const t = allTireModels.reduce((s, m) => s + (demandTiresMap.get(m.model) || 0), 0); return t > 0 ? `-${t}` : '-'; })()}
+                                  </td>
                                 </tr>
                               );
 
@@ -2336,6 +2351,12 @@ function Demanda() {
                                       </td>
                                     );
                                   })}
+                                  <td className="px-1 py-2 text-center text-[10px] font-bold" style={{ borderLeft: '1px solid #E5E7EB', background: '#F3F4F6', color: '#374151' }}>
+                                    {isInternational ? '-' : (() => {
+                                      const total = allTireModels.reduce((s, m) => s + (accumulatedStock.get(m.model) || 0), 0);
+                                      return total === 0 ? '-' : total;
+                                    })()}
+                                  </td>
                                 </tr>
                               );
 

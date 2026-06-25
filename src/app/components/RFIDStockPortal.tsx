@@ -4,8 +4,7 @@ import { Radio, Zap, CheckCircle2, AlertCircle, Maximize2, Minimize2, Package, A
 import { Button } from './ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { toast } from 'sonner';
-import { createClient } from '../utils/supabase/client';
-import { checkBarcodeExists, saveStockEntry, type TireModel, type Container } from '../utils/storage';
+import { checkBarcodeExists, saveStockEntry, type TireModel, type Container, type StockEntry } from '../utils/storage';
 import { generateUUID } from '../utils/uuid';
 import type { TireEntry } from './TireStockEntry';
 
@@ -405,32 +404,37 @@ export function RFIDStockPortal({ tireModels, containers, onEntriesAdded }: Prop
 
     setIsFinishing(true);
     try {
-      const supabase = createClient();
       const userData = JSON.parse(localStorage.getItem('porsche-cup-user') || '{}');
-      const now = new Date().toISOString();
       let saved = 0;
+      let failed = 0;
       const addedEntries: TireEntry[] = [];
+      const savedRFIDs = new Set<string>();
 
       for (const r of valid) {
         const model = tireModels.find(m => m.id === r.modelId);
-        if (!model) continue;
-        const entry = {
+        if (!model) {
+          failed++;
+          continue;
+        }
+
+        const createdAt = new Date().toISOString();
+        const entry: StockEntry = {
           id: generateUUID(),
           barcode: r.barcode,
-          model_name: model.name,
-          model_type: model.type || 'Slick',
           model_id: model.id,
+          model_name: model.name,
+          model_type: model.type === 'Wet' ? 'Wet' : 'Slick',
           container_id: selectedContainer,
           container_name: selectedContainerData.name,
-          created_at: now,
-          created_by: userData.id || null,
-          created_by_name: userData.name || 'Usuário',
-          status: 'active',
+          created_at: createdAt,
+          created_by: userData.id || undefined,
+          status: 'Novo',
         };
 
-        const { error } = await supabase.from('stock_entries').insert(entry);
-        if (!error) {
+        const success = await saveStockEntry(entry);
+        if (success) {
           saved++;
+          savedRFIDs.add(r.rfid);
           addedEntries.push({
             id: entry.id,
             barcode: entry.barcode,
@@ -438,22 +442,45 @@ export function RFIDStockPortal({ tireModels, containers, onEntriesAdded }: Prop
             modelId: model.id,
             container: selectedContainerData.name,
             containerId: selectedContainer,
-            timestamp: new Date(now),
+            timestamp: new Date(createdAt),
           });
         } else {
-          console.error('Erro ao salvar', r.barcode, error);
+          failed++;
+          console.error('Erro ao salvar leitura RFID no estoque', r.barcode);
         }
       }
 
-      toast.success(`${saved} pneu${saved !== 1 ? 's' : ''} registrado${saved !== 1 ? 's' : ''} no estoque`);
+      if (saved === 0) {
+        toast.error('Nenhum pneu foi registrado no estoque', {
+          description: 'As leituras válidas foram mantidas para nova tentativa.',
+        });
+        return;
+      }
+
+      if (failed > 0) {
+        toast.warning('Entrada registrada parcialmente', {
+          description: `${saved} salvo${saved !== 1 ? 's' : ''}, ${failed} com erro. As falhas ficaram na lista.`,
+        });
+      } else {
+        toast.success(`${saved} pneu${saved !== 1 ? 's' : ''} registrado${saved !== 1 ? 's' : ''} no estoque`);
+      }
+
       onEntriesAdded?.(addedEntries);
       window.dispatchEvent(new Event('stock-entries-updated'));
 
-      // Reset
-      handleStop();
-      setReadings([]);
-      processedRFIDs.current.clear();
-      readingsMapRef.current.clear();
+      if (failed === 0) {
+        handleStop();
+        setReadings([]);
+        processedRFIDs.current.clear();
+        readingsMapRef.current.clear();
+      } else {
+        setReadings(prev => {
+          const remaining = prev.filter(r => !savedRFIDs.has(r.rfid));
+          processedRFIDs.current = new Set(remaining.map(r => r.rfid));
+          readingsMapRef.current = new Map(remaining.map(r => [r.rfid, r]));
+          return remaining;
+        });
+      }
     } catch (e) {
       console.error(e);
       toast.error('Erro ao salvar entradas');

@@ -574,18 +574,30 @@ export function ConferenciaSerialDetalhes({ listaId, listaNome, onBack }: Confer
           ) : (
             /* ── Table view ─────────────────────────────────────── */
             <div className="bg-white rounded-lg border border-gray-200 overflow-x-auto">
-              <table className="w-full text-xs" style={{ borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+              <table className="min-w-[720px] text-xs" style={{ borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+                <colgroup>
+                  <col style={{ width: 104 }} />
+                  <col style={{ width: 128 }} />
+                  <col style={{ width: 48 }} />
+                  <col style={{ width: 40 }} />
+                  <col style={{ width: 48 }} />
+                  <col style={{ width: 56 }} />
+                  <col style={{ width: 56 }} />
+                  <col style={{ width: 84 }} />
+                  <col style={{ width: 112 }} />
+                  <col style={{ width: 44 }} />
+                </colgroup>
                 <thead>
                   <tr className="bg-gray-100 border-b border-gray-200">
-                    <th className="text-left py-1.5 px-2 font-semibold text-gray-600 w-24">Código</th>
-                    <th className="text-left py-1.5 px-2 font-semibold text-gray-600">Piloto</th>
-                    <th className="text-center py-1.5 px-1 font-semibold text-gray-600 w-10">Ano</th>
-                    <th className="text-center py-1.5 px-1 font-semibold text-gray-600 w-8">Set</th>
-                    <th className="text-center py-1.5 px-1 font-semibold text-gray-600 w-10">Lado</th>
-                    <th className="text-center py-1.5 px-1 font-semibold text-gray-600 w-12">Tipo</th>
-                    <th className="text-center py-1.5 px-1 font-semibold text-gray-600 w-12">Voltas</th>
-                    <th className="text-center py-1.5 px-1 font-semibold text-gray-600 w-16">Situação</th>
-                    <th className="text-center py-1.5 px-1 font-semibold text-gray-600 w-20">Data</th>
+                    <th className="text-left py-1.5 px-2 font-semibold text-gray-600 whitespace-nowrap">Código</th>
+                    <th className="text-left py-1.5 px-2 font-semibold text-gray-600 whitespace-nowrap">Piloto</th>
+                    <th className="text-center py-1.5 px-1 font-semibold text-gray-600 whitespace-nowrap">Ano</th>
+                    <th className="text-center py-1.5 px-1 font-semibold text-gray-600 whitespace-nowrap">Set</th>
+                    <th className="text-center py-1.5 px-1 font-semibold text-gray-600 whitespace-nowrap">Lado</th>
+                    <th className="text-center py-1.5 px-1 font-semibold text-gray-600 whitespace-nowrap">Tipo</th>
+                    <th className="text-center py-1.5 px-1 font-semibold text-gray-600 whitespace-nowrap">Voltas</th>
+                    <th className="text-center py-1.5 px-1 font-semibold text-gray-600 whitespace-nowrap">Situação</th>
+                    <th className="text-center py-1.5 px-1 font-semibold text-gray-600 whitespace-nowrap">Data</th>
                     <th className="w-8"></th>
                   </tr>
                 </thead>

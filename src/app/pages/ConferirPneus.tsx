@@ -22,7 +22,7 @@ const toast = {
   info: silentPageToast
 };
 
-type NativeRFIDPayload = string | {
+type NativeRFIDSinglePayload = string | {
   epc?: string;
   barcode?: string;
   code?: string;
@@ -31,7 +31,16 @@ type NativeRFIDPayload = string | {
   seenCount?: number;
   source?: string;
   timestamp?: number;
+  tag?: NativeRFIDPayload;
+  payload?: NativeRFIDPayload;
+  data?: NativeRFIDPayload;
+  tags?: NativeRFIDPayload[];
+  readings?: NativeRFIDPayload[];
+  scans?: NativeRFIDPayload[];
+  items?: NativeRFIDPayload[];
 };
+
+type NativeRFIDPayload = NativeRFIDSinglePayload | NativeRFIDSinglePayload[];
 
 interface NativeRFIDStatus {
   available?: boolean;
@@ -4729,7 +4738,37 @@ export function ConferirPneus() {
     }
   };
 
-  const normalizeNativeRFIDPayload = (payload: NativeRFIDPayload): NormalizedNativeRFIDScan | null => {
+  const expandNativeRFIDPayload = (payload: NativeRFIDPayload): NativeRFIDSinglePayload[] => {
+    if (Array.isArray(payload)) {
+      return payload.flatMap(expandNativeRFIDPayload);
+    }
+
+    if (typeof payload !== 'object' || payload === null) {
+      return [payload];
+    }
+
+    if (payload.epc || payload.barcode || payload.code) {
+      return [payload];
+    }
+
+    const nestedPayloads = [
+      payload.tags,
+      payload.readings,
+      payload.scans,
+      payload.items,
+      payload.tag,
+      payload.payload,
+      payload.data
+    ].filter(Boolean) as NativeRFIDPayload[];
+
+    if (nestedPayloads.length === 0) {
+      return [payload];
+    }
+
+    return nestedPayloads.flatMap(expandNativeRFIDPayload);
+  };
+
+  const normalizeNativeRFIDPayload = (payload: NativeRFIDSinglePayload): NormalizedNativeRFIDScan | null => {
     const rawPayload = typeof payload === 'string' ? { epc: payload, source: 'native-rfid' } : payload;
     const source = rawPayload.source || 'native-rfid';
     const epc = rawPayload.epc ? normalizeScannerCode(rawPayload.epc) : undefined;
@@ -4761,6 +4800,12 @@ export function ConferirPneus() {
     }
 
     return null;
+  };
+
+  const normalizeNativeRFIDPayloads = (payload: NativeRFIDPayload): NormalizedNativeRFIDScan[] => {
+    return expandNativeRFIDPayload(payload)
+      .map(normalizeNativeRFIDPayload)
+      .filter((scan): scan is NormalizedNativeRFIDScan => scan !== null);
   };
 
   const pruneRecentRFIDReads = (now = Date.now()) => {
@@ -4979,6 +5024,63 @@ export function ConferirPneus() {
       });
   };
 
+  const extractCompleteScannerCodesFromBuffer = (buffer: string): { codes: string[]; remainder: string } => {
+    let remainder = normalizeScannerCode(buffer);
+    const codes: string[] = [];
+
+    while (remainder.length > 0) {
+      const rfidCandidate = remainder.slice(0, 24);
+      if (
+        remainder.length >= 24 &&
+        /^[0-9A-F]{24}$/.test(rfidCandidate) &&
+        decodeRFID(rfidCandidate)
+      ) {
+        codes.push(rfidCandidate);
+        remainder = remainder.slice(24);
+        continue;
+      }
+
+      const barcodeCandidate = remainder.slice(0, 8);
+      if ((codes.length > 0 || remainder.length >= 16) && /^\d{8}$/.test(barcodeCandidate)) {
+        codes.push(barcodeCandidate);
+        remainder = remainder.slice(8);
+        continue;
+      }
+
+      break;
+    }
+
+    return { codes, remainder };
+  };
+
+  const submitInlineScannerBurst = (
+    codes: string[],
+    initialJogo: number,
+    initialPosition: number,
+    options: InlineScanOptions = {}
+  ) => {
+    let nextTarget: { jogo: number; position: number } | null = {
+      jogo: initialJogo,
+      position: initialPosition
+    };
+
+    let acceptedCount = 0;
+
+    for (const code of codes) {
+      if (!nextTarget) break;
+
+      const accepted = handleTireCodeSubmitInline(code, nextTarget.jogo, nextTarget.position, options);
+
+      if (accepted) {
+        acceptedCount++;
+      }
+
+      nextTarget = findAvailableInlineScanTarget(tireSetsRef.current);
+    }
+
+    return acceptedCount;
+  };
+
   // 🆕 Funções para observações
   const handleOpenObservationModal = (jogo?: number, position?: number) => {
     // Se receber parâmetros, atualiza o jogo e posição ativos
@@ -5165,9 +5267,9 @@ export function ConferirPneus() {
   };
 
   const handleNativeRFIDTag = (payload: NativeRFIDPayload) => {
-    const scan = normalizeNativeRFIDPayload(payload);
+    const scans = normalizeNativeRFIDPayloads(payload);
 
-    if (!scan) {
+    if (scans.length === 0) {
       console.warn('⚠️ Leitura RFID nativa ignorada: payload inválido', payload);
       registerIgnoredRFIDRead();
       return;
@@ -5197,31 +5299,41 @@ export function ConferirPneus() {
       return;
     }
 
-    const target = findAvailableInlineScanTarget(currentTireSets);
-    if (!target) {
-      console.log('🚫 Leitura RFID nativa ignorada: nenhum campo vazio disponível', scan);
-      registerIgnoredRFIDRead();
-      toast.info('Todos os campos deste chassis já foram preenchidos', {
-        duration: 1800
+    let acceptedCount = 0;
+    let lastAcceptedScan: NormalizedNativeRFIDScan | null = null;
+
+    for (const scan of scans) {
+      const target = findAvailableInlineScanTarget(tireSetsRef.current.length > 0 ? tireSetsRef.current : currentTireSets);
+      if (!target) {
+        console.log('🚫 Leitura RFID nativa ignorada: nenhum campo vazio disponível', scan);
+        registerIgnoredRFIDRead();
+        toast.info('Todos os campos deste chassis já foram preenchidos', {
+          duration: 1800
+        });
+        break;
+      }
+
+      const accepted = handleTireCodeSubmitInline(scan.epc || scan.code, target.jogo, target.position, {
+        source: 'native-rfid',
+        epc: scan.epc,
+        rssi: scan.rssi,
+        suppressDecodeToast: true
       });
-      return;
+
+      if (accepted) {
+        acceptedCount++;
+        lastAcceptedScan = scan;
+      }
     }
 
-    const accepted = handleTireCodeSubmitInline(scan.epc || scan.code, target.jogo, target.position, {
-      source: 'native-rfid',
-      epc: scan.epc,
-      rssi: scan.rssi,
-      suppressDecodeToast: true
-    });
-
-    if (accepted) {
+    if (acceptedCount > 0 && lastAcceptedScan) {
       setNativeRFIDStatus(prev => ({
         ...prev,
-        acceptedReads: prev.acceptedReads + 1,
+        acceptedReads: prev.acceptedReads + acceptedCount,
         lastReadAt: new Date().toISOString(),
-        lastBarcode: scan.code,
-        lastEpc: scan.epc,
-        lastRssi: scan.rssi
+        lastBarcode: lastAcceptedScan.code,
+        lastEpc: lastAcceptedScan.epc,
+        lastRssi: lastAcceptedScan.rssi
       }));
     }
   };
@@ -5994,8 +6106,7 @@ export function ConferirPneus() {
           
           if (!saved) {
             console.error('🚨 FALHA CRÍTICA: Não foi possível salvar código não cadastrado!');
-            // Não prossegue com a lógica se o salvamento falhou
-            return;
+            throw new Error(`Falha ao salvar o código ${tempCode} no Supabase`);
           }
         }
         
@@ -6072,8 +6183,8 @@ export function ConferirPneus() {
           extractedDataRef.current = ensuredData;
           setExtractedData(ensuredData); // 🔥 Garante índices corretos
           
-          // 🔥 Atualiza sessão ativa em tempo real
-          updateActiveSessionInRealTime(ensuredData, newSets, targetChassisIndex);
+          // 🔥 Atualiza sessão ativa em tempo real antes de liberar o próximo item da fila
+          await updateActiveSessionInRealTime(ensuredData, newSets, targetChassisIndex);
           
           // 🔥 AUTO-SAVE: Verifica se todos os pneus obrigatórios foram lidos e finaliza automaticamente
           const chassisData = ensuredData[targetChassisIndex];
@@ -6096,7 +6207,7 @@ export function ConferirPneus() {
             }));
             
             // 🔥 Atualiza sessão compartilhada no Supabase
-            updateSessionProgress(targetChassisIndex, {
+            await updateSessionProgress(targetChassisIndex, {
               tireSets: newSets,
               completed: true,
               tiresChecked: totalChecked,
@@ -6298,8 +6409,7 @@ export function ConferirPneus() {
         
         if (!saved) {
           console.error('🚨 FALHA CRÍTICA: Não foi possível salvar código cadastrado!');
-          // Não prossegue com a lógica se o salvamento falhou
-          return;
+          throw new Error(`Falha ao salvar o código ${tireData.barcode || tempCode} no Supabase`);
         }
       }
       
@@ -6403,8 +6513,8 @@ export function ConferirPneus() {
         extractedDataRef.current = ensuredData;
         setExtractedData(ensuredData); // 🔥 Garante índices corretos
         
-        // 🔥 Atualiza sessão ativa em tempo real
-        updateActiveSessionInRealTime(ensuredData, newSets, targetChassisIndex);
+        // 🔥 Atualiza sessão ativa em tempo real antes de liberar o próximo item da fila
+        await updateActiveSessionInRealTime(ensuredData, newSets, targetChassisIndex);
         
         // 🔥 AUTO-SAVE: Verifica se todos os pneus obrigatórios foram lidos e finaliza automaticamente
         const chassisData = ensuredData[targetChassisIndex];
@@ -6427,7 +6537,7 @@ export function ConferirPneus() {
           }));
           
           // 🔥 Atualiza sessão compartilhada no Supabase
-          updateSessionProgress(targetChassisIndex, {
+          await updateSessionProgress(targetChassisIndex, {
             tireSets: newSets,
             completed: true,
             tiresChecked: totalChecked,
@@ -6451,6 +6561,9 @@ export function ConferirPneus() {
       toast.error('Erro ao buscar dados do pneu', {
         description: error.message || 'Tente novamente'
       });
+      if (context) {
+        throw error;
+      }
     }
   };
 
@@ -8891,7 +9004,7 @@ onKeyDown={(e) => {
                                       type="text"
                                       placeholder={isKeyboardEnabled ? "Digitar..." : "Scanear..."}
                                       inputMode={isKeyboardEnabled ? "text" : "none"}
-                                      maxLength={24}
+                                      maxLength={256}
                                       data-jogo={set.jogo}
                                       data-position={originalIndex}
                                       className="compact-scanner-input w-full h-[18px] leading-none border border-gray-300 rounded focus:border-[#D50000] focus:outline-none placeholder:text-xs placeholder:font-mono"
@@ -8924,6 +9037,19 @@ onKeyDown={(e) => {
                                           e.target.value = value;
 
                                           console.log(`📝 onChange - value.length=${value.length}, jogo=${currentJogo}, position=${currentPosition}`);
+
+                                          const burst = extractCompleteScannerCodesFromBuffer(value);
+                                          if (value.length > 24 && burst.codes.length > 0) {
+                                            console.log('📥 Buffer com múltiplas leituras detectado:', {
+                                              codes: burst.codes,
+                                              remainder: burst.remainder,
+                                              jogo: currentJogo,
+                                              position: currentPosition
+                                            });
+                                            e.target.value = burst.remainder;
+                                            submitInlineScannerBurst(burst.codes, currentJogo, currentPosition);
+                                            return;
+                                          }
 
                                           // Auto-enter quando atingir RFID completo ou código de barras de 8 dígitos
                                           if (value.length === 24 && /^[0-9A-F]{24}$/.test(value)) {

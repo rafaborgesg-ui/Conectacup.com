@@ -9038,25 +9038,31 @@ onKeyDown={(e) => {
 
                                           console.log(`📝 onChange - value.length=${value.length}, jogo=${currentJogo}, position=${currentPosition}`);
 
-                                          const burst = extractCompleteScannerCodesFromBuffer(value);
-                                          if (value.length > 24 && burst.codes.length > 0) {
-                                            console.log('📥 Buffer com múltiplas leituras detectado:', {
-                                              codes: burst.codes,
-                                              remainder: burst.remainder,
-                                              jogo: currentJogo,
-                                              position: currentPosition
-                                            });
-                                            e.target.value = burst.remainder;
-                                            submitInlineScannerBurst(burst.codes, currentJogo, currentPosition);
-                                            return;
-                                          }
+                                          // RFID pode chegar caractere a caractere pelo coletor. Aguarda um micro-buffer
+                                          // para capturar bursts com várias tags antes de mudar o foco do campo.
+                                          if (value.length >= 24) {
+                                            inlineAutoSubmitTimersRef.current[inputKey] = setTimeout(() => {
+                                              const bufferedValue = normalizeScannerCode(inputElement.value);
+                                              const burst = extractCompleteScannerCodesFromBuffer(bufferedValue);
 
-                                          // Auto-enter quando atingir RFID completo ou código de barras de 8 dígitos
-                                          if (value.length === 24 && /^[0-9A-F]{24}$/.test(value)) {
-                                            const trimmedValue = value.trim();
-                                            console.log('🎯 Auto-enter ativado! RFID (24 caracteres) detectado');
-                                            console.log(`📍 Código RFID: "${trimmedValue}"`);
-                                            handleTireCodeSubmitInline(trimmedValue, currentJogo, currentPosition);
+                                              if (burst.codes.length > 0) {
+                                                console.log('📥 Buffer RFID processado:', {
+                                                  codes: burst.codes,
+                                                  remainder: burst.remainder,
+                                                  jogo: currentJogo,
+                                                  position: currentPosition
+                                                });
+                                                inputElement.value = burst.remainder;
+                                                submitInlineScannerBurst(burst.codes, currentJogo, currentPosition);
+                                                return;
+                                              }
+
+                                              if (bufferedValue.length === 24 && /^[0-9A-F]{24}$/.test(bufferedValue)) {
+                                                console.log('🎯 Auto-enter ativado! RFID (24 caracteres) detectado');
+                                                console.log(`📍 Código RFID: "${bufferedValue}"`);
+                                                handleTireCodeSubmitInline(bufferedValue, currentJogo, currentPosition);
+                                              }
+                                            }, SCANNER_AUTO_SUBMIT_DELAY_MS);
                                           } else if (isBarcodeCode(value)) {
                                             console.log('🎯 Auto-enter ativado! Código de barras (8 dígitos) detectado');
                                             console.log(`📍 Código: "${value}"`);

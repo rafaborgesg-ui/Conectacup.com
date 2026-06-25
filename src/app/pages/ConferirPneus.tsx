@@ -643,6 +643,7 @@ export function ConferirPneus() {
   const [chassisVersionWhenOpened, setChassisVersionWhenOpened] = useState<Record<number, string>>({}); // timestamp de quando abrimos cada chassis
   const [hasRealtimeConflict, setHasRealtimeConflict] = useState(false); // Flag para indicar conflito em tempo real
   const [recentlyUpdatedChassis, setRecentlyUpdatedChassis] = useState<Record<number, boolean>>({}); // Marca chassis recentemente atualizados
+  const initialEmptyInputFocusRef = useRef<string | null>(null);
   
   // 🧹 NOVO: Rastreia limpezas de códigos em progresso (evita que realtime sobrescreva)
   const [clearingTires, setClearingTires] = useState<Record<string, number>>({}); // Key: "chassisIdx-jogoNum-tireIdx", Value: timestamp
@@ -1547,30 +1548,51 @@ export function ConferirPneus() {
     }
   }, [currentStep]);
 
-  // 🎯 Auto-foco no primeiro campo de código vazio quando entrar em modo de edição
-  useEffect(() => {
-    if (isEditMode && tireSets.length > 0 && !pendingFocusAfterSubmit) {
-      // Pequeno delay para garantir que o DOM foi renderizado
-      setTimeout(() => {
-        // Busca o primeiro input vazio em todos os jogos
-        for (const set of tireSets) {
-          // 🔥 Busca o primeiro pneu vazio na ORDEM VISUAL (não pelo _originalIndex)
-          const firstEmptyIdx = set.tires.findIndex(t => !t.codigo || t.codigo === '-');
-          if (firstEmptyIdx !== -1) {
-            const firstEmptyTire = set.tires[firstEmptyIdx];
-            const firstEmptyOriginalIndex = firstEmptyTire._originalIndex ?? firstEmptyIdx;
+  const focusFirstEmptyTireInput = (reason: string, attempt = 0): boolean => {
+    if (!isEditMode || tireSets.length === 0 || pendingFocusAfterSubmit) return false;
 
-            const firstInput = document.querySelector(`input[data-jogo="${set.jogo}"][data-position="${firstEmptyOriginalIndex}"]`) as HTMLInputElement;
-            if (firstInput) {
-              firstInput.focus();
-              console.log(`🎯 Auto-foco inicial no Jogo ${set.jogo}, índice visual ${firstEmptyIdx}, _originalIndex ${firstEmptyOriginalIndex}`);
-              break; // Para no primeiro encontrado
-            }
-          }
-        }
-      }, 150);
+    for (const set of tireSets) {
+      const firstEmptyIdx = set.tires.findIndex(t => !t.codigo || t.codigo === '-');
+      if (firstEmptyIdx === -1) continue;
+
+      const firstEmptyTire = set.tires[firstEmptyIdx];
+      const firstEmptyOriginalIndex = firstEmptyTire._originalIndex ?? firstEmptyIdx;
+      const firstInput = document.querySelector(
+        `input[data-jogo="${set.jogo}"][data-position="${firstEmptyOriginalIndex}"]:not(:disabled)`
+      ) as HTMLInputElement | null;
+
+      if (firstInput) {
+        setActiveJogo(set.jogo);
+        setActivePneuPosition(firstEmptyOriginalIndex);
+        setFocusedInput({ jogo: set.jogo, position: firstEmptyOriginalIndex });
+        firstInput.focus({ preventScroll: true });
+        console.log(`🎯 Auto-foco ${reason}: Jogo ${set.jogo}, índice visual ${firstEmptyIdx}, _originalIndex ${firstEmptyOriginalIndex}`);
+        return true;
+      }
     }
-  }, [isEditMode, showCollectorConference]); // 🔥 REMOVIDO tireSets das dependências para não executar a cada bipagem
+
+    if (attempt < 8) {
+      window.setTimeout(() => focusFirstEmptyTireInput(reason, attempt + 1), 80);
+    }
+
+    return false;
+  };
+
+  // 🎯 Ao abrir a conferência no coletor, foca o primeiro campo vazio assim que os inputs existirem.
+  useEffect(() => {
+    if (!useCollectorMode || !showCollectorConference || selectedChassisIndex === null) return;
+    if (!isEditMode || tireSets.length === 0 || pendingFocusAfterSubmit) return;
+
+    const focusKey = `${selectedChassisIndex}:${tireSets.length}:${tireSets.map(set => set.tires.length).join('-')}`;
+    if (initialEmptyInputFocusRef.current === focusKey) return;
+
+    initialEmptyInputFocusRef.current = focusKey;
+    window.setTimeout(() => focusFirstEmptyTireInput('ao abrir chassi'), 120);
+  }, [useCollectorMode, showCollectorConference, selectedChassisIndex, isEditMode, tireSets, pendingFocusAfterSubmit]);
+
+  useEffect(() => {
+    initialEmptyInputFocusRef.current = null;
+  }, [selectedChassisIndex]);
 
   // 🎯 Auto-foco após submit de código (busca próximo campo vazio)
   useEffect(() => {

@@ -1,10 +1,20 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Radio, Zap, CheckCircle2, AlertCircle, Maximize2, Minimize2, Package, ArrowRight, Box } from 'lucide-react';
+import { Radio, Zap, CheckCircle2, AlertCircle, Maximize2, Minimize2, Package, ArrowRight, Box, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { Button } from './ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from './ui/alert-dialog';
 import { toast } from 'sonner';
-import { checkBarcodeExists, saveStockEntry, type TireModel, type Container, type StockEntry } from '../utils/storage';
+import { checkBarcodeExists, getTireByBarcode, saveStockEntry, type TireModel, type Container, type StockEntry } from '../utils/storage';
 import { generateUUID } from '../utils/uuid';
 import type { TireEntry } from './TireStockEntry';
 
@@ -12,6 +22,10 @@ import type { TireEntry } from './TireStockEntry';
 
 function normalizeRFID(v: string) { return v.replace(/\s/g, '').toUpperCase(); }
 function isRFIDCode(code: string) { return /^[0-9A-Fa-f]{24}$/.test(normalizeRFID(code)); }
+function normalizeCAI(value: unknown) {
+  const numeric = String(value ?? '').replace(/\D/g, '');
+  return numeric.replace(/^0+(?=\d)/, '');
+}
 
 function decodeRFID(hex: string): { barcode: string; cai: string } | null {
   try {
@@ -154,6 +168,12 @@ interface Props {
   onEntriesAdded?: (entries: TireEntry[]) => void;
 }
 
+interface RFIDSavedEntry extends TireEntry {
+  rfid: string;
+  cai: string;
+  modelType: string;
+}
+
 // ─── Component ─────────────────────────────────────────────────────────────
 
 export function RFIDStockPortal({ tireModels, containers, onEntriesAdded }: Props) {
@@ -163,6 +183,7 @@ export function RFIDStockPortal({ tireModels, containers, onEntriesAdded }: Prop
   const [scanBuffer, setScanBuffer] = useState('');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isFinishing, setIsFinishing] = useState(false);
+  const [showFinishDialog, setShowFinishDialog] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const scanBufferRef = useRef('');
@@ -175,6 +196,14 @@ export function RFIDStockPortal({ tireModels, containers, onEntriesAdded }: Prop
   // ── Container lookup ──────────────────────────────────────────────────────
 
   const selectedContainerData = containers.find(c => c.id === selectedContainer);
+
+  const findModelByCAI = useCallback((cai: string) => {
+    const normalizedDecodedCAI = normalizeCAI(cai);
+    return tireModels.find(model => {
+      const normalizedModelCAI = normalizeCAI(model.cai);
+      return normalizedModelCAI.length > 0 && normalizedModelCAI === normalizedDecodedCAI;
+    });
+  }, [tireModels]);
 
   // ── Process a single RFID ─────────────────────────────────────────────────
 
@@ -195,8 +224,8 @@ export function RFIDStockPortal({ tireModels, containers, onEntriesAdded }: Prop
     const decoded = decodeRFID(clean);
     if (!decoded) return;
 
-    // Find model by CAI
-    const model = tireModels.find(m => String(m.cai) === decoded.cai);
+    // Find model by normalized CAI. Cadastro pode ter espaços, pontuação ou zero à esquerda.
+    let model = findModelByCAI(decoded.cai);
 
     const reading: RFIDStockReading = {
       id: generateUUID(),
@@ -214,23 +243,37 @@ export function RFIDStockPortal({ tireModels, containers, onEntriesAdded }: Prop
     readingsMapRef.current.set(clean, reading);
     setReadings(prev => [reading, ...prev]);
 
-    // Validate duplicate in DB
     const exists = await checkBarcodeExists(decoded.barcode);
+    if (!model && exists) {
+      const existingTire = await getTireByBarcode(decoded.barcode);
+      if (existingTire) {
+        model = tireModels.find(m => m.id === existingTire.model_id)
+          ?? tireModels.find(m => m.name === existingTire.model_name);
+      }
+    }
+
     const finalStatus: RFIDStockReading['status'] = exists
       ? 'duplicate'
       : !model
       ? 'no_model'
       : 'ok';
 
-    readingsMapRef.current.set(clean, { ...reading, status: finalStatus });
-    setReadings(prev => prev.map(r => r.rfid === clean ? { ...r, status: finalStatus } : r));
+    const updatedReading = {
+      ...reading,
+      modelName: model?.name ?? 'Modelo não encontrado',
+      modelId: model?.id ?? '',
+      status: finalStatus
+    };
+
+    readingsMapRef.current.set(clean, updatedReading);
+    setReadings(prev => prev.map(r => r.rfid === clean ? updatedReading : r));
 
     if (exists) {
       toast.warning(`Pneu ${decoded.barcode} já está no estoque`);
     } else if (!model) {
       toast.error(`CAI ${decoded.cai} não encontrado em nenhum modelo`);
     }
-  }, [tireModels]);
+  }, [findModelByCAI, tireModels]);
 
   useEffect(() => {
     processRFIDRef.current = processRFID;
@@ -395,9 +438,91 @@ export function RFIDStockPortal({ tireModels, containers, onEntriesAdded }: Prop
     callNativeInventory('stopInventory');
   };
 
+  const exportToExcel = (entriesToExport: RFIDSavedEntry[]) => {
+    try {
+      const now = new Date();
+      const dataHora = now.toLocaleString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+
+      const modelSummary = entriesToExport.reduce<Record<string, { name: string; type: string; count: number }>>((acc, entry) => {
+        if (!acc[entry.modelId]) {
+          acc[entry.modelId] = { name: entry.model, type: entry.modelType, count: 0 };
+        }
+        acc[entry.modelId].count++;
+        return acc;
+      }, {});
+
+      const header = [
+        ['CONECTA CUP - ENTRADA DE ESTOQUE RFID'],
+        [`Data/Hora: ${dataHora}`],
+        [`Total de Pneus: ${entriesToExport.length}`],
+        [`Contêiner: ${selectedContainerData?.name || '-'}`],
+        [],
+      ];
+
+      const summaryRows = [
+        ['RESUMO POR MODELO'],
+        ['Modelo', 'Tipo', 'Quantidade'],
+        ...Object.values(modelSummary).map(item => [item.name, item.type, item.count.toString()]),
+        [],
+      ];
+
+      const detailRows = [
+        ['DETALHAMENTO DOS PNEUS'],
+        ['#', 'Código de Barras', 'Modelo', 'Tipo', 'Contêiner', 'CAI', 'RFID', 'Data/Hora'],
+        ...entriesToExport.map((entry, index) => [
+          (index + 1).toString(),
+          entry.barcode,
+          entry.model,
+          entry.modelType,
+          entry.container,
+          entry.cai,
+          entry.rfid,
+          entry.timestamp.toLocaleString('pt-BR', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+          })
+        ])
+      ];
+
+      const ws = XLSX.utils.aoa_to_sheet([...header, ...summaryRows, ...detailRows]);
+      ws['!cols'] = [
+        { wch: 5 },
+        { wch: 15 },
+        { wch: 32 },
+        { wch: 12 },
+        { wch: 20 },
+        { wch: 12 },
+        { wch: 28 },
+        { wch: 20 },
+      ];
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Entrada RFID');
+      const fileName = `Entrada_RFID_${now.toISOString().slice(0, 10)}_${now.getHours()}${now.getMinutes()}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+
+      toast.success('Arquivo Excel exportado', {
+        description: `${entriesToExport.length} pneus exportados com sucesso`,
+      });
+    } catch (error) {
+      console.error('Erro ao exportar RFID para Excel:', error);
+      toast.error('Erro ao exportar arquivo Excel');
+    }
+  };
+
   // ── Finish: save valid readings as stock entries ───────────────────────────
 
-  const handleFinish = async () => {
+  const handleFinish = async (shouldExport = false) => {
     const valid = readings.filter(r => r.status === 'ok');
     if (valid.length === 0) { toast.error('Nenhuma leitura válida para salvar'); return; }
     if (!selectedContainerData) { toast.error('Contêiner não encontrado'); return; }
@@ -408,6 +533,7 @@ export function RFIDStockPortal({ tireModels, containers, onEntriesAdded }: Prop
       let saved = 0;
       let failed = 0;
       const addedEntries: TireEntry[] = [];
+      const exportedEntries: RFIDSavedEntry[] = [];
       const savedRFIDs = new Set<string>();
 
       for (const r of valid) {
@@ -444,6 +570,18 @@ export function RFIDStockPortal({ tireModels, containers, onEntriesAdded }: Prop
             containerId: selectedContainer,
             timestamp: new Date(createdAt),
           });
+          exportedEntries.push({
+            id: entry.id,
+            barcode: entry.barcode,
+            model: model.name,
+            modelId: model.id,
+            modelType: entry.model_type,
+            container: selectedContainerData.name,
+            containerId: selectedContainer,
+            timestamp: new Date(createdAt),
+            rfid: r.rfid,
+            cai: r.cai,
+          });
         } else {
           failed++;
           console.error('Erro ao salvar leitura RFID no estoque', r.barcode);
@@ -465,8 +603,13 @@ export function RFIDStockPortal({ tireModels, containers, onEntriesAdded }: Prop
         toast.success(`${saved} pneu${saved !== 1 ? 's' : ''} registrado${saved !== 1 ? 's' : ''} no estoque`);
       }
 
+      if (shouldExport && exportedEntries.length > 0) {
+        exportToExcel(exportedEntries);
+      }
+
       onEntriesAdded?.(addedEntries);
       window.dispatchEvent(new Event('stock-entries-updated'));
+      setShowFinishDialog(false);
 
       if (failed === 0) {
         handleStop();
@@ -494,6 +637,15 @@ export function RFIDStockPortal({ tireModels, containers, onEntriesAdded }: Prop
   const okCount = readings.filter(r => r.status === 'ok').length;
   const dupCount = readings.filter(r => r.status === 'duplicate').length;
   const noModelCount = readings.filter(r => r.status === 'no_model').length;
+  const readyModelSummary = readings
+    .filter(r => r.status === 'ok')
+    .reduce<Record<string, { name: string; count: number }>>((acc, reading) => {
+      const key = reading.modelId || reading.modelName;
+      if (!acc[key]) acc[key] = { name: reading.modelName, count: 0 };
+      acc[key].count++;
+      return acc;
+    }, {});
+  const readyModelSummaryRows = Object.values(readyModelSummary).sort((a, b) => a.name.localeCompare(b.name));
 
   // ── Row sub-component ─────────────────────────────────────────────────────
 
@@ -699,6 +851,27 @@ export function RFIDStockPortal({ tireModels, containers, onEntriesAdded }: Prop
             </div>
           </div>
 
+          {/* Ready model summary */}
+          <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+            <h3 className="text-sm font-semibold text-gray-700 mb-3">Prontos por modelo</h3>
+            {readyModelSummaryRows.length === 0 ? (
+              <div className="text-xs text-gray-400 py-2">Nenhum pneu pronto para salvar</div>
+            ) : (
+              <div className="space-y-2 text-sm">
+                {readyModelSummaryRows.map(item => (
+                  <div key={item.name} className="flex justify-between gap-3 py-1.5 border-b border-gray-100 last:border-0">
+                    <span className="text-gray-600 truncate">{item.name}</span>
+                    <span className="font-bold text-green-600">{item.count}</span>
+                  </div>
+                ))}
+                <div className="flex justify-between gap-3 pt-2 border-t border-gray-200 font-semibold">
+                  <span className="text-gray-800">Total geral</span>
+                  <span className="text-green-700">{okCount}</span>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Save action */}
           {okCount > 0 && (
             <div className="rounded-xl border border-green-100 bg-green-50/60 p-4">
@@ -710,18 +883,91 @@ export function RFIDStockPortal({ tireModels, containers, onEntriesAdded }: Prop
                 {okCount} pneu{okCount !== 1 ? 's' : ''} será{okCount !== 1 ? 'ão' : ''} salvo{okCount !== 1 ? 's' : ''} no contêiner <strong>{selectedContainerData?.name}</strong>.
               </p>
               <Button
-                onClick={handleFinish}
+                onClick={() => setShowFinishDialog(true)}
                 disabled={isFinishing || !selectedContainer}
                 className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold"
               >
-                {isFinishing ? 'Salvando...' : (
-                  <><ArrowRight className="w-4 h-4 mr-2" />Confirmar Entrada</>
+                {isFinishing ? 'Finalizando...' : (
+                  <><ArrowRight className="w-4 h-4 mr-2" />Finalizar Entrada</>
                 )}
               </Button>
             </div>
           )}
         </div>
       </div>
+
+      <AlertDialog open={showFinishDialog} onOpenChange={(open) => !isFinishing && setShowFinishDialog(open)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {isFinishing ? 'Finalizando entrada...' : 'Finalizar entrada de estoque?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              <div className="space-y-4">
+                <p>
+                  Você está prestes a finalizar a entrada de {okCount} {okCount === 1 ? 'pneu' : 'pneus'} pelo Portal RFID.
+                  Os dados serão salvos no contêiner {selectedContainerData?.name || 'selecionado'}.
+                </p>
+
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                  <div className="flex items-start gap-2">
+                    <Package className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
+                    <div className="flex-1">
+                      <p className="font-medium text-green-900 mb-2">Resumo dos prontos para salvar</p>
+                      <div className="space-y-1 text-sm">
+                        {readyModelSummaryRows.map(item => (
+                          <div key={item.name} className="flex justify-between gap-3">
+                            <span className="text-green-800 truncate">{item.name}</span>
+                            <span className="font-semibold text-green-900">{item.count}</span>
+                          </div>
+                        ))}
+                        <div className="flex justify-between gap-3 border-t border-green-200 pt-2 mt-2">
+                          <span className="text-green-900 font-semibold">Total geral</span>
+                          <span className="text-green-900 font-bold">{okCount}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <div className="flex items-start gap-2">
+                    <Download className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="font-medium text-blue-900">Deseja exportar um relatório em Excel?</p>
+                      <p className="text-sm text-blue-700 mt-1">
+                        O arquivo conterá códigos, modelos, CAI, RFID, contêiner e resumo por modelo.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+            <AlertDialogCancel className="m-0" disabled={isFinishing}>
+              Cancelar
+            </AlertDialogCancel>
+            <Button
+              onClick={() => handleFinish(false)}
+              variant="outline"
+              className="m-0 border-gray-300 hover:bg-gray-50"
+              disabled={isFinishing}
+            >
+              <CheckCircle2 className="w-4 h-4 mr-2" />
+              Finalizar sem Exportar
+            </Button>
+            <Button
+              onClick={() => handleFinish(true)}
+              className="m-0 bg-[#D50000] hover:bg-[#B00000] text-white"
+              disabled={isFinishing}
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Finalizar e Exportar XLS
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

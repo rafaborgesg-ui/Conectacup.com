@@ -45,13 +45,16 @@ interface TireEntry {
   containerName: string;
   timestamp: string;
   status?: string;
-  sessionId?: string;
+  set?: string;
   pilot?: string;
   team?: string;
   ano?: string;
   etapa?: string;
   categoria?: string;
   campeonato?: string;
+  pista?: string;
+  lado?: string;
+  tv?: string;
 }
 
 // 📡 Funções RFID (SGTIN-96 Decoding)
@@ -207,7 +210,10 @@ export function StockAdjustment() {
     { key: 'etapa', label: 'Etapa', defaultVisible: false },
     { key: 'categoria', label: 'Categoria', defaultVisible: false },
     { key: 'campeonato', label: 'Campeonato', defaultVisible: false },
-    { key: 'sessionId', label: 'ID da Sessão', defaultVisible: false },
+    { key: 'set', label: 'Set', defaultVisible: false },
+    { key: 'pista', label: 'Pista', defaultVisible: false },
+    { key: 'lado', label: 'Lado', defaultVisible: false },
+    { key: 'tv', label: 'T.V', defaultVisible: false },
   ];
 
   // Estado para colunas visíveis (inicializa com preferências salvas ou padrões)
@@ -572,13 +578,16 @@ export function StockAdjustment() {
         containerName: entry.container_name,
         timestamp: entry.created_at,
         status: entry.status as any,
-        sessionId: entry.session_id,
+        set: entry.set_pneu,
         pilot: entry.pilot,
         team: entry.team,
         ano: entry.ano,
         etapa: entry.etapa,
         categoria: entry.categoria,
         campeonato: entry.campeonato,
+        pista: entry.pista,
+        lado: entry.lado,
+        tv: entry.tempo_vida,
       }));
       
       console.log(`✅ ${mappedEntries.length} pneus mapeados com sucesso`);
@@ -1027,7 +1036,7 @@ export function StockAdjustment() {
                 container_name: backup.containerName,
                 status: backup.status || 'Novo',
                 created_at: backup.timestamp,
-                session_id: backup.sessionId,
+                set_pneu: backup.set,
                 pilot: backup.pilot,
                 team: backup.team,
                 ano: backup.ano,
@@ -1137,7 +1146,7 @@ export function StockAdjustment() {
                   container_name: backup.containerName,
                   status: backup.status || 'Novo',
                   created_at: backup.timestamp,
-                  session_id: backup.sessionId,
+                  set_pneu: backup.set,
                   pilot: backup.pilot,
                   team: backup.team,
                   ano: backup.ano,
@@ -1413,7 +1422,10 @@ export function StockAdjustment() {
       etapa: { label: 'Etapa', sortable: true, sortField: 'etapa' },
       categoria: { label: 'Categoria', sortable: true, sortField: 'categoria' },
       campeonato: { label: 'Campeonato', sortable: true, sortField: 'campeonato' },
-      sessionId: { label: 'ID da Sessão', sortable: false },
+      set: { label: 'Set', sortable: true, sortField: 'set' },
+      pista: { label: 'Pista', sortable: true, sortField: 'pista' },
+      lado: { label: 'Lado', sortable: true, sortField: 'lado' },
+      tv: { label: 'T.V', sortable: false },
     };
 
     const config = columnConfig[columnKey];
@@ -1560,12 +1572,31 @@ export function StockAdjustment() {
           </td>
         );
       
-      case 'sessionId':
+      case 'set':
         return (
           <td key={columnKey} className="px-6 py-4 whitespace-nowrap">
-            <code className="text-xs bg-gray-100 px-2 py-1 rounded text-gray-600">
-              {entry.sessionId || '-'}
-            </code>
+            <span className="text-sm text-gray-900">{entry.set || '-'}</span>
+          </td>
+        );
+
+      case 'pista':
+        return (
+          <td key={columnKey} className="px-6 py-4 whitespace-nowrap">
+            <span className="text-sm text-gray-900">{entry.pista || '-'}</span>
+          </td>
+        );
+
+      case 'lado':
+        return (
+          <td key={columnKey} className="px-6 py-4 whitespace-nowrap">
+            <span className="text-sm text-gray-900">{entry.lado || '-'}</span>
+          </td>
+        );
+
+      case 'tv':
+        return (
+          <td key={columnKey} className="px-6 py-4 whitespace-nowrap">
+            <span className="text-sm text-gray-900">{entry.tv || '-'}</span>
           </td>
         );
       

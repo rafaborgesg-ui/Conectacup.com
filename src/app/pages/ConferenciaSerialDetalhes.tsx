@@ -137,11 +137,23 @@ export function ConferenciaSerialDetalhes({ listaId, listaNome, onBack }: Confer
       }
 
       if (data && data.length > 0) {
-        const list: TireEntry[] = data.map(item => ({
+        // Busca categoria de stock_entries para todos os barcodes desta lista
+        const barcodes = [...new Set(data.map((item: any) => item.barcode).filter(Boolean))];
+        const { data: stockData } = await createClient()
+          .from('stock_entries')
+          .select('barcode, categoria')
+          .in('barcode', barcodes);
+
+        const categoriaMap = new Map<string, string>();
+        (stockData || []).forEach((s: any) => {
+          if (s.barcode && s.categoria) categoriaMap.set(s.barcode, s.categoria);
+        });
+
+        const list: TireEntry[] = data.map((item: any) => ({
           id: item.id,
           coluna1: item.barcode || '-',
           piloto: item.piloto || '-',
-          categoria: item.categoria || '-',
+          categoria: categoriaMap.get(item.barcode) || '-',
           ano: item.ano || '-',
           set: item.set_pneu || '-',
           lado: item.lado || '-',
@@ -151,7 +163,7 @@ export function ConferenciaSerialDetalhes({ listaId, listaNome, onBack }: Confer
           dataConferencia: new Date(item.data_conferencia),
           isTemp: false
         }));
-        
+
         setItems(list);
       }
       
@@ -247,7 +259,6 @@ export function ConferenciaSerialDetalhes({ listaId, listaNome, onBack }: Confer
           lista_id: listaId,
           barcode: serial,
           piloto: 'Pneu não cadastrado',
-          categoria: '-',
           ano: '-',
           set_pneu: '-',
           lado: '-',
@@ -270,7 +281,6 @@ export function ConferenciaSerialDetalhes({ listaId, listaNome, onBack }: Confer
           lista_id: listaId,
           barcode: tireData.barcode || serial,
           piloto: tireData.pilot || '-',
-          categoria: tireData.categoria || '-',
           ano: tireData.ano || new Date().getFullYear().toString(),
           set_pneu: tireData.set_pneu || '-',
           lado: tireData.lado || '-',
@@ -311,7 +321,7 @@ export function ConferenciaSerialDetalhes({ listaId, listaNome, onBack }: Confer
         id: saved.id,
         coluna1: saved.barcode || serial,
         piloto: saved.piloto || '-',
-        categoria: saved.categoria || '-',
+        categoria: tireData?.categoria || '-',
         ano: saved.ano || '-',
         set: saved.set_pneu || '-',
         lado: saved.lado || '-',

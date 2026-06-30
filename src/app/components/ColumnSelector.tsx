@@ -9,6 +9,48 @@ import {
 import { Checkbox } from './ui/checkbox';
 import { Label } from './ui/label';
 import { toast } from 'sonner';
+import { createClient } from '../utils/supabase/client';
+
+const PREF_LOCAL_KEY = (storageKey: string) => `column-preference-${storageKey}`;
+
+async function getSupabaseUserId(): Promise<string | null> {
+  try {
+    const { data: { session } } = await createClient().auth.getSession();
+    return session?.user?.id ?? null;
+  } catch { return null; }
+}
+
+async function loadFromSupabase(storageKey: string): Promise<string[] | null> {
+  try {
+    const userId = await getSupabaseUserId();
+    if (!userId) return null;
+    const { data, error } = await createClient()
+      .from('user_preferences')
+      .select('preference_value')
+      .eq('user_id', userId)
+      .eq('preference_key', PREF_LOCAL_KEY(storageKey))
+      .maybeSingle();
+    if (error || !data) return null;
+    const val = data.preference_value;
+    return Array.isArray(val) ? val : null;
+  } catch { return null; }
+}
+
+async function saveToSupabase(storageKey: string, columns: string[]): Promise<boolean> {
+  try {
+    const userId = await getSupabaseUserId();
+    if (!userId) return false;
+    const { error } = await createClient()
+      .from('user_preferences')
+      .upsert({
+        user_id: userId,
+        preference_key: PREF_LOCAL_KEY(storageKey),
+        preference_value: columns,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'user_id,preference_key' });
+    return !error;
+  } catch { return false; }
+}
 
 export interface ColumnOption {
   key: string;
@@ -72,11 +114,25 @@ export function ColumnSelector({
     setOrderedColumns([...orderedSelected, ...notSelected]);
   }, [columns, selectedColumns]);
 
-  // Verifica se há preferências salvas ao montar o componente
+  // Verifica e carrega preferências: localStorage (instantâneo) + Supabase (sincroniza em bg)
   useEffect(() => {
-    const savedPreference = localStorage.getItem(`column-preference-${storageKey}`);
-    setHasSavedPreference(!!savedPreference);
-  }, [storageKey]);
+    const localKey = PREF_LOCAL_KEY(storageKey);
+    const local = localStorage.getItem(localKey);
+    if (local) setHasSavedPreference(true);
+
+    // Sincroniza com Supabase em background e aplica se mais recente
+    loadFromSupabase(storageKey).then(remote => {
+      if (remote && remote.length > 0) {
+        const valid = remote.filter((k: string) => columns.some(c => c.key === k));
+        if (valid.length > 0) {
+          // Atualiza localStorage com o valor do Supabase
+          localStorage.setItem(localKey, JSON.stringify(valid));
+          setHasSavedPreference(true);
+          onChange(valid);
+        }
+      }
+    });
+  }, [storageKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Debug: verificar se o componente está renderizando
   console.log('ColumnSelector renderizado com', selectedColumns.length, 'colunas selecionadas de', columns.length, 'disponíveis');
@@ -148,45 +204,42 @@ export function ColumnSelector({
     return () => document.removeEventListener('mouseup', handleGlobalMouseUp);
   }, []);
 
-  const saveUserPreference = () => {
-    try {
-      localStorage.setItem(
-        `column-preference-${storageKey}`, 
-        JSON.stringify(selectedColumns)
-      );
-      setHasSavedPreference(true);
-      toast.success('✓ Preferências salvas com sucesso!', {
-        description: 'Suas colunas e ordem personalizadas foram salvas',
+  const saveUserPreference = async () => {
+    // Salva no localStorage imediatamente
+    localStorage.setItem(PREF_LOCAL_KEY(storageKey), JSON.stringify(selectedColumns));
+    setHasSavedPreference(true);
+
+    // Salva no Supabase em background
+    const ok = await saveToSupabase(storageKey, selectedColumns);
+    if (ok) {
+      toast.success('✓ Preferências salvas!', {
+        description: 'Suas colunas foram salvas e estarão disponíveis no próximo login.',
         duration: 3000,
       });
-    } catch (error) {
-      console.error('Erro ao salvar preferências:', error);
-      toast.error('Erro ao salvar preferências', {
-        description: 'Não foi possível salvar suas preferências',
+    } else {
+      toast.success('✓ Preferências salvas localmente', {
+        description: 'Salvo no dispositivo. Faça login para sincronizar na nuvem.',
+        duration: 3000,
       });
     }
   };
 
   const loadUserPreference = () => {
     try {
-      const saved = localStorage.getItem(`column-preference-${storageKey}`);
+      const saved = localStorage.getItem(PREF_LOCAL_KEY(storageKey));
       if (saved) {
         const savedColumns = JSON.parse(saved);
-        // Valida que as colunas salvas ainda existem
-        const validColumns = savedColumns.filter((key: string) => 
-          columns.some(c => c.key === key)
-        );
+        const validColumns = savedColumns.filter((key: string) => columns.some(c => c.key === key));
         if (validColumns.length > 0) {
           onChange(validColumns);
-          toast.success('Preferências carregadas', {
-            description: `${validColumns.length} colunas restauradas na ordem salva`,
+          toast.success('Preferências restauradas', {
+            description: `${validColumns.length} colunas restauradas`,
             duration: 2000,
           });
         }
       }
     } catch (error) {
       console.error('Erro ao carregar preferências:', error);
-      toast.error('Erro ao carregar preferências');
     }
   };
 

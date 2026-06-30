@@ -8,6 +8,7 @@ interface TireEntry {
   id: string;
   coluna1: string;
   piloto: string;
+  categoria: string;
   ano: string;
   set: string;
   lado: string;
@@ -140,6 +141,7 @@ export function ConferenciaSerialDetalhes({ listaId, listaNome, onBack }: Confer
           id: item.id,
           coluna1: item.barcode || '-',
           piloto: item.piloto || '-',
+          categoria: item.categoria || '-',
           ano: item.ano || '-',
           set: item.set_pneu || '-',
           lado: item.lado || '-',
@@ -202,6 +204,7 @@ export function ConferenciaSerialDetalhes({ listaId, listaNome, onBack }: Confer
       id: tempId,
       coluna1: serialTrimmed,
       piloto: 'Salvando...',
+      categoria: '...',
       ano: '...',
       set: '...',
       lado: '...',
@@ -244,6 +247,7 @@ export function ConferenciaSerialDetalhes({ listaId, listaNome, onBack }: Confer
           lista_id: listaId,
           barcode: serial,
           piloto: 'Pneu não cadastrado',
+          categoria: '-',
           ano: '-',
           set_pneu: '-',
           lado: '-',
@@ -266,6 +270,7 @@ export function ConferenciaSerialDetalhes({ listaId, listaNome, onBack }: Confer
           lista_id: listaId,
           barcode: tireData.barcode || serial,
           piloto: tireData.pilot || '-',
+          categoria: tireData.categoria || '-',
           ano: tireData.ano || new Date().getFullYear().toString(),
           set_pneu: tireData.set_pneu || '-',
           lado: tireData.lado || '-',
@@ -306,6 +311,7 @@ export function ConferenciaSerialDetalhes({ listaId, listaNome, onBack }: Confer
         id: saved.id,
         coluna1: saved.barcode || serial,
         piloto: saved.piloto || '-',
+        categoria: saved.categoria || '-',
         ano: saved.ano || '-',
         set: saved.set_pneu || '-',
         lado: saved.lado || '-',
@@ -366,7 +372,8 @@ export function ConferenciaSerialDetalhes({ listaId, listaNome, onBack }: Confer
   
   const filtered = items.filter(item =>
     item.coluna1.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.piloto.toLowerCase().includes(searchTerm.toLowerCase())
+    item.piloto.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    item.categoria.toLowerCase().includes(searchTerm.toLowerCase())
   );
   
   const total = items.filter(i => !i.isTemp).length;
@@ -540,6 +547,9 @@ export function ConferenciaSerialDetalhes({ listaId, listaNome, onBack }: Confer
                       <div className={`text-xs font-medium ${
                         item.isTemp ? 'text-blue-600' : item.piloto === 'Pneu não cadastrado' ? 'text-orange-700' : 'text-gray-600'
                       }`}>{item.piloto}</div>
+                      {item.categoria && item.categoria !== '-' && (
+                        <div className="text-xs text-gray-500">{item.categoria}</div>
+                      )}
                     </div>
                     <div className="flex items-center gap-1.5 ml-2 flex-shrink-0">
                       {!item.isTemp && (
@@ -591,6 +601,7 @@ export function ConferenciaSerialDetalhes({ listaId, listaNome, onBack }: Confer
                   <tr className="bg-gray-100 border-b border-gray-200">
                     <th className="text-left py-1.5 px-2 font-semibold text-gray-600 whitespace-nowrap">Código</th>
                     <th className="text-left py-1.5 px-2 font-semibold text-gray-600 whitespace-nowrap">Piloto</th>
+                    <th className="text-left py-1.5 px-1 font-semibold text-gray-600 whitespace-nowrap">Categoria</th>
                     <th className="text-center py-1.5 px-1 font-semibold text-gray-600 whitespace-nowrap">Ano</th>
                     <th className="text-center py-1.5 px-1 font-semibold text-gray-600 whitespace-nowrap">Set</th>
                     <th className="text-center py-1.5 px-1 font-semibold text-gray-600 whitespace-nowrap">Lado</th>
@@ -619,6 +630,7 @@ export function ConferenciaSerialDetalhes({ listaId, listaNome, onBack }: Confer
                             : 'text-gray-700'
                         }`}>{item.piloto}</span>
                       </td>
+                      <td className="py-1.5 px-1 text-left text-gray-700 truncate">{item.categoria || '-'}</td>
                       <td className="py-1.5 px-1 text-center text-gray-900">{item.ano || '-'}</td>
                       <td className="py-1.5 px-1 text-center text-gray-900">{item.set || '-'}</td>
                       <td className="py-1.5 px-1 text-center text-gray-900">{item.lado || '-'}</td>

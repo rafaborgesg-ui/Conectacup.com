@@ -73,3 +73,15 @@ test('classifica EPC sem cadastro como Tag desconhecida', () => {
 
   assert.equal(passage.status, 'Tag desconhecida');
 });
+
+test('extrai EPCs do DataWedge separados por quebra de linha ou concatenados', () => {
+  const epcs = [
+    '301854AACECF7C0001406B1F',
+    '301854AACECF7C000141E59B',
+    '301854AAE059B800014A3DDB',
+    '301854AACECF7C00014769CF'
+  ];
+
+  assert.deepEqual(pitlane.extractPitlaneRfidTokens(epcs.join('\n')), epcs);
+  assert.deepEqual(pitlane.extractPitlaneRfidTokens(epcs.join('')), epcs);
+});

@@ -192,6 +192,27 @@ export function splitPitlaneRfidBuffer(buffer: string): string[] {
   return chunks;
 }
 
+export function extractPitlaneRfidTokens(input: string): string[] {
+  const rawParts = String(input || '')
+    .toUpperCase()
+    .split(/[^0-9A-F]+/)
+    .filter(Boolean);
+  const tokens: string[] = [];
+
+  rawParts.forEach(part => {
+    if (part.length === 24 && isRfidEpc(part)) {
+      tokens.push(part);
+      return;
+    }
+
+    if (part.length > 24) {
+      splitPitlaneRfidBuffer(part).forEach(token => tokens.push(token));
+    }
+  });
+
+  return Array.from(new Set(tokens));
+}
+
 export function mapStockEntryToPitlaneTire(entry: StockEntry): PitlaneTireLookup {
   return {
     pneuId: entry.id,

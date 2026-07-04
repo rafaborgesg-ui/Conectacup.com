@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import {
   AlertTriangle,
   Antenna,
@@ -8,6 +8,7 @@ import {
   Download,
   Eye,
   Filter,
+  Keyboard,
   RadioTower,
   RefreshCw,
   Save,
@@ -15,6 +16,7 @@ import {
   Settings,
   ShieldCheck,
   SlidersHorizontal,
+  Smartphone,
   UserCheck,
   Zap
 } from 'lucide-react';
@@ -50,9 +52,11 @@ import {
 import {
   DEFAULT_PITLANE_GATE,
   PITLANE_STATUS_COLORS,
+  extractPitlaneRfidTokens,
   type PitlaneGateConfig,
   type PitlanePassage,
   type PitlanePassageStatus,
+  type PitlaneRawEventInput,
   type PitlaneSimulationScenario
 } from '../utils/pitlaneRfid';
 import {
@@ -60,6 +64,7 @@ import {
   correctPitlanePassage,
   getPitlaneGate,
   getPitlaneState,
+  ingestPitlaneEvents,
   savePitlaneGate,
   simulatePitlanePassage
 } from '../utils/pitlaneRfidStorage';
@@ -90,6 +95,17 @@ const SIMULATION_OPTIONS: Array<{ value: PitlaneSimulationScenario; label: strin
   { value: 'tag-desconhecida', label: 'Tag desconhecida' },
   { value: 'erro-leitura', label: 'Erro de leitura' }
 ];
+
+const TC22_READER_ID = 'TC22-RFD40';
+
+const buildTc22GatePreset = (base: PitlaneGateConfig): PitlaneGateConfig => ({
+  ...base,
+  nome: 'Coletor TC22 + RFD40',
+  local: 'Pitlane - teste móvel',
+  readerId: TC22_READER_ID,
+  tempoJanelaMs: base.tempoJanelaMs || 3000,
+  ativo: true
+});
 
 const formatTime = (value?: string) => {
   if (!value) return '-';
@@ -158,6 +174,9 @@ function SummaryCard({
 }
 
 export function PitlaneRFID() {
+  const collectorInputRef = useRef<HTMLInputElement | null>(null);
+  const collectorEventsRef = useRef<PitlaneRawEventInput[]>([]);
+  const collectorFlushTimerRef = useRef<number | null>(null);
   const [activeView, setActiveView] = useState<PitlaneView>('live');
   const [passages, setPassages] = useState<PitlanePassage[]>([]);
   const [gate, setGate] = useState<PitlaneGateConfig>(DEFAULT_PITLANE_GATE);
@@ -172,20 +191,27 @@ export function PitlaneRFID() {
   const [manualStatus, setManualStatus] = useState<PitlanePassageStatus>('Validado');
   const [manualComment, setManualComment] = useState('');
   const [configDraft, setConfigDraft] = useState<PitlaneGateConfig>(DEFAULT_PITLANE_GATE);
+  const [collectorActive, setCollectorActive] = useState(false);
+  const [collectorInput, setCollectorInput] = useState('');
+  const [collectorPendingTags, setCollectorPendingTags] = useState(0);
+  const [collectorRawEvents, setCollectorRawEvents] = useState(0);
+  const [collectorLastTag, setCollectorLastTag] = useState('-');
+  const [collectorStatus, setCollectorStatus] = useState('Aguardando ativação do coletor');
+  const [isCollectorProcessing, setIsCollectorProcessing] = useState(false);
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     const [state, currentGate] = await Promise.all([getPitlaneState(), getPitlaneGate()]);
     setPassages(state.passages);
     setGate(currentGate);
     setConfigDraft(currentGate);
-  };
+  }, []);
 
   useEffect(() => {
     refresh();
     const onUpdate = () => refresh();
     window.addEventListener('pitlane-rfid-updated', onUpdate);
     return () => window.removeEventListener('pitlane-rfid-updated', onUpdate);
-  }, []);
+  }, [refresh]);
 
   useEffect(() => {
     if (!selectedPassage) return;
@@ -195,6 +221,157 @@ export function PitlaneRFID() {
     setManualStatus(selectedPassage.status === 'Validado' ? 'Validado' : 'Validado');
     setManualComment('');
   }, [selectedPassage]);
+
+  useEffect(() => {
+    return () => {
+      if (collectorFlushTimerRef.current) {
+        window.clearTimeout(collectorFlushTimerRef.current);
+      }
+    };
+  }, []);
+
+  const focusCollectorInput = useCallback(() => {
+    window.setTimeout(() => collectorInputRef.current?.focus(), 0);
+  }, []);
+
+  useEffect(() => {
+    if (collectorActive && activeView === 'live' && !selectedPassage) {
+      focusCollectorInput();
+    }
+  }, [activeView, collectorActive, focusCollectorInput, selectedPassage]);
+
+  const flushCollectorWindow = useCallback(async () => {
+    if (collectorFlushTimerRef.current) {
+      window.clearTimeout(collectorFlushTimerRef.current);
+      collectorFlushTimerRef.current = null;
+    }
+
+    const events = collectorEventsRef.current;
+    collectorEventsRef.current = [];
+    setCollectorPendingTags(0);
+    setCollectorRawEvents(0);
+    setCollectorInput('');
+
+    if (events.length === 0) {
+      setCollectorStatus('Nenhuma tag na janela atual');
+      return;
+    }
+
+    const uniqueCount = new Set(events.map(event => event.epc)).size;
+    setIsCollectorProcessing(true);
+    setCollectorStatus(`Processando ${uniqueCount} tag(s) capturada(s)...`);
+
+    try {
+      const passage = await ingestPitlaneEvents(events);
+      await refresh();
+      setSelectedPassage(passage);
+      setCollectorStatus(`Passagem registrada: ${passage.status} • ${passage.leituraPercentual}%`);
+    } catch (error) {
+      console.error('Erro ao processar janela TC22 + RFD40:', error);
+      setCollectorStatus('Erro ao processar leitura do coletor');
+    } finally {
+      setIsCollectorProcessing(false);
+      if (collectorActive && activeView === 'live') {
+        focusCollectorInput();
+      }
+    }
+  }, [activeView, collectorActive, focusCollectorInput, refresh]);
+
+  const scheduleCollectorFlush = useCallback(() => {
+    if (collectorFlushTimerRef.current) {
+      window.clearTimeout(collectorFlushTimerRef.current);
+    }
+
+    const windowMs = Math.max(500, Number(gate.tempoJanelaMs) || DEFAULT_PITLANE_GATE.tempoJanelaMs);
+    collectorFlushTimerRef.current = window.setTimeout(() => {
+      void flushCollectorWindow();
+    }, windowMs);
+  }, [flushCollectorWindow, gate.tempoJanelaMs]);
+
+  const registerCollectorText = useCallback((value: string, source: string) => {
+    const tokens = extractPitlaneRfidTokens(value);
+    if (tokens.length === 0) return false;
+
+    const now = Date.now();
+    const events: PitlaneRawEventInput[] = tokens.map((epc, index) => ({
+      readerId: TC22_READER_ID,
+      antennaId: 'RFD40',
+      epc,
+      timestamp: new Date(now + index * 20).toISOString(),
+      seenCount: 1,
+      raw: {
+        source,
+        hardware: 'TC22 + RFD40',
+        original: value
+      }
+    }));
+
+    collectorEventsRef.current = [...collectorEventsRef.current, ...events];
+
+    const uniqueTags = new Set(collectorEventsRef.current.map(event => event.epc));
+    setCollectorPendingTags(uniqueTags.size);
+    setCollectorRawEvents(collectorEventsRef.current.length);
+    setCollectorLastTag(tokens[tokens.length - 1]);
+    setCollectorStatus(`Janela aberta: ${uniqueTags.size} tag(s) única(s)`);
+    scheduleCollectorFlush();
+    return true;
+  }, [scheduleCollectorFlush]);
+
+  const handleCollectorChange = (value: string) => {
+    const nextValue = value.toUpperCase();
+    setCollectorInput(nextValue);
+
+    if (registerCollectorText(nextValue, 'tc22-rfd40-keystroke')) {
+      setCollectorInput('');
+    }
+  };
+
+  const handleCollectorKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if ((event.key === 'Enter' || event.key === 'Tab') && collectorInput.trim()) {
+      event.preventDefault();
+      if (registerCollectorText(collectorInput, 'tc22-rfd40-submit')) {
+        setCollectorInput('');
+      }
+    }
+  };
+
+  const handleCollectorPaste = () => {
+    window.setTimeout(() => {
+      const value = collectorInputRef.current?.value || '';
+      if (registerCollectorText(value, 'tc22-rfd40-paste')) {
+        setCollectorInput('');
+      }
+    }, 0);
+  };
+
+  const handleCollectorBlur = () => {
+    if (collectorActive && activeView === 'live' && !selectedPassage) {
+      focusCollectorInput();
+    }
+  };
+
+  const applyTc22Preset = useCallback(async () => {
+    const preset = buildTc22GatePreset(configDraft);
+    setConfigDraft(preset);
+    const saved = await savePitlaneGate(preset);
+    setGate(saved);
+    setConfigDraft(saved);
+    return saved;
+  }, [configDraft]);
+
+  const handleToggleCollector = async () => {
+    setActiveView('live');
+    if (collectorActive) {
+      setCollectorActive(false);
+      setCollectorStatus('Captura pausada');
+      return;
+    }
+
+    await applyTc22Preset();
+    setCollectorActive(true);
+    setCollectorStatus('Coletor ativo: aguardando tags do RFD40');
+    focusCollectorInput();
+  };
 
   const summary = useMemo(() => {
     const valid = passages.filter(passage => passage.status === 'Validado').length;
@@ -262,6 +439,14 @@ export function PitlaneRFID() {
     const saved = await savePitlaneGate(configDraft);
     setGate(saved);
     setConfigDraft(saved);
+  };
+
+  const handleUseTc22Preset = async () => {
+    await applyTc22Preset();
+    setActiveView('live');
+    setCollectorActive(true);
+    setCollectorStatus('Coletor ativo: aguardando tags do RFD40');
+    focusCollectorInput();
   };
 
   const exportRows = filteredPassages.map(passage => ({
@@ -462,6 +647,73 @@ export function PitlaneRFID() {
           </section>
         )}
 
+        {activeView === 'live' && (
+          <Card className="rounded-lg border-slate-200 shadow-sm">
+            <CardHeader className="gap-3 border-b pb-4">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2 text-base font-semibold text-slate-950">
+                    <Smartphone size={18} />
+                    Teste real TC22 + RFD40
+                    <Badge variant="outline" className={collectorActive ? 'border-green-200 bg-green-100 text-green-800' : 'border-slate-200 bg-slate-100 text-slate-700'}>
+                      {collectorActive ? 'ON' : 'OFF'}
+                    </Badge>
+                  </CardTitle>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Entrada por DataWedge/teclado • janela {gate.tempoJanelaMs} ms • leitor TC22-RFD40
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button onClick={handleToggleCollector} className={collectorActive ? 'bg-slate-900 text-white hover:bg-slate-800' : 'bg-[#D50000] text-white hover:bg-[#B00000]'}>
+                    <Keyboard size={16} />
+                    {collectorActive ? 'Pausar captura' : 'Ativar captura'}
+                  </Button>
+                  <Button variant="outline" onClick={() => void flushCollectorWindow()} disabled={isCollectorProcessing || collectorRawEvents === 0}>
+                    <CheckCircle2 size={16} />
+                    Finalizar janela
+                  </Button>
+                  <Button variant="outline" onClick={handleUseTc22Preset}>
+                    <Settings size={16} />
+                    Usar TC22/RFD40
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="grid gap-4 p-4 xl:grid-cols-[minmax(280px,1fr)_repeat(4,160px)]">
+              <div className="space-y-2">
+                <Label>Campo de captura RFID</Label>
+                <Input
+                  ref={collectorInputRef}
+                  value={collectorInput}
+                  onChange={event => handleCollectorChange(event.target.value)}
+                  onKeyDown={handleCollectorKeyDown}
+                  onPaste={handleCollectorPaste}
+                  onBlur={handleCollectorBlur}
+                  disabled={!collectorActive || isCollectorProcessing}
+                  placeholder={collectorActive ? 'Aguardando EPC do RFD40...' : 'Ative a captura para testar'}
+                  autoCapitalize="characters"
+                  autoComplete="off"
+                  spellCheck={false}
+                  className="font-mono"
+                />
+                <p className="text-xs text-slate-500">{collectorStatus}</p>
+              </div>
+              <div className="rounded-md border border-slate-200 bg-white p-3">
+                <p className="text-xs uppercase text-slate-500">Tags na janela</p>
+                <p className="mt-2 text-2xl font-bold text-slate-950">{collectorPendingTags}</p>
+              </div>
+              <div className="rounded-md border border-slate-200 bg-white p-3">
+                <p className="text-xs uppercase text-slate-500">Eventos brutos</p>
+                <p className="mt-2 text-2xl font-bold text-slate-950">{collectorRawEvents}</p>
+              </div>
+              <div className="rounded-md border border-slate-200 bg-white p-3 xl:col-span-2">
+                <p className="text-xs uppercase text-slate-500">Última tag</p>
+                <p className="mt-2 break-all font-mono text-xs font-semibold text-slate-950">{collectorLastTag}</p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {(activeView === 'live' || activeView === 'passages' || activeView === 'pending') && renderTable()}
 
         {activeView === 'config' && (
@@ -530,6 +782,8 @@ export function PitlaneRFID() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 p-5 text-sm text-slate-600">
+                <p>Teste móvel habilitado para TC22 com RFD40 via DataWedge/Keystroke.</p>
+                <p>No perfil do DataWedge, mantenha RFID Input ativo, Keystroke Output ativo e envio de Enter/newline por tag.</p>
                 <p>Leitor Zebra FXR90 com antenas AN480 e sensores de ativação.</p>
                 <p>Endpoint de ingestão preparado: <span className="font-mono text-slate-950">POST /api/rfid/pitlane/events</span></p>
                 <p>Endpoint de simulação preparado: <span className="font-mono text-slate-950">POST /api/rfid/pitlane/simulate</span></p>

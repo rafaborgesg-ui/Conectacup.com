@@ -1,13 +1,15 @@
 import { createClient, getCurrentUser } from './supabase/client';
-import { getStockEntries } from './storage';
+import { getStockEntries, getTireModels } from './storage';
 import {
   DEFAULT_PITLANE_GATE,
   createPitlaneId,
   createPitlanePassageFromEvents,
   createSimulatedPitlaneEvents,
+  mapTireModelToPitlaneModel,
   mapStockEntryToPitlaneTire,
   normalizeRfidValue,
   type PitlaneAuditLog,
+  type PitlaneCarTag,
   type PitlaneGateConfig,
   type PitlanePassage,
   type PitlanePassageStatus,
@@ -20,9 +22,16 @@ const STORAGE_KEY = 'conectacup-pitlane-rfid-state-v1';
 
 interface PitlaneState {
   gates: PitlaneGateConfig[];
+  carTags: PitlaneCarTag[];
   passages: PitlanePassage[];
   auditLogs: PitlaneAuditLog[];
 }
+
+export type PitlaneCarTagInput = Partial<PitlaneCarTag> & {
+  epc: string;
+  piloto: string;
+  numeroCarro: string;
+};
 
 export interface PitlaneCorrectionInput {
   passageId: string;
@@ -36,6 +45,7 @@ export interface PitlaneCorrectionInput {
 function getEmptyState(): PitlaneState {
   return {
     gates: [DEFAULT_PITLANE_GATE],
+    carTags: [],
     passages: [],
     auditLogs: []
   };
@@ -51,6 +61,7 @@ function readLocalState(): PitlaneState {
 
     return {
       gates: parsed.gates?.length ? parsed.gates : [DEFAULT_PITLANE_GATE],
+      carTags: Array.isArray(parsed.carTags) ? parsed.carTags : [],
       passages: Array.isArray(parsed.passages) ? parsed.passages : [],
       auditLogs: Array.isArray(parsed.auditLogs) ? parsed.auditLogs : []
     };
@@ -66,6 +77,12 @@ function writeLocalState(state: PitlaneState) {
   window.dispatchEvent(new CustomEvent('pitlane-rfid-updated'));
 }
 
+function toSupabaseUuid(localId?: string | null): string | undefined {
+  const match = String(localId || '').match(/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+  if (match) return match[0];
+  return typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : undefined;
+}
+
 async function trySupabaseInsert(table: string, payload: Record<string, unknown> | Record<string, unknown>[]) {
   try {
     const supabase = createClient();
@@ -78,7 +95,89 @@ async function trySupabaseInsert(table: string, payload: Record<string, unknown>
   }
 }
 
+async function trySupabaseUpsert(table: string, payload: Record<string, unknown>, onConflict = 'id') {
+  try {
+    const supabase = createClient();
+    const { error } = await supabase.from(table).upsert(payload, { onConflict });
+    if (error) {
+      console.info(`Pitlane RFID: upsert em ${table} ainda não disponível ou sem permissão:`, error.message);
+    }
+  } catch (error) {
+    console.info(`Pitlane RFID: upsert em ${table} ignorado no modo mock.`, error);
+  }
+}
+
+async function trySupabaseDelete(table: string, column: string, value: string) {
+  try {
+    const supabase = createClient();
+    const { error } = await supabase.from(table).delete().eq(column, value);
+    if (error) {
+      console.info(`Pitlane RFID: delete em ${table} ainda não disponível ou sem permissão:`, error.message);
+    }
+  } catch (error) {
+    console.info(`Pitlane RFID: delete em ${table} ignorado no modo mock.`, error);
+  }
+}
+
+function mapCarTagRow(row: any): PitlaneCarTag {
+  return {
+    id: row.id,
+    epc: normalizeRfidValue(row.epc),
+    pilotoId: row.piloto_id || undefined,
+    piloto: row.piloto || '',
+    carroId: row.carro_id || undefined,
+    carro: row.carro || undefined,
+    numeroCarro: row.numero_carro || '',
+    etapaId: row.etapa_id || undefined,
+    sessaoId: row.sessao_id || undefined,
+    ativo: row.ativo !== false,
+    observacao: row.observacao || undefined,
+    createdAt: row.created_at || new Date().toISOString(),
+    updatedAt: row.updated_at || row.created_at || new Date().toISOString()
+  };
+}
+
+function mergeCarTags(localTags: PitlaneCarTag[], remoteTags: PitlaneCarTag[]): PitlaneCarTag[] {
+  const byId = new Map<string, PitlaneCarTag>();
+
+  [...localTags, ...remoteTags].forEach(tag => {
+    if (!tag?.id) return;
+    const current = byId.get(tag.id);
+    if (!current || new Date(tag.updatedAt).getTime() >= new Date(current.updatedAt).getTime()) {
+      byId.set(tag.id, tag);
+    }
+  });
+
+  return Array.from(byId.values()).sort((a, b) => {
+    if (a.ativo !== b.ativo) return a.ativo ? -1 : 1;
+    return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+  });
+}
+
+async function fetchPitlaneCarTagsFromSupabase(): Promise<PitlaneCarTag[]> {
+  try {
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from('pitlane_car_tags')
+      .select('*')
+      .order('updated_at', { ascending: false });
+
+    if (error) {
+      console.info('Pitlane RFID: tabela pitlane_car_tags ainda não disponível ou sem permissão:', error.message);
+      return [];
+    }
+
+    return Array.isArray(data) ? data.map(mapCarTagRow) : [];
+  } catch (error) {
+    console.info('Pitlane RFID: leitura de pitlane_car_tags ignorada no modo mock.', error);
+    return [];
+  }
+}
+
 async function mirrorPassageToSupabase(passage: PitlanePassage) {
+  const readSessionDbId = toSupabaseUuid(passage.session.id);
+  const passageDbId = toSupabaseUuid(passage.id);
+
   await trySupabaseInsert('rfid_raw_events', passage.session.rawEvents.map(event => ({
     reader_id: event.readerId,
     antenna_id: event.antennaId,
@@ -90,7 +189,7 @@ async function mirrorPassageToSupabase(passage: PitlanePassage) {
   })));
 
   await trySupabaseInsert('rfid_read_sessions', {
-    id: passage.session.id,
+    id: readSessionDbId,
     gate_id: passage.session.gateId,
     etapa_id: passage.session.etapaId || null,
     sessao_id: passage.session.sessaoId || null,
@@ -101,10 +200,14 @@ async function mirrorPassageToSupabase(passage: PitlanePassage) {
   });
 
   await trySupabaseInsert('rfid_read_session_tags', passage.session.tags.map(tag => ({
-    id: tag.id,
-    session_id: passage.session.id,
+    id: toSupabaseUuid(tag.id),
+    session_id: readSessionDbId,
     epc: tag.epc,
+    barcode: tag.barcode || null,
+    cai: tag.cai || null,
     pneu_id: tag.pneuId || null,
+    car_tag_id: tag.carTag?.id || null,
+    tag_tipo: tag.kind,
     antenna_id: tag.antennaIds.join(','),
     rssi_max: tag.rssiMax,
     read_count: tag.readCount,
@@ -114,13 +217,19 @@ async function mirrorPassageToSupabase(passage: PitlanePassage) {
   })));
 
   await trySupabaseInsert('pitlane_passages', {
-    id: passage.id,
-    read_session_id: passage.readSessionId,
+    id: passageDbId,
+    read_session_id: readSessionDbId,
     etapa_id: passage.etapaId || null,
     sessao_id: passage.sessaoId || null,
+    car_tag_id: passage.carTagId || null,
+    car_tag_epc: passage.carTagEpc || null,
+    piloto: passage.piloto || null,
     piloto_id: passage.pilotoId || null,
+    carro: passage.carro || null,
     carro_id: passage.carroId || null,
     numero_carro: passage.numeroCarro || null,
+    expected_piloto: passage.expectedPiloto || null,
+    expected_numero_carro: passage.expectedNumeroCarro || null,
     status: passage.status,
     leitura_percentual: passage.leituraPercentual,
     comentario: passage.comentario,
@@ -131,10 +240,15 @@ async function mirrorPassageToSupabase(passage: PitlanePassage) {
   });
 
   await trySupabaseInsert('pitlane_passage_tires', passage.tires.map(tire => ({
-    id: tire.id,
-    passage_id: passage.id,
+    id: toSupabaseUuid(tire.id),
+    passage_id: passageDbId,
     pneu_id: tire.pneuId || null,
     epc: tire.epc,
+    barcode: tire.barcode || null,
+    cai: tire.tire?.cai || null,
+    modelo: tire.tire?.modelo || null,
+    piloto_pneu: tire.tire?.piloto || null,
+    numero_carro_pneu: tire.tire?.numeroCarro || null,
     posicao_sugerida: tire.posicaoSugerida,
     status_validacao: tire.statusValidacao
   })));
@@ -147,8 +261,32 @@ export async function getPitlaneTires(): Promise<PitlaneTireLookup[]> {
     .map(mapStockEntryToPitlaneTire);
 }
 
+export async function getPitlaneCarTags(): Promise<PitlaneCarTag[]> {
+  const state = readLocalState();
+  const remoteTags = await fetchPitlaneCarTagsFromSupabase();
+  const carTags = remoteTags.length > 0
+    ? mergeCarTags(state.carTags, remoteTags)
+    : state.carTags;
+
+  if (remoteTags.length > 0 && JSON.stringify(carTags) !== JSON.stringify(state.carTags)) {
+    writeLocalState({ ...state, carTags });
+  }
+
+  return carTags;
+}
+
 export async function getPitlaneState(): Promise<PitlaneState> {
-  return readLocalState();
+  const state = readLocalState();
+  const remoteTags = await fetchPitlaneCarTagsFromSupabase();
+
+  if (remoteTags.length === 0) return state;
+
+  const carTags = mergeCarTags(state.carTags, remoteTags);
+  const nextState = { ...state, carTags };
+  if (JSON.stringify(carTags) !== JSON.stringify(state.carTags)) {
+    writeLocalState(nextState);
+  }
+  return nextState;
 }
 
 export async function getPitlaneGate(): Promise<PitlaneGateConfig> {
@@ -180,6 +318,63 @@ export async function savePitlaneGate(gate: PitlaneGateConfig): Promise<PitlaneG
   });
 
   return nextGate;
+}
+
+export async function savePitlaneCarTag(input: PitlaneCarTagInput): Promise<PitlaneCarTag> {
+  const state = readLocalState();
+  const now = new Date().toISOString();
+  const nextTag: PitlaneCarTag = {
+    id: input.id || createPitlaneId('car-tag'),
+    epc: normalizeRfidValue(input.epc),
+    pilotoId: input.pilotoId || undefined,
+    piloto: input.piloto.trim(),
+    carroId: input.carroId || undefined,
+    carro: input.carro?.trim() || undefined,
+    numeroCarro: input.numeroCarro.trim(),
+    etapaId: input.etapaId?.trim() || undefined,
+    sessaoId: input.sessaoId?.trim() || undefined,
+    ativo: input.ativo !== false,
+    observacao: input.observacao?.trim() || undefined,
+    createdAt: input.createdAt || now,
+    updatedAt: now
+  };
+
+  const nextTags = [
+    nextTag,
+    ...state.carTags.filter(tag => tag.id !== nextTag.id)
+  ];
+
+  writeLocalState({
+    ...state,
+    carTags: nextTags
+  });
+
+  await trySupabaseUpsert('pitlane_car_tags', {
+    id: nextTag.id,
+    epc: nextTag.epc,
+    piloto_id: nextTag.pilotoId || null,
+    piloto: nextTag.piloto,
+    carro_id: nextTag.carroId || null,
+    carro: nextTag.carro || null,
+    numero_carro: nextTag.numeroCarro,
+    etapa_id: nextTag.etapaId || null,
+    sessao_id: nextTag.sessaoId || null,
+    ativo: nextTag.ativo,
+    observacao: nextTag.observacao || null,
+    created_at: nextTag.createdAt,
+    updated_at: nextTag.updatedAt
+  });
+
+  return nextTag;
+}
+
+export async function deletePitlaneCarTag(id: string): Promise<void> {
+  const state = readLocalState();
+  writeLocalState({
+    ...state,
+    carTags: state.carTags.filter(tag => tag.id !== id)
+  });
+  await trySupabaseDelete('pitlane_car_tags', 'id', id);
 }
 
 function selectSimulationTires(tires: PitlaneTireLookup[], scenario: PitlaneSimulationScenario): PitlaneTireLookup[] {
@@ -216,13 +411,48 @@ function selectSimulationTires(tires: PitlaneTireLookup[], scenario: PitlaneSimu
   return mockValidTires;
 }
 
+function selectSimulationCarTag(carTags: PitlaneCarTag[], selectedTires: PitlaneTireLookup[]): PitlaneCarTag {
+  const referenceTire = selectedTires.find(tire => tire.piloto || tire.numeroCarro) || selectedTires[0];
+  const pilotKey = normalizeRfidValue(referenceTire?.piloto || '');
+  const numberKey = normalizeRfidValue(referenceTire?.numeroCarro || '');
+  const existing = carTags.find(tag =>
+    tag.ativo !== false &&
+    normalizeRfidValue(tag.piloto) === pilotKey &&
+    normalizeRfidValue(tag.numeroCarro) === numberKey
+  );
+
+  if (existing) return existing;
+
+  const now = new Date().toISOString();
+  return {
+    id: 'car-tag-simulado',
+    epc: 'C0DEC0DEC0DEC0DEC0DEC0DE',
+    piloto: referenceTire?.piloto || 'Piloto Simulado',
+    carro: referenceTire?.carro || 'Carrera Cup',
+    numeroCarro: referenceTire?.numeroCarro || '11',
+    ativo: true,
+    createdAt: now,
+    updatedAt: now,
+    observacao: 'Tag simulada automaticamente'
+  };
+}
+
 export async function ingestPitlaneEvents(rawEvents: PitlaneRawEventInput[]): Promise<PitlanePassage> {
   const state = readLocalState();
   const gate = state.gates[0] || DEFAULT_PITLANE_GATE;
-  const tires = await getPitlaneTires();
-  const passage = createPitlanePassageFromEvents(rawEvents, tires, gate);
+  const [tires, tireModels, carTags] = await Promise.all([
+    getPitlaneTires(),
+    getTireModels(),
+    getPitlaneCarTags()
+  ]);
+  const passage = createPitlanePassageFromEvents(rawEvents, {
+    tires,
+    tireModels: tireModels.map(mapTireModelToPitlaneModel),
+    carTags
+  }, gate);
   const nextState = {
     ...state,
+    carTags,
     passages: [passage, ...state.passages].slice(0, 500)
   };
 
@@ -234,17 +464,27 @@ export async function ingestPitlaneEvents(rawEvents: PitlaneRawEventInput[]): Pr
 export async function simulatePitlanePassage(scenario: PitlaneSimulationScenario = 'validado'): Promise<PitlanePassage> {
   const state = readLocalState();
   const gate = state.gates[0] || DEFAULT_PITLANE_GATE;
-  const tires = await getPitlaneTires();
+  const [tires, tireModels, carTags] = await Promise.all([
+    getPitlaneTires(),
+    getTireModels(),
+    getPitlaneCarTags()
+  ]);
   const selectedTires = selectSimulationTires(tires, scenario);
-  const events = createSimulatedPitlaneEvents(selectedTires, scenario);
+  const carTag = selectSimulationCarTag(carTags, selectedTires);
+  const events = createSimulatedPitlaneEvents(selectedTires, scenario, carTag);
   const lookupTires = [
     ...tires,
     ...selectedTires.filter(selected => !tires.some(tire => tire.barcode === selected.barcode))
   ];
 
-  const passage = createPitlanePassageFromEvents(events, lookupTires, gate);
+  const passage = createPitlanePassageFromEvents(events, {
+    tires: lookupTires,
+    tireModels: tireModels.map(mapTireModelToPitlaneModel),
+    carTags: [...carTags, carTag]
+  }, gate);
   const nextState = {
     ...state,
+    carTags,
     passages: [passage, ...state.passages].slice(0, 500)
   };
 
@@ -301,8 +541,8 @@ export async function correctPitlanePassage(input: PitlaneCorrectionInput): Prom
   });
 
   await trySupabaseInsert('pitlane_validation_audit', {
-    id: auditLog.id,
-    passage_id: auditLog.passageId,
+    id: toSupabaseUuid(auditLog.id),
+    passage_id: toSupabaseUuid(auditLog.passageId),
     usuario: auditLog.usuario || null,
     valor_anterior: auditLog.valorAnterior,
     valor_novo: auditLog.valorNovo,

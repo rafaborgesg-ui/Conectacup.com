@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   Antenna,
   BarChart3,
+  Car,
   CheckCircle2,
   Clock,
   Download,
@@ -17,6 +18,8 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   Smartphone,
+  Tag,
+  Trash2,
   UserCheck,
   Zap
 } from 'lucide-react';
@@ -53,6 +56,8 @@ import {
   DEFAULT_PITLANE_GATE,
   PITLANE_STATUS_COLORS,
   extractPitlaneRfidTokens,
+  normalizeRfidValue,
+  type PitlaneCarTag,
   type PitlaneGateConfig,
   type PitlanePassage,
   type PitlanePassageStatus,
@@ -62,17 +67,20 @@ import {
 import {
   clearPitlaneMockHistory,
   correctPitlanePassage,
+  deletePitlaneCarTag,
   getPitlaneGate,
   getPitlaneState,
   ingestPitlaneEvents,
+  savePitlaneCarTag,
   savePitlaneGate,
   simulatePitlanePassage
 } from '../utils/pitlaneRfidStorage';
 
-type PitlaneView = 'live' | 'passages' | 'pending' | 'config' | 'reports';
+type PitlaneView = 'live' | 'car-tags' | 'passages' | 'pending' | 'config' | 'reports';
 
 const PITLANE_VIEWS: Array<{ id: PitlaneView; label: string; icon: any }> = [
   { id: 'live', label: 'Leituras ao vivo', icon: RadioTower },
+  { id: 'car-tags', label: 'Tags dos carros', icon: Car },
   { id: 'passages', label: 'Passagens registradas', icon: Clock },
   { id: 'pending', label: 'Pendências de validação', icon: AlertTriangle },
   { id: 'config', label: 'Configuração do pórtico', icon: Settings },
@@ -97,6 +105,29 @@ const SIMULATION_OPTIONS: Array<{ value: PitlaneSimulationScenario; label: strin
 ];
 
 const TC22_READER_ID = 'TC22-RFD40';
+
+type CarTagForm = {
+  id?: string;
+  epc: string;
+  piloto: string;
+  carro: string;
+  numeroCarro: string;
+  etapaId: string;
+  sessaoId: string;
+  observacao: string;
+  ativo: boolean;
+};
+
+const EMPTY_CAR_TAG_FORM: CarTagForm = {
+  epc: '',
+  piloto: '',
+  carro: '',
+  numeroCarro: '',
+  etapaId: '',
+  sessaoId: '',
+  observacao: '',
+  ativo: true
+};
 
 const buildTc22GatePreset = (base: PitlaneGateConfig): PitlaneGateConfig => ({
   ...base,
@@ -179,6 +210,8 @@ export function PitlaneRFID() {
   const collectorFlushTimerRef = useRef<number | null>(null);
   const [activeView, setActiveView] = useState<PitlaneView>('live');
   const [passages, setPassages] = useState<PitlanePassage[]>([]);
+  const [carTags, setCarTags] = useState<PitlaneCarTag[]>([]);
+  const [carTagForm, setCarTagForm] = useState<CarTagForm>(EMPTY_CAR_TAG_FORM);
   const [gate, setGate] = useState<PitlaneGateConfig>(DEFAULT_PITLANE_GATE);
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
@@ -202,6 +235,7 @@ export function PitlaneRFID() {
   const refresh = useCallback(async () => {
     const [state, currentGate] = await Promise.all([getPitlaneState(), getPitlaneGate()]);
     setPassages(state.passages);
+    setCarTags(state.carTags || []);
     setGate(currentGate);
     setConfigDraft(currentGate);
   }, []);
@@ -264,7 +298,6 @@ export function PitlaneRFID() {
     try {
       const passage = await ingestPitlaneEvents(events);
       await refresh();
-      setSelectedPassage(passage);
       setCollectorStatus(`Passagem registrada: ${passage.status} • ${passage.leituraPercentual}%`);
     } catch (error) {
       console.error('Erro ao processar janela TC22 + RFD40:', error);
@@ -399,6 +432,7 @@ export function PitlaneRFID() {
         passage.piloto,
         passage.carro,
         passage.numeroCarro,
+        passage.carTagEpc,
         passage.status,
         passage.comentario,
         ...passage.tires.flatMap(tire => [tire.barcode, tire.epc, tire.tire?.modelo])
@@ -411,9 +445,8 @@ export function PitlaneRFID() {
   const handleSimulate = async () => {
     setIsSimulating(true);
     try {
-      const passage = await simulatePitlanePassage(simulationScenario);
+      await simulatePitlanePassage(simulationScenario);
       await refresh();
-      setSelectedPassage(passage);
     } finally {
       setIsSimulating(false);
     }
@@ -441,6 +474,46 @@ export function PitlaneRFID() {
     setConfigDraft(saved);
   };
 
+  const handleSaveCarTag = async () => {
+    const epc = normalizeRfidValue(carTagForm.epc);
+    if (!epc || !carTagForm.piloto.trim() || !carTagForm.numeroCarro.trim()) return;
+
+    await savePitlaneCarTag({
+      id: carTagForm.id,
+      epc,
+      piloto: carTagForm.piloto,
+      carro: carTagForm.carro,
+      numeroCarro: carTagForm.numeroCarro,
+      etapaId: carTagForm.etapaId,
+      sessaoId: carTagForm.sessaoId,
+      observacao: carTagForm.observacao,
+      ativo: carTagForm.ativo
+    });
+
+    setCarTagForm(EMPTY_CAR_TAG_FORM);
+    await refresh();
+  };
+
+  const handleEditCarTag = (tag: PitlaneCarTag) => {
+    setCarTagForm({
+      id: tag.id,
+      epc: tag.epc,
+      piloto: tag.piloto,
+      carro: tag.carro || '',
+      numeroCarro: tag.numeroCarro,
+      etapaId: tag.etapaId || '',
+      sessaoId: tag.sessaoId || '',
+      observacao: tag.observacao || '',
+      ativo: tag.ativo
+    });
+  };
+
+  const handleDeleteCarTag = async (id: string) => {
+    await deletePitlaneCarTag(id);
+    if (carTagForm.id === id) setCarTagForm(EMPTY_CAR_TAG_FORM);
+    await refresh();
+  };
+
   const handleUseTc22Preset = async () => {
     await applyTc22Preset();
     setActiveView('live');
@@ -454,6 +527,7 @@ export function PitlaneRFID() {
     Numero: passage.numeroCarro || '',
     Piloto: passage.piloto || '',
     Carro: passage.carro || '',
+    TagCarro: passage.carTagEpc || '',
     Leitura: `${passage.leituraPercentual}%`,
     Pneu1: passage.tires[0]?.barcode || passage.tires[0]?.epc || '',
     Pneu2: passage.tires[1]?.barcode || passage.tires[1]?.epc || '',
@@ -578,6 +652,147 @@ export function PitlaneRFID() {
         </Table>
       </CardContent>
     </Card>
+  );
+
+  const renderCarTagManagement = () => (
+    <section className="grid gap-4 xl:grid-cols-[420px_minmax(0,1fr)]">
+      <Card className="rounded-lg border-slate-200 shadow-sm">
+        <CardHeader className="border-b pb-4">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Tag size={18} />
+            Associação da tag do carro
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4 p-5">
+          <div className="space-y-2">
+            <Label>Tag RFID do carro</Label>
+            <Input
+              value={carTagForm.epc}
+              onChange={event => setCarTagForm(prev => ({ ...prev, epc: event.target.value.toUpperCase() }))}
+              placeholder="EPC do adesivo"
+              className="font-mono"
+              autoCapitalize="characters"
+              autoComplete="off"
+              spellCheck={false}
+            />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+            <div className="space-y-2">
+              <Label>Piloto</Label>
+              <Input value={carTagForm.piloto} onChange={event => setCarTagForm(prev => ({ ...prev, piloto: event.target.value }))} />
+            </div>
+            <div className="space-y-2">
+              <Label>Número do carro</Label>
+              <Input value={carTagForm.numeroCarro} onChange={event => setCarTagForm(prev => ({ ...prev, numeroCarro: event.target.value }))} />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label>Carro/Categoria</Label>
+            <Input value={carTagForm.carro} onChange={event => setCarTagForm(prev => ({ ...prev, carro: event.target.value }))} placeholder="Opcional" />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+            <div className="space-y-2">
+              <Label>Etapa</Label>
+              <Input value={carTagForm.etapaId} onChange={event => setCarTagForm(prev => ({ ...prev, etapaId: event.target.value }))} placeholder="Opcional" />
+            </div>
+            <div className="space-y-2">
+              <Label>Sessão/Manga</Label>
+              <Input value={carTagForm.sessaoId} onChange={event => setCarTagForm(prev => ({ ...prev, sessaoId: event.target.value }))} placeholder="Opcional" />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label>Observação</Label>
+            <textarea
+              value={carTagForm.observacao}
+              onChange={event => setCarTagForm(prev => ({ ...prev, observacao: event.target.value }))}
+              className="min-h-20 w-full rounded-md border border-slate-300 bg-white p-2 text-sm outline-none focus:border-[#D50000]"
+            />
+          </div>
+          <div className="flex items-center gap-3 rounded-md border border-slate-200 bg-white p-3">
+            <input
+              id="car-tag-active"
+              type="checkbox"
+              checked={carTagForm.ativo}
+              onChange={event => setCarTagForm(prev => ({ ...prev, ativo: event.target.checked }))}
+              className="h-4 w-4"
+            />
+            <Label htmlFor="car-tag-active">Tag ativa</Label>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              onClick={handleSaveCarTag}
+              disabled={!normalizeRfidValue(carTagForm.epc) || !carTagForm.piloto.trim() || !carTagForm.numeroCarro.trim()}
+              className="bg-[#D50000] text-white hover:bg-[#B00000]"
+            >
+              <Save size={16} />
+              Salvar associação
+            </Button>
+            <Button variant="outline" onClick={() => setCarTagForm(EMPTY_CAR_TAG_FORM)}>
+              Limpar
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-lg border-slate-200 shadow-sm">
+        <CardHeader className="border-b pb-4">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Car size={18} />
+            Tags cadastradas
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-slate-50">
+                <TableHead>Tag RFID</TableHead>
+                <TableHead>Piloto</TableHead>
+                <TableHead>Nº</TableHead>
+                <TableHead>Carro</TableHead>
+                <TableHead>Etapa</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Ações</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {carTags.map(tag => (
+                <TableRow key={tag.id}>
+                  <TableCell className="max-w-[240px] break-all font-mono text-xs">{tag.epc}</TableCell>
+                  <TableCell className="font-medium">{tag.piloto}</TableCell>
+                  <TableCell className="font-semibold">{tag.numeroCarro}</TableCell>
+                  <TableCell>{tag.carro || '-'}</TableCell>
+                  <TableCell>{tag.etapaId || '-'}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className={tag.ativo ? 'border-green-200 bg-green-100 text-green-800' : 'border-slate-200 bg-slate-100 text-slate-700'}>
+                      {tag.ativo ? 'Ativa' : 'Inativa'}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-2">
+                      <Button variant="outline" size="sm" onClick={() => handleEditCarTag(tag)}>
+                        <Tag size={14} />
+                        Editar
+                      </Button>
+                      <Button variant="outline" size="sm" className="text-red-700" onClick={() => handleDeleteCarTag(tag.id)}>
+                        <Trash2 size={14} />
+                        Remover
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {carTags.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={7} className="h-32 text-center text-slate-500">
+                    Nenhuma tag de carro cadastrada.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </section>
   );
 
   return (
@@ -716,6 +931,8 @@ export function PitlaneRFID() {
 
         {(activeView === 'live' || activeView === 'passages' || activeView === 'pending') && renderTable()}
 
+        {activeView === 'car-tags' && renderCarTagManagement()}
+
         {activeView === 'config' && (
           <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
             <Card className="rounded-lg border-slate-200 shadow-sm">
@@ -835,7 +1052,7 @@ export function PitlaneRFID() {
 
               <div className="grid gap-4 lg:grid-cols-[1fr_340px]">
                 <div className="space-y-4">
-                  <div className="grid gap-3 sm:grid-cols-4">
+                  <div className="grid gap-3 sm:grid-cols-5">
                     <div className="rounded-md border border-slate-200 p-3">
                       <p className="text-xs text-slate-500">Piloto</p>
                       <p className="font-semibold">{selectedPassage.piloto || 'Não identificado'}</p>
@@ -852,6 +1069,10 @@ export function PitlaneRFID() {
                       <p className="text-xs text-slate-500">Status</p>
                       <div className="mt-1"><StatusBadge status={selectedPassage.status} /></div>
                     </div>
+                    <div className="rounded-md border border-slate-200 p-3">
+                      <p className="text-xs text-slate-500">Tag do carro</p>
+                      <p className="break-all font-mono text-xs font-semibold">{selectedPassage.carTagEpc || '-'}</p>
+                    </div>
                   </div>
 
                   <div>
@@ -865,6 +1086,7 @@ export function PitlaneRFID() {
                           </div>
                           <p className="mt-2 font-mono text-xs">EPC: {tire.epc}</p>
                           <p className="font-mono text-xs">Código: {tire.barcode || '-'}</p>
+                          <p className="font-mono text-xs">CAI: {tire.tire?.cai || '-'}</p>
                           <p className="mt-1 text-xs text-slate-600">
                             {tire.tire?.modelo || 'Modelo não identificado'} • {tire.posicaoSugerida}
                           </p>
@@ -878,7 +1100,9 @@ export function PitlaneRFID() {
                     <Table>
                       <TableHeader>
                         <TableRow>
+                          <TableHead>Tipo</TableHead>
                           <TableHead>EPC</TableHead>
+                          <TableHead>Código</TableHead>
                           <TableHead>RSSI</TableHead>
                           <TableHead>Antenas</TableHead>
                           <TableHead>Leituras</TableHead>
@@ -888,7 +1112,9 @@ export function PitlaneRFID() {
                       <TableBody>
                         {selectedPassage.session.tags.map(tag => (
                           <TableRow key={tag.id}>
+                            <TableCell>{tag.kind}</TableCell>
                             <TableCell className="font-mono text-xs">{tag.epc}</TableCell>
+                            <TableCell className="font-mono text-xs">{tag.barcode || tag.cai || '-'}</TableCell>
                             <TableCell>{tag.rssiMax ?? '-'}</TableCell>
                             <TableCell>{tag.antennaIds.join(', ')}</TableCell>
                             <TableCell>{tag.readCount}</TableCell>

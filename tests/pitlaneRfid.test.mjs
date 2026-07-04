@@ -25,22 +25,45 @@ const samePilotTires = [
   { pneuId: 't4', barcode: '05368463', piloto: 'Enrico Pedrosa', carro: '992.1', numeroCarro: '223', modelo: 'Slick 992', lado: 'TD' }
 ];
 
+const carTag = {
+  id: 'car-223',
+  epc: 'C0DEC0DEC0DEC0DEC0DEC0DE',
+  piloto: 'Enrico Pedrosa',
+  carro: '992.1',
+  numeroCarro: '223',
+  ativo: true,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString()
+};
+
 function eventsFor(tires) {
-  return tires.map((tire, index) => pitlane.buildPitlaneRawEvent(tire, index));
+  return [
+    pitlane.buildPitlaneCarTagRawEvent(carTag, 0),
+    ...tires.map((tire, index) => pitlane.buildPitlaneRawEvent(tire, index + 1))
+  ];
 }
 
-test('classifica passagem com 4 pneus conhecidos do mesmo piloto como Validado', () => {
-  const passage = pitlane.createPitlanePassageFromEvents(eventsFor(samePilotTires), samePilotTires);
+function context(tires, extra = {}) {
+  return {
+    tires,
+    carTags: [carTag],
+    ...extra
+  };
+}
+
+test('classifica passagem com tag do carro e 4 pneus do mesmo piloto como Validado', () => {
+  const passage = pitlane.createPitlanePassageFromEvents(eventsFor(samePilotTires), context(samePilotTires));
 
   assert.equal(passage.status, 'Validado');
   assert.equal(passage.leituraPercentual, 100);
   assert.equal(passage.piloto, 'Enrico Pedrosa');
   assert.equal(passage.numeroCarro, '223');
+  assert.equal(passage.carTagEpc, carTag.epc);
   assert.equal(passage.tires.length, 4);
 });
 
 test('classifica menos de 4 pneus conhecidos como Incompleto', () => {
-  const passage = pitlane.createPitlanePassageFromEvents(eventsFor(samePilotTires.slice(0, 3)), samePilotTires);
+  const passage = pitlane.createPitlanePassageFromEvents(eventsFor(samePilotTires.slice(0, 3)), context(samePilotTires));
 
   assert.equal(passage.status, 'Incompleto');
   assert.equal(passage.leituraPercentual, 75);
@@ -51,7 +74,7 @@ test('classifica pneus de pilotos diferentes como Conflito', () => {
     ...samePilotTires.slice(0, 3),
     { pneuId: 't5', barcode: '05410678', piloto: 'Gustavo Zanon', carro: '992.1', numeroCarro: '54', modelo: 'Slick 992', lado: 'TD' }
   ];
-  const passage = pitlane.createPitlanePassageFromEvents(eventsFor(conflictTires), conflictTires);
+  const passage = pitlane.createPitlanePassageFromEvents(eventsFor(conflictTires), context(conflictTires));
 
   assert.equal(passage.status, 'Conflito');
 });
@@ -69,9 +92,40 @@ test('classifica EPC sem cadastro como Tag desconhecida', () => {
       raw: {}
     }
   ];
-  const passage = pitlane.createPitlanePassageFromEvents(events, samePilotTires);
+  const passage = pitlane.createPitlanePassageFromEvents(events, context(samePilotTires));
 
   assert.equal(passage.status, 'Tag desconhecida');
+});
+
+test('sem tag do carro cadastrada a passagem fica pendente mesmo com 4 pneus conhecidos', () => {
+  const tireOnlyEvents = samePilotTires.map((tire, index) => pitlane.buildPitlaneRawEvent(tire, index));
+  const passage = pitlane.createPitlanePassageFromEvents(tireOnlyEvents, { tires: samePilotTires, carTags: [] });
+
+  assert.equal(passage.status, 'Pendente validação');
+  assert.equal(passage.piloto, undefined);
+});
+
+test('modelo do pneu vem do CAI decodificado quando tire_models contem o CAI', () => {
+  const epc = '301854AAE059B800014A3DDB';
+  const decoded = pitlane.decodePitlaneRFID(epc);
+  assert.ok(decoded);
+
+  const tireFromStock = {
+    ...samePilotTires[0],
+    barcode: decoded.barcode,
+    modelo: 'Modelo antigo do estoque'
+  };
+  const events = [
+    pitlane.buildPitlaneCarTagRawEvent(carTag, 0),
+    pitlane.buildPitlaneRawEvent(tireFromStock, 1, { epc, barcode: undefined }),
+    ...samePilotTires.slice(1).map((tire, index) => pitlane.buildPitlaneRawEvent(tire, index + 2))
+  ];
+  const passage = pitlane.createPitlanePassageFromEvents(events, context([tireFromStock, ...samePilotTires.slice(1)], {
+    tireModels: [{ id: 'model-cai', name: 'Modelo vindo do CAI', code: 'FIA-CAI', type: 'Slick', cai: decoded.cai }]
+  }));
+
+  assert.equal(passage.tires[0].tire.modelo, 'Modelo vindo do CAI');
+  assert.equal(passage.tires[0].barcode, decoded.barcode);
 });
 
 test('extrai EPCs do DataWedge separados por quebra de linha ou concatenados', () => {

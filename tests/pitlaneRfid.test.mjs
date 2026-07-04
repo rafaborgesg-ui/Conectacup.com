@@ -139,3 +139,58 @@ test('extrai EPCs do DataWedge separados por quebra de linha ou concatenados', (
   assert.deepEqual(pitlane.extractPitlaneRfidTokens(epcs.join('\n')), epcs);
   assert.deepEqual(pitlane.extractPitlaneRfidTokens(epcs.join('')), epcs);
 });
+
+test('extrai tag curta cadastrada do carro junto com EPCs dos pneus', () => {
+  const epcs = [
+    '301854AAE059B8000151C877',
+    '301854AACEFC7C0001479C93',
+    '301854AAE059B8000151E5AB',
+    '301854AACEFC7C00014B7663'
+  ];
+  const expected = ['00001', ...epcs];
+
+  assert.deepEqual(
+    pitlane.extractPitlaneRfidTokens(['00001', ...epcs].join('\n'), ['00001']),
+    expected
+  );
+  assert.deepEqual(
+    pitlane.extractPitlaneRfidTokens(['00001', ...epcs].join(''), ['00001']),
+    expected
+  );
+});
+
+test('valida passagem quando tag curta do carro cadastrada chega no buffer', () => {
+  const shortCarTag = { ...carTag, epc: '00001', piloto: 'Rafael', numeroCarro: '11', carro: 'Carrera' };
+  const epcs = [
+    '301854AAE059B8000151C877',
+    '301854AACEFC7C0001479C93',
+    '301854AAE059B8000151E5AB',
+    '301854AACEFC7C00014B7663'
+  ];
+  const tires = samePilotTires.map(tire => ({
+    ...tire,
+    piloto: 'Rafael',
+    numeroCarro: '11',
+    carro: 'Carrera'
+  }));
+  const tokens = pitlane.extractPitlaneRfidTokens(
+    ['00001', ...epcs].join('\n'),
+    ['00001']
+  );
+  const events = tokens.map((epc, index) => ({
+    readerId: 'TC22-RFD40',
+    antennaId: 'RFD40',
+    epc,
+    barcode: index === 0 ? undefined : tires[index - 1]?.barcode,
+    seenCount: 1,
+    timestamp: new Date(Date.now() + index * 20).toISOString()
+  }));
+  const passage = pitlane.createPitlanePassageFromEvents(events, {
+    tires,
+    carTags: [shortCarTag]
+  });
+
+  assert.equal(passage.status, 'Validado');
+  assert.equal(passage.piloto, 'Rafael');
+  assert.equal(passage.carTagEpc, '00001');
+});

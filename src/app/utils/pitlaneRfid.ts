@@ -253,23 +253,49 @@ export function splitPitlaneRfidBuffer(buffer: string): string[] {
   return chunks;
 }
 
-export function extractPitlaneRfidTokens(input: string): string[] {
+export function extractPitlaneRfidTokens(input: string, knownCarTagTokens: string[] = []): string[] {
   const rawParts = String(input || '')
     .toUpperCase()
-    .split(/[^0-9A-F]+/)
+    .split(/[^0-9A-Z]+/)
     .filter(Boolean);
   const tokens: string[] = [];
+  const knownCarTags = Array.from(
+    new Set(knownCarTagTokens.map(tag => normalizeRfidValue(tag)).filter(Boolean))
+  ).sort((a, b) => b.length - a.length);
 
-  rawParts.forEach(part => {
-    if (part.length === 24 && isRfidEpc(part)) {
-      tokens.push(part);
+  const pushTokenPart = (part: string) => {
+    const normalizedPart = normalizeRfidValue(part);
+    if (!normalizedPart) return;
+
+    const exactKnownCarTag = knownCarTags.find(tag => tag === normalizedPart);
+    if (exactKnownCarTag) {
+      tokens.push(exactKnownCarTag);
       return;
     }
 
-    if (part.length > 24) {
-      splitPitlaneRfidBuffer(part).forEach(token => tokens.push(token));
+    if (normalizedPart.length === 24 && isRfidEpc(normalizedPart)) {
+      tokens.push(normalizedPart);
+      return;
     }
-  });
+
+    if (normalizedPart.length > 24) {
+      const embeddedCarTag = knownCarTags.find(tag =>
+        tag.length < 24 && normalizedPart.includes(tag)
+      );
+
+      if (embeddedCarTag) {
+        const index = normalizedPart.indexOf(embeddedCarTag);
+        pushTokenPart(normalizedPart.slice(0, index));
+        tokens.push(embeddedCarTag);
+        pushTokenPart(normalizedPart.slice(index + embeddedCarTag.length));
+        return;
+      }
+
+      splitPitlaneRfidBuffer(normalizedPart).forEach(token => tokens.push(token));
+    }
+  };
+
+  rawParts.forEach(pushTokenPart);
 
   return Array.from(new Set(tokens));
 }

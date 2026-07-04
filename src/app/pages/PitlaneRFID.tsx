@@ -322,7 +322,7 @@ export function PitlaneRFID() {
   }, [flushCollectorWindow, gate.tempoJanelaMs]);
 
   const registerCollectorText = useCallback((value: string, source: string) => {
-    const tokens = extractPitlaneRfidTokens(value);
+    const tokens = extractPitlaneRfidTokens(value, carTags.map(tag => tag.epc));
     if (tokens.length === 0) return false;
 
     const now = Date.now();
@@ -348,7 +348,7 @@ export function PitlaneRFID() {
     setCollectorStatus(`Janela aberta: ${uniqueTags.size} tag(s) única(s)`);
     scheduleCollectorFlush();
     return true;
-  }, [scheduleCollectorFlush]);
+  }, [carTags, scheduleCollectorFlush]);
 
   const handleCollectorChange = (value: string) => {
     const nextValue = value.toUpperCase();

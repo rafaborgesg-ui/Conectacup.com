@@ -41,7 +41,8 @@ import {
   ClipboardCheck,
   AlertTriangle,
   Clock,
-  Bell
+  Bell,
+  RadioTower
 } from 'lucide-react';
 
 // 🔥 LOG DE DEBUG PARA FORÇAR REBUILD
@@ -137,6 +138,12 @@ export const MENU_STRUCTURE: MenuItem[] = [
         label: 'Pedidos de Pneus',
         icon: ShoppingCart,
         description: 'Sistema de pedidos de pneus'
+      },
+      {
+        id: 'rfid-pitlane',
+        label: 'Controle Pitlane RFID',
+        icon: RadioTower,
+        description: 'Leitura automática de pneus RFID na entrada do pitlane'
       },
       {
         id: 'tire-stock',
@@ -609,6 +616,7 @@ export const MENU_TO_PAGE_MAP: Record<string, string> = {
   'shakedown': 'SHAKEDOWN',
   'demanda': 'DEMANDA',
   'pedidos-pneus': 'PEDIDOS_PNEUS',
+  'rfid-pitlane': 'RFID_PITLANE',
   'rodas': 'RODAS',
   'rodas-dashboard': 'RODAS_DASHBOARD',
   'rodas-pendencias': 'RODAS_PENDENCIAS',

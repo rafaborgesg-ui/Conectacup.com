@@ -56,6 +56,7 @@ const ConferenciaSerial = lazy(() => import('./pages/ConferenciaSerial').then(m 
 const Shakedown = lazy(() => import('./pages/Shakedown'));
 const Demanda = lazy(() => import('./pages/Demanda'));
 const PedidosPneus = lazy(() => import('./pages/PedidosPneus'));
+const PitlaneRFID = lazy(() => import('./pages/PitlaneRFID').then(m => ({ default: m.PitlaneRFID })));
 const RodasDashboard = lazy(() => import('./pages/RodasDashboard').then(m => ({ default: m.RodasDashboard })));
 const Avarias = lazy(() => import('./pages/Avarias'));
 const Pendencias = lazy(() => import('./pages/Pendencias'));
@@ -247,6 +248,14 @@ export const router = createBrowserRouter([
             element: (
               <ProtectedRoute page={PAGES.PEDIDOS_PNEUS}>
                 <PedidosPneus />
+              </ProtectedRoute>
+            )
+          },
+          {
+            path: 'pitlane-rfid',
+            element: (
+              <ProtectedRoute page={PAGES.RFID_PITLANE}>
+                <PitlaneRFID />
               </ProtectedRoute>
             )
           }
@@ -542,6 +551,7 @@ export const MENU_ID_TO_ROUTE: Record<string, string> = {
   // Pneus - Demanda e Pedidos (movidos de /dev/jamyli)
   'demanda': '/pneus/demanda',
   'pedidos-pneus': '/pneus/pedidos-pneus',
+  'rfid-pitlane': '/pneus/pitlane-rfid',
 
   // Dev - Jamyli
   'shakedown': '/dev/jamyli/shakedown',

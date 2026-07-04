@@ -11,6 +11,9 @@ import {
   canAccessPage,
   canAccessFeature,
   isAdmin,
+  isAdministratorProfile,
+  hasPageAccess as profileHasPageAccess,
+  hasFeatureAccess as profileHasFeatureAccess,
   PageKey,
   FeatureKey,
   AccessProfile,
@@ -90,12 +93,9 @@ export function usePermissions() {
         
         if (currentProfile) {
           console.log('✅ Perfil do Supabase carregado:', currentProfile.name);
-          // Atualiza apenas se for diferente do cache
-          if (!cachedProfile || cachedProfile.id !== currentProfile.id) {
-            console.log('🔄 Atualizando perfil com versão do Supabase');
-            GLOBAL_PROFILE = currentProfile;
-            setProfile(currentProfile);
-          }
+          console.log('🔄 Atualizando perfil com versão do Supabase');
+          GLOBAL_PROFILE = currentProfile;
+          setProfile(currentProfile);
         }
       } catch (bgError) {
         // Falha silenciosa - já temos o cache
@@ -156,40 +156,43 @@ export function usePermissions() {
     
     // 🔥 REGRA ESPECIAL: Se tem acesso à página pai, tem acesso às páginas de detalhes
     // Exemplo: conferir-pneus → conferir-pneus-detalhes
-    if (page === 'conferir_pneus_detalhes' && profile.pages.includes('conferir_pneus')) {
+    if (page === 'conferir_pneus_detalhes' && profileHasPageAccess(profile, 'conferir_pneus' as PageKey)) {
       return true;
     }
     
-    return profile.pages.includes(page);
+    return profileHasPageAccess(profile, page);
   };
 
   // Verifica se tem acesso a uma funcionalidade
   const hasFeatureAccess = (feature: FeatureKey): boolean => {
     if (!profile) return false;
-    return profile.features.includes(feature);
+    return profileHasFeatureAccess(profile, feature);
   };
 
   // Verifica se é admin
   const isUserAdmin = (): boolean => {
-    return profile?.id === 'admin';
+    return isAdministratorProfile(profile);
   };
 
   // Verifica se tem acesso a múltiplas funcionalidades (OR)
   const hasAnyFeatureAccess = (features: FeatureKey[]): boolean => {
     if (!profile) return false;
-    return features.some(feature => profile.features.includes(feature));
+    if (isAdministratorProfile(profile)) return true;
+    return features.some(feature => profileHasFeatureAccess(profile, feature));
   };
 
   // Verifica se tem acesso a todas as funcionalidades (AND)
   const hasAllFeaturesAccess = (features: FeatureKey[]): boolean => {
     if (!profile) return false;
-    return features.every(feature => profile.features.includes(feature));
+    if (isAdministratorProfile(profile)) return true;
+    return features.every(feature => profileHasFeatureAccess(profile, feature));
   };
 
   // Verifica se tem acesso a múltiplas páginas (OR)
   const hasAnyPageAccess = (pages: PageKey[]): boolean => {
     if (!profile) return false;
-    return pages.some(page => profile.pages.includes(page));
+    if (isAdministratorProfile(profile)) return true;
+    return pages.some(page => profileHasPageAccess(profile, page));
   };
 
   // Obtém o perfil atual

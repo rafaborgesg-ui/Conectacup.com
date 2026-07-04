@@ -46,6 +46,7 @@ export const PAGES = {
   SHAKEDOWN: 'shakedown',
   DEMANDA: 'demanda',
   PEDIDOS_PNEUS: 'pedidos_pneus',
+  RFID_PITLANE: 'rfid_pitlane',
   RODAS: 'rodas',
   RODAS_DASHBOARD: 'rodas_dashboard',
   RODAS_PENDENCIAS: 'rodas_pendencias',
@@ -131,6 +132,12 @@ export const FEATURES = {
   // ARCS
   ARCS_UPDATE: 'arcs_update',
   ARCS_VIEW: 'arcs_view',
+
+  // Controle Pitlane RFID
+  RFID_PITLANE_VIEW: 'rfid_pitlane.view',
+  RFID_PITLANE_MANAGE: 'rfid_pitlane.manage',
+  RFID_PITLANE_VALIDATE: 'rfid_pitlane.validate',
+  RFID_PITLANE_CONFIGURE: 'rfid_pitlane.configure',
 } as const;
 
 export type FeatureKey = typeof FEATURES[keyof typeof FEATURES];
@@ -177,6 +184,7 @@ export const DEFAULT_PROFILES: Omit<AccessProfile, 'createdAt' | 'updatedAt'>[] 
       PAGES.REPORTS,
       PAGES.TIRE_MOVEMENT,
       PAGES.TIRE_STATUS_CHANGE,
+      PAGES.RFID_PITLANE,
       // Links externos
       PAGES.GESTAO_CARGA,
       PAGES.MANUTENCAO_PREDIAL,
@@ -192,6 +200,8 @@ export const DEFAULT_PROFILES: Omit<AccessProfile, 'createdAt' | 'updatedAt'>[] 
       FEATURES.REPORTS_VIEW,
       FEATURES.REPORTS_EXPORT,
       FEATURES.MOVEMENT_CREATE,
+      FEATURES.RFID_PITLANE_VIEW,
+      FEATURES.RFID_PITLANE_VALIDATE,
     ],
   },
   {
@@ -212,6 +222,7 @@ export const DEFAULT_PROFILES: Omit<AccessProfile, 'createdAt' | 'updatedAt'>[] 
       PAGES.TIRE_STATUS_CHANGE,
       PAGES.TIRE_DISCARD,
       PAGES.TIRE_CONSUMPTION,
+      PAGES.RFID_PITLANE,
       // Links externos
       PAGES.GESTAO_CARGA,
       PAGES.MANUTENCAO_PREDIAL,
@@ -233,6 +244,10 @@ export const DEFAULT_PROFILES: Omit<AccessProfile, 'createdAt' | 'updatedAt'>[] 
       FEATURES.MOVEMENT_APPROVE,
       FEATURES.DISCARD_CREATE,
       FEATURES.DISCARD_VIEW,
+      FEATURES.RFID_PITLANE_VIEW,
+      FEATURES.RFID_PITLANE_MANAGE,
+      FEATURES.RFID_PITLANE_VALIDATE,
+      FEATURES.RFID_PITLANE_CONFIGURE,
     ],
   },
   {
@@ -288,6 +303,7 @@ export const PAGE_LABELS: Record<PageKey, string> = {
   [PAGES.SHAKEDOWN]: 'Shakedown',
   [PAGES.DEMANDA]: 'Demanda',
   [PAGES.PEDIDOS_PNEUS]: 'Pedidos de Pneus',
+  [PAGES.RFID_PITLANE]: 'Controle Pitlane RFID',
   [PAGES.RODAS]: 'Rodas',
   [PAGES.RODAS_DASHBOARD]: 'Dashboard',
   [PAGES.RODAS_PENDENCIAS]: 'Pendências',
@@ -360,6 +376,11 @@ export const FEATURE_LABELS: Record<FeatureKey, string> = {
   
   [FEATURES.ARCS_UPDATE]: 'Atualizar ARCS',
   [FEATURES.ARCS_VIEW]: 'Visualizar ARCS',
+
+  [FEATURES.RFID_PITLANE_VIEW]: 'Pitlane RFID - Visualizar',
+  [FEATURES.RFID_PITLANE_MANAGE]: 'Pitlane RFID - Gerenciar',
+  [FEATURES.RFID_PITLANE_VALIDATE]: 'Pitlane RFID - Validar',
+  [FEATURES.RFID_PITLANE_CONFIGURE]: 'Pitlane RFID - Configurar',
 };
 
 /**
@@ -391,6 +412,7 @@ export const PAGE_CATEGORIES = {
   'Pneus - Demanda': [
     PAGES.DEMANDA,
     PAGES.PEDIDOS_PNEUS,
+    PAGES.RFID_PITLANE,
   ],
   'Relatórios': [
     PAGES.REPORTS,
@@ -456,6 +478,10 @@ export const FEATURE_CATEGORIES = {
     FEATURES.IMPORT_DATA,
     FEATURES.ARCS_UPDATE,
     FEATURES.ARCS_VIEW,
+    FEATURES.RFID_PITLANE_VIEW,
+    FEATURES.RFID_PITLANE_MANAGE,
+    FEATURES.RFID_PITLANE_VALIDATE,
+    FEATURES.RFID_PITLANE_CONFIGURE,
   ],
 };
 
@@ -628,6 +654,7 @@ export function getDynamicPageCategories(): Record<string, PageKey[]> {
  * Verifica se um perfil tem acesso a uma página
  */
 export function hasPageAccess(profile: AccessProfile, page: PageKey): boolean {
+  if (isAdministratorProfile(profile)) return true;
   return profile.pages.includes(page);
 }
 
@@ -635,7 +662,25 @@ export function hasPageAccess(profile: AccessProfile, page: PageKey): boolean {
  * Verifica se um perfil tem acesso a uma funcionalidade
  */
 export function hasFeatureAccess(profile: AccessProfile, feature: FeatureKey): boolean {
+  if (isAdministratorProfile(profile)) return true;
   return profile.features.includes(feature);
+}
+
+/**
+ * Perfis administrativos devem ter acesso total mesmo quando a lista de páginas
+ * persistida no Supabase/localStorage ainda não recebeu uma página recém-criada.
+ */
+export function isAdministratorProfile(profile: AccessProfile | null | undefined): boolean {
+  if (!profile) return false;
+
+  const normalizedId = String(profile.id || '').trim().toLowerCase();
+  const normalizedName = String(profile.name || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+
+  return normalizedId === 'admin' || normalizedName === 'administrador' || normalizedName === 'admin';
 }
 
 /**
@@ -945,5 +990,5 @@ export function canAccessFeature(feature: FeatureKey): boolean {
  */
 export function isAdmin(): boolean {
   const profile = getCurrentUserProfile();
-  return profile?.id === 'admin';
+  return isAdministratorProfile(profile);
 }

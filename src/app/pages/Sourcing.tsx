@@ -1,14 +1,18 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
+  ArrowRight,
   BarChart3,
   CheckCircle2,
+  ChevronRight,
   ClipboardCheck,
   Clock,
   Copy,
+  ExternalLink,
   FileDown,
   FileText,
   Filter,
+  Gauge,
   Handshake,
   History,
   Mail,
@@ -18,6 +22,7 @@ import {
   Settings,
   ShieldCheck,
   SlidersHorizontal,
+  Sparkles,
   Users,
   XCircle
 } from 'lucide-react';
@@ -83,6 +88,63 @@ const tabs: Array<{ id: TabKey; label: string; icon: any }> = [
   { id: 'relatorios', label: 'Relatórios', icon: FileDown },
   { id: 'configuracoes', label: 'Configurações', icon: Settings }
 ];
+
+const workflowStages: Array<{
+  title: string;
+  description: string;
+  tabs: TabKey[];
+  icon: any;
+}> = [
+  {
+    title: 'Planejar',
+    description: 'Escopo, itens e fornecedores',
+    tabs: ['dashboard', 'eventos', 'novo'],
+    icon: FileText
+  },
+  {
+    title: 'Convidar',
+    description: 'Portal público e e-mails',
+    tabs: ['detalhes', 'fornecedores'],
+    icon: Send
+  },
+  {
+    title: 'Cotar',
+    description: 'Propostas e respostas',
+    tabs: ['propostas'],
+    icon: Mail
+  },
+  {
+    title: 'Equalizar',
+    description: 'Comparativo comercial',
+    tabs: ['comparativo'],
+    icon: SlidersHorizontal
+  },
+  {
+    title: 'Aprovar',
+    description: 'Recomendação e governança',
+    tabs: ['aprovacoes'],
+    icon: ShieldCheck
+  },
+  {
+    title: 'Controlar',
+    description: 'Relatórios e parâmetros',
+    tabs: ['relatorios', 'configuracoes'],
+    icon: BarChart3
+  }
+];
+
+const statusWorkflowOrder: Record<string, number> = {
+  Rascunho: 12,
+  Publicado: 24,
+  'Aguardando fornecedores': 38,
+  'Em cotacao': 50,
+  'Em analise': 68,
+  'Aguardando aprovacao': 82,
+  Aprovado: 100,
+  Recusado: 100,
+  Encerrado: 100,
+  Cancelado: 100
+};
 
 const initialEventForm: SourcingEventInput = {
   titulo: '',
@@ -319,6 +381,73 @@ export function Sourcing() {
   );
 
   const metrics = useMemo(() => (state ? getDashboardMetrics(state) : null), [state]);
+
+  const activeStage = useMemo(
+    () => workflowStages.find(stage => stage.tabs.includes(activeTab)) || workflowStages[0],
+    [activeTab]
+  );
+
+  const selectedEventStats = useMemo(() => {
+    if (!state || !selectedEvent) return null;
+    const suppliers = getEventSuppliers(state, selectedEvent.id);
+    const proposals = getEventProposals(state, selectedEvent.id);
+    const items = getEventItems(state, selectedEvent.id);
+    const pendingInvites = suppliers.filter(({ link }) => ['Convite nao enviado', 'Convite enviado', 'Visualizado'].includes(link.statusConvite)).length;
+    const progress = statusWorkflowOrder[selectedEvent.status] || 0;
+    const bestProposal = proposals[0]?.proposal;
+
+    return {
+      suppliers,
+      proposals,
+      items,
+      pendingInvites,
+      progress,
+      bestProposal,
+      bestSupplier: bestProposal ? state.suppliers.find(supplier => supplier.id === bestProposal.supplierId) : undefined
+    };
+  }, [state, selectedEvent]);
+
+  const operationalQueue = useMemo(() => {
+    if (!state) {
+      return {
+        overdue: [],
+        dueSoon: [],
+        pendingInviteLinks: [],
+        pendingApprovals: []
+      };
+    }
+
+    const now = Date.now();
+    const soonLimit = now + 72 * 60 * 60 * 1000;
+    const openEvents = state.events.filter(event => !['Cancelado', 'Encerrado', 'Aprovado', 'Recusado'].includes(event.status));
+
+    const overdue = openEvents.filter(event => {
+      if (!event.prazoResposta) return false;
+      const due = new Date(event.prazoResposta).getTime();
+      return Number.isFinite(due) && due < now;
+    });
+
+    const dueSoon = openEvents.filter(event => {
+      if (!event.prazoResposta) return false;
+      const due = new Date(event.prazoResposta).getTime();
+      return Number.isFinite(due) && due >= now && due <= soonLimit;
+    });
+
+    const pendingInviteLinks = state.eventSuppliers
+      .filter(link => link.statusConvite === 'Convite nao enviado' || link.ultimoEmailStatus === 'erro')
+      .map(link => ({
+        link,
+        event: state.events.find(event => event.id === link.sourcingEventId),
+        supplier: state.suppliers.find(supplier => supplier.id === link.supplierId)
+      }));
+
+    return {
+      overdue,
+      dueSoon,
+      pendingInviteLinks,
+      pendingApprovals: state.approvals.filter(approval => approval.status === 'Aguardando aprovacao')
+    };
+  }, [state]);
 
   const filteredEvents = useMemo(() => {
     if (!state) return [];
@@ -687,35 +816,86 @@ export function Sourcing() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 text-slate-900 md:p-6">
-      <header className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="flex items-start gap-4">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-red-600 text-white shadow-sm">
-            <Handshake className="h-6 w-6" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-slate-950 md:text-3xl">Sourcing Logística e Compras</h1>
-            <p className="mt-1 max-w-3xl text-sm text-slate-600">
-              Eventos RFP/RFQ, fornecedores, propostas, mapa comparativo, aprovações e histórico integrados ao ConectaCup.
-            </p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white">/dev/rafael/Sourcing</span>
-              <span className={cn('rounded-full px-3 py-1 text-xs font-semibold', state.source === 'supabase' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-800')}>
-                {state.source === 'supabase' ? 'Supabase conectado' : 'Modo local/mock'}
-              </span>
+    <div className="min-h-screen bg-[#f5f7fb] p-3 text-slate-900 md:p-5">
+      <header className="mb-4 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+        <div className="grid gap-4 border-b border-slate-100 px-4 py-4 2xl:grid-cols-[1fr_auto] 2xl:items-start">
+          <div className="flex min-w-0 items-start gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-red-600 text-white shadow-sm">
+              <Handshake className="h-6 w-6" />
             </div>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-2xl font-bold text-slate-950 md:text-3xl">Sourcing Logística e Compras</h1>
+                <span className={cn('rounded-full px-2.5 py-1 text-xs font-semibold', state.source === 'supabase' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-800')}>
+                  {state.source === 'supabase' ? 'Base online' : 'Modo local/mock'}
+                </span>
+              </div>
+              <p className="mt-1 max-w-4xl text-sm leading-6 text-slate-600">
+                Central operacional para planejar concorrências, convidar fornecedores, coletar propostas, equalizar preços e conduzir aprovações.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <HeaderMetric label="Abertos" value={String(metrics.eventosAbertos)} tone="blue" />
+                <HeaderMetric label="Pendências" value={String(operationalQueue.overdue.length + operationalQueue.pendingInviteLinks.length + operationalQueue.pendingApprovals.length)} tone="amber" />
+                <HeaderMetric label="Propostas" value={String(metrics.propostasRecebidas)} tone="slate" />
+                <HeaderMetric label="Saving" value={formatCurrency(metrics.economiaEstimada)} tone="emerald" />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2 2xl:justify-end">
+            <button onClick={() => setActiveTab('novo')} className="inline-flex items-center gap-2 rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700">
+              <Plus className="h-4 w-4" />
+              Novo evento
+            </button>
+            <button onClick={() => setActiveTab('eventos')} className="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+              <Search className="h-4 w-4" />
+              Localizar processo
+            </button>
+            <button onClick={() => exportEvents()} className="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+              <FileDown className="h-4 w-4" />
+              Exportar
+            </button>
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          <button onClick={() => setActiveTab('novo')} className="inline-flex items-center gap-2 rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700">
-            <Plus className="h-4 w-4" />
-            Novo evento
-          </button>
-          <button onClick={() => exportEvents()} className="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
-            <FileDown className="h-4 w-4" />
-            Exportar
-          </button>
+        <div className="px-4 py-4">
+          <div className="mb-3 flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Jornada do processo</p>
+              <p className="text-sm text-slate-600">Etapa atual: <span className="font-semibold text-slate-900">{activeStage.title}</span></p>
+            </div>
+            <button onClick={() => setActiveTab(activeStage.tabs[0])} className="inline-flex items-center gap-2 text-sm font-semibold text-red-700 hover:text-red-800">
+              Abrir etapa
+              <ArrowRight className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2 2xl:grid-cols-3">
+            {workflowStages.map((stage, index) => {
+              const Icon = stage.icon;
+              const selected = stage.tabs.includes(activeTab);
+              return (
+                <button
+                  key={stage.title}
+                  onClick={() => setActiveTab(stage.tabs[0])}
+                  className={cn(
+                    'group flex min-h-[92px] flex-col items-start rounded-lg border px-3 py-3 text-left transition',
+                    selected
+                      ? 'border-slate-950 bg-slate-950 text-white shadow-sm'
+                      : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-red-200 hover:bg-white'
+                  )}
+                >
+                  <div className="flex w-full items-center justify-between gap-2">
+                    <span className={cn('flex h-8 w-8 items-center justify-center rounded-md', selected ? 'bg-white/15 text-white' : 'bg-white text-slate-600 ring-1 ring-slate-200')}>
+                      <Icon className="h-4 w-4" />
+                    </span>
+                    <span className={cn('text-[11px] font-bold', selected ? 'text-white/70' : 'text-slate-400')}>0{index + 1}</span>
+                  </div>
+                  <span className="mt-3 text-sm font-bold">{stage.title}</span>
+                  <span className={cn('mt-1 text-xs leading-4', selected ? 'text-white/70' : 'text-slate-500')}>{stage.description}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </header>
 
@@ -725,7 +905,9 @@ export function Sourcing() {
         </div>
       ) : null}
 
-      <nav className="mb-5 flex gap-2 overflow-x-auto border-b border-slate-200 pb-2">
+      {selectedEvent ? renderSelectedEventContext() : null}
+
+      <nav className="mb-4 flex gap-2 overflow-x-auto rounded-lg border border-slate-200 bg-white p-2 shadow-sm">
         {tabs.map(tab => {
           const Icon = tab.icon;
           return (
@@ -735,8 +917,8 @@ export function Sourcing() {
               className={cn(
                 'inline-flex shrink-0 items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold transition',
                 activeTab === tab.id
-                  ? 'bg-slate-950 text-white'
-                  : 'bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-950'
+                  ? 'bg-red-600 text-white shadow-sm'
+                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950'
               )}
             >
               <Icon className="h-4 w-4" />
@@ -759,6 +941,129 @@ export function Sourcing() {
     </div>
   );
 
+  function renderSelectedEventContext() {
+    if (!selectedEvent || !selectedEventStats) return null;
+
+    const nextAction = getSelectedEventNextAction();
+    return (
+      <section className="mb-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="grid gap-4 2xl:grid-cols-[1fr_360px] 2xl:items-center">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm font-bold text-slate-500">{selectedEvent.codigo}</span>
+              <span className={cn('rounded-full px-2 py-1 text-xs font-semibold', statusColor(selectedEvent.status))}>{selectedEvent.status}</span>
+              <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">{selectedEvent.categoria}</span>
+              <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">{selectedEvent.tipoEvento}</span>
+            </div>
+            <div className="mt-2 flex flex-col gap-3 2xl:flex-row 2xl:items-center 2xl:justify-between">
+              <div className="min-w-0">
+                <h2 className="truncate text-lg font-bold text-slate-950">{selectedEvent.titulo}</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  {selectedEvent.projetoCodigo || 'Sem projeto'} · prazo {formatDate(selectedEvent.prazoResposta)} · responsável {selectedEvent.responsavelNome || '-'}
+                </p>
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-center 2xl:min-w-[420px]">
+                <MiniStat label="Itens" value={String(selectedEventStats.items.length)} />
+                <MiniStat label="Fornecedores" value={String(selectedEventStats.suppliers.length)} />
+                <MiniStat label="Propostas" value={String(selectedEventStats.proposals.length)} />
+              </div>
+            </div>
+            <div className="mt-4">
+              <div className="mb-1 flex items-center justify-between text-xs font-semibold text-slate-500">
+                <span>Progresso do processo</span>
+                <span>{selectedEventStats.progress}%</span>
+              </div>
+              <div className="h-2 rounded-full bg-slate-100">
+                <div className="h-2 rounded-full bg-red-600 transition-all" style={{ width: `${selectedEventStats.progress}%` }} />
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <div className="flex items-start gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-white text-red-600 ring-1 ring-slate-200">
+                <Sparkles className="h-4 w-4" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-slate-950">{nextAction.title}</p>
+                <p className="mt-1 text-xs leading-5 text-slate-500">{nextAction.description}</p>
+                <button onClick={nextAction.action} className="mt-3 inline-flex items-center gap-2 rounded-md bg-slate-950 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800">
+                  {nextAction.label}
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  function getSelectedEventNextAction() {
+    if (!selectedEvent || !selectedEventStats) {
+      return {
+        title: 'Selecione um processo',
+        description: 'Escolha um evento para visualizar as próximas ações.',
+        label: 'Ver eventos',
+        action: () => setActiveTab('eventos')
+      };
+    }
+
+    if (selectedEvent.status === 'Rascunho') {
+      return {
+        title: 'Finalize o escopo do evento',
+        description: 'Revise itens, fornecedores e condições antes de enviar os convites.',
+        label: 'Abrir detalhes',
+        action: () => setActiveTab('detalhes')
+      };
+    }
+
+    if (selectedEventStats.pendingInvites > 0) {
+      return {
+        title: `${selectedEventStats.pendingInvites} convite(s) exigem ação`,
+        description: 'Envie e-mails, copie links públicos ou acompanhe falhas de entrega dos fornecedores.',
+        label: 'Gerenciar convites',
+        action: () => setActiveTab('detalhes')
+      };
+    }
+
+    if (selectedEventStats.proposals.length === 0) {
+      return {
+        title: 'Aguardando propostas',
+        description: 'Acompanhe respostas do portal público ou registre uma proposta recebida por fora.',
+        label: 'Abrir propostas',
+        action: () => setActiveTab('propostas')
+      };
+    }
+
+    if (selectedEvent.status === 'Em analise') {
+      return {
+        title: 'Equalize e recomende fornecedor',
+        description: selectedEventStats.bestProposal
+          ? `Melhor proposta atual: ${formatCurrency(selectedEventStats.bestProposal.valorTotal, selectedEventStats.bestProposal.moeda)} de ${selectedEventStats.bestSupplier?.nomeFantasia || selectedEventStats.bestSupplier?.razaoSocial || 'fornecedor'}.`
+          : 'Compare propostas e registre a recomendação comercial.',
+        label: 'Abrir comparativo',
+        action: () => setActiveTab('comparativo')
+      };
+    }
+
+    if (selectedEvent.status === 'Aguardando aprovacao') {
+      return {
+        title: 'Recomendação aguardando aprovação',
+        description: 'A decisão comercial já foi enviada para aprovação.',
+        label: 'Abrir aprovações',
+        action: () => setActiveTab('aprovacoes')
+      };
+    }
+
+    return {
+      title: 'Processo em controle',
+      description: 'Consulte histórico, relatórios ou reabra o comparativo conforme necessário.',
+      label: 'Ver relatórios',
+      action: () => setActiveTab('relatorios')
+    };
+  }
+
   function renderDashboard() {
     const cardData = [
       { label: 'Eventos em aberto', value: metrics.eventosAbertos, icon: Clock, color: 'bg-blue-50 text-blue-700' },
@@ -773,6 +1078,8 @@ export function Sourcing() {
 
     return (
       <div className="space-y-5">
+        {renderOperationalCommandCenter()}
+
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {cardData.map(card => {
             const Icon = card.icon;
@@ -803,6 +1110,131 @@ export function Sourcing() {
             }
           />
           {renderEventsTable(state.events.slice(0, 8))}
+        </SectionCard>
+      </div>
+    );
+  }
+
+  function renderOperationalCommandCenter() {
+    const priorityItems = [
+      {
+        label: 'Prazos vencidos',
+        value: operationalQueue.overdue.length,
+        description: 'Eventos abertos com prazo de resposta vencido.',
+        icon: AlertTriangle,
+        color: 'border-red-200 bg-red-50 text-red-700',
+        actionLabel: 'Filtrar eventos',
+        action: () => {
+          setStatusFilter('Todos');
+          setActiveTab('eventos');
+        }
+      },
+      {
+        label: 'Vencem em 72h',
+        value: operationalQueue.dueSoon.length,
+        description: 'Processos que exigem acompanhamento imediato.',
+        icon: Clock,
+        color: 'border-amber-200 bg-amber-50 text-amber-700',
+        actionLabel: 'Revisar carteira',
+        action: () => setActiveTab('eventos')
+      },
+      {
+        label: 'Convites pendentes',
+        value: operationalQueue.pendingInviteLinks.length,
+        description: 'Fornecedores sem e-mail enviado ou com falha de envio.',
+        icon: Mail,
+        color: 'border-blue-200 bg-blue-50 text-blue-700',
+        actionLabel: 'Abrir convites',
+        action: () => setActiveTab('detalhes')
+      },
+      {
+        label: 'Aprovações',
+        value: operationalQueue.pendingApprovals.length,
+        description: 'Recomendações esperando decisão.',
+        icon: ShieldCheck,
+        color: 'border-violet-200 bg-violet-50 text-violet-700',
+        actionLabel: 'Decidir',
+        action: () => setActiveTab('aprovacoes')
+      }
+    ];
+
+    const latestEvents = state.events.slice(0, 5);
+    const conversionRate = metrics.fornecedoresConvidados
+      ? Math.round((metrics.propostasRecebidas / metrics.fornecedoresConvidados) * 100)
+      : 0;
+
+    return (
+      <div className="grid gap-5 xl:grid-cols-[1fr_360px]">
+        <SectionCard>
+          <CardHeader
+            title="Centro operacional"
+            description="Priorize prazos, convites, propostas e aprovações antes de navegar pelas abas."
+            action={
+              <button onClick={() => refreshData(false)} className="inline-flex items-center gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                <Gauge className="h-4 w-4" />
+                Atualizar visão
+              </button>
+            }
+          />
+          <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-4">
+            {priorityItems.map(item => {
+              const Icon = item.icon;
+              return (
+                <button key={item.label} onClick={item.action} className={cn('rounded-lg border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-sm', item.color)}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide opacity-75">{item.label}</p>
+                      <p className="mt-2 text-3xl font-bold">{item.value}</p>
+                    </div>
+                    <Icon className="h-5 w-5" />
+                  </div>
+                  <p className="mt-3 min-h-10 text-xs leading-5 opacity-80">{item.description}</p>
+                  <span className="mt-3 inline-flex items-center gap-1 text-xs font-bold">
+                    {item.actionLabel}
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </SectionCard>
+
+        <SectionCard>
+          <CardHeader title="Saúde da carteira" description="Indicadores rápidos para gestão." />
+          <div className="space-y-4 p-4">
+            <div className="rounded-lg border border-slate-100 bg-slate-50 p-3">
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-semibold text-slate-600">Conversão convite → proposta</span>
+                <span className="font-bold text-slate-950">{conversionRate}%</span>
+              </div>
+              <div className="mt-2 h-2 rounded-full bg-white">
+                <div className="h-2 rounded-full bg-emerald-600" style={{ width: `${Math.min(100, conversionRate)}%` }} />
+              </div>
+            </div>
+            <div className="rounded-lg border border-slate-100 bg-slate-50 p-3">
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-semibold text-slate-600">Eventos em análise</span>
+                <span className="font-bold text-slate-950">{metrics.emAnalise}</span>
+              </div>
+              <div className="mt-2 h-2 rounded-full bg-white">
+                <div className="h-2 rounded-full bg-indigo-600" style={{ width: `${Math.min(100, (metrics.emAnalise / Math.max(1, state.events.length)) * 100)}%` }} />
+              </div>
+            </div>
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Últimos processos</p>
+              <div className="space-y-2">
+                {latestEvents.map(event => (
+                  <button key={event.id} onClick={() => { setSelectedEventId(event.id); setActiveTab('detalhes'); }} className="flex w-full items-center justify-between gap-3 rounded-md border border-slate-100 px-3 py-2 text-left hover:bg-slate-50">
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-semibold text-slate-900">{event.codigo} · {event.titulo}</span>
+                      <span className="text-xs text-slate-500">{event.status}</span>
+                    </span>
+                    <ExternalLink className="h-4 w-4 shrink-0 text-slate-400" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
         </SectionCard>
       </div>
     );
@@ -1626,6 +2058,31 @@ function Info({ label, value, className = '' }: { label: string; value: React.Re
     <div className={cn('rounded-lg border border-slate-100 bg-slate-50 p-3', className)}>
       <p className="text-xs font-semibold uppercase text-slate-500">{label}</p>
       <div className="mt-1 text-sm font-medium text-slate-900">{value}</div>
+    </div>
+  );
+}
+
+function HeaderMetric({ label, value, tone }: { label: string; value: string; tone: 'blue' | 'amber' | 'emerald' | 'slate' }) {
+  const classes = {
+    blue: 'bg-blue-50 text-blue-700 ring-blue-100',
+    amber: 'bg-amber-50 text-amber-700 ring-amber-100',
+    emerald: 'bg-emerald-50 text-emerald-700 ring-emerald-100',
+    slate: 'bg-slate-100 text-slate-700 ring-slate-200'
+  };
+
+  return (
+    <span className={cn('inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-semibold ring-1', classes[tone])}>
+      <span className="text-slate-500">{label}</span>
+      <span>{value}</span>
+    </span>
+  );
+}
+
+function MiniStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border border-slate-100 bg-slate-50 px-3 py-2">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+      <p className="mt-1 text-lg font-bold text-slate-950">{value}</p>
     </div>
   );
 }

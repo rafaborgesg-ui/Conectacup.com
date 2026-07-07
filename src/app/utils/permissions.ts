@@ -47,6 +47,7 @@ export const PAGES = {
   DEMANDA: 'demanda',
   PEDIDOS_PNEUS: 'pedidos_pneus',
   RFID_PITLANE: 'rfid_pitlane',
+  SOURCING: 'sourcing',
   RODAS: 'rodas',
   RODAS_DASHBOARD: 'rodas_dashboard',
   RODAS_PENDENCIAS: 'rodas_pendencias',
@@ -138,6 +139,17 @@ export const FEATURES = {
   RFID_PITLANE_MANAGE: 'rfid_pitlane.manage',
   RFID_PITLANE_VALIDATE: 'rfid_pitlane.validate',
   RFID_PITLANE_CONFIGURE: 'rfid_pitlane.configure',
+
+  // Sourcing Logística e Compras
+  SOURCING_VIEW: 'sourcing.view',
+  SOURCING_CREATE: 'sourcing.create',
+  SOURCING_EDIT: 'sourcing.edit',
+  SOURCING_DELETE: 'sourcing.delete',
+  SOURCING_INVITE_SUPPLIERS: 'sourcing.invite_suppliers',
+  SOURCING_MANAGE_PROPOSALS: 'sourcing.manage_proposals',
+  SOURCING_COMPARE: 'sourcing.compare',
+  SOURCING_APPROVE: 'sourcing.approve',
+  SOURCING_CONFIGURE: 'sourcing.configure',
 } as const;
 
 export type FeatureKey = typeof FEATURES[keyof typeof FEATURES];
@@ -185,6 +197,7 @@ export const DEFAULT_PROFILES: Omit<AccessProfile, 'createdAt' | 'updatedAt'>[] 
       PAGES.TIRE_MOVEMENT,
       PAGES.TIRE_STATUS_CHANGE,
       PAGES.RFID_PITLANE,
+      PAGES.SOURCING,
       // Links externos
       PAGES.GESTAO_CARGA,
       PAGES.MANUTENCAO_PREDIAL,
@@ -202,6 +215,10 @@ export const DEFAULT_PROFILES: Omit<AccessProfile, 'createdAt' | 'updatedAt'>[] 
       FEATURES.MOVEMENT_CREATE,
       FEATURES.RFID_PITLANE_VIEW,
       FEATURES.RFID_PITLANE_VALIDATE,
+      FEATURES.SOURCING_VIEW,
+      FEATURES.SOURCING_CREATE,
+      FEATURES.SOURCING_MANAGE_PROPOSALS,
+      FEATURES.SOURCING_COMPARE,
     ],
   },
   {
@@ -223,6 +240,7 @@ export const DEFAULT_PROFILES: Omit<AccessProfile, 'createdAt' | 'updatedAt'>[] 
       PAGES.TIRE_DISCARD,
       PAGES.TIRE_CONSUMPTION,
       PAGES.RFID_PITLANE,
+      PAGES.SOURCING,
       // Links externos
       PAGES.GESTAO_CARGA,
       PAGES.MANUTENCAO_PREDIAL,
@@ -248,6 +266,15 @@ export const DEFAULT_PROFILES: Omit<AccessProfile, 'createdAt' | 'updatedAt'>[] 
       FEATURES.RFID_PITLANE_MANAGE,
       FEATURES.RFID_PITLANE_VALIDATE,
       FEATURES.RFID_PITLANE_CONFIGURE,
+      FEATURES.SOURCING_VIEW,
+      FEATURES.SOURCING_CREATE,
+      FEATURES.SOURCING_EDIT,
+      FEATURES.SOURCING_DELETE,
+      FEATURES.SOURCING_INVITE_SUPPLIERS,
+      FEATURES.SOURCING_MANAGE_PROPOSALS,
+      FEATURES.SOURCING_COMPARE,
+      FEATURES.SOURCING_APPROVE,
+      FEATURES.SOURCING_CONFIGURE,
     ],
   },
   {
@@ -304,6 +331,7 @@ export const PAGE_LABELS: Record<PageKey, string> = {
   [PAGES.DEMANDA]: 'Demanda',
   [PAGES.PEDIDOS_PNEUS]: 'Pedidos de Pneus',
   [PAGES.RFID_PITLANE]: 'Controle Pitlane RFID',
+  [PAGES.SOURCING]: 'Sourcing Logística e Compras',
   [PAGES.RODAS]: 'Rodas',
   [PAGES.RODAS_DASHBOARD]: 'Dashboard',
   [PAGES.RODAS_PENDENCIAS]: 'Pendências',
@@ -381,6 +409,16 @@ export const FEATURE_LABELS: Record<FeatureKey, string> = {
   [FEATURES.RFID_PITLANE_MANAGE]: 'Pitlane RFID - Gerenciar',
   [FEATURES.RFID_PITLANE_VALIDATE]: 'Pitlane RFID - Validar',
   [FEATURES.RFID_PITLANE_CONFIGURE]: 'Pitlane RFID - Configurar',
+
+  [FEATURES.SOURCING_VIEW]: 'Sourcing - Visualizar',
+  [FEATURES.SOURCING_CREATE]: 'Sourcing - Criar evento',
+  [FEATURES.SOURCING_EDIT]: 'Sourcing - Editar',
+  [FEATURES.SOURCING_DELETE]: 'Sourcing - Excluir/cancelar',
+  [FEATURES.SOURCING_INVITE_SUPPLIERS]: 'Sourcing - Convidar fornecedores',
+  [FEATURES.SOURCING_MANAGE_PROPOSALS]: 'Sourcing - Gerenciar propostas',
+  [FEATURES.SOURCING_COMPARE]: 'Sourcing - Comparar propostas',
+  [FEATURES.SOURCING_APPROVE]: 'Sourcing - Aprovar',
+  [FEATURES.SOURCING_CONFIGURE]: 'Sourcing - Configurar',
 };
 
 /**
@@ -413,6 +451,7 @@ export const PAGE_CATEGORIES = {
     PAGES.DEMANDA,
     PAGES.PEDIDOS_PNEUS,
     PAGES.RFID_PITLANE,
+    PAGES.SOURCING,
   ],
   'Relatórios': [
     PAGES.REPORTS,
@@ -482,6 +521,17 @@ export const FEATURE_CATEGORIES = {
     FEATURES.RFID_PITLANE_MANAGE,
     FEATURES.RFID_PITLANE_VALIDATE,
     FEATURES.RFID_PITLANE_CONFIGURE,
+  ],
+  'Sourcing': [
+    FEATURES.SOURCING_VIEW,
+    FEATURES.SOURCING_CREATE,
+    FEATURES.SOURCING_EDIT,
+    FEATURES.SOURCING_DELETE,
+    FEATURES.SOURCING_INVITE_SUPPLIERS,
+    FEATURES.SOURCING_MANAGE_PROPOSALS,
+    FEATURES.SOURCING_COMPARE,
+    FEATURES.SOURCING_APPROVE,
+    FEATURES.SOURCING_CONFIGURE,
   ],
 };
 

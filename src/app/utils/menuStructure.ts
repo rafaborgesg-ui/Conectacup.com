@@ -42,7 +42,8 @@ import {
   AlertTriangle,
   Clock,
   Bell,
-  RadioTower
+  RadioTower,
+  Handshake
 } from 'lucide-react';
 
 // 🔥 LOG DE DEBUG PARA FORÇAR REBUILD
@@ -368,6 +369,12 @@ export const MENU_STRUCTURE: MenuItem[] = [
                 description: 'Relatórios de descarte de pneus'
               },
               {
+                id: 'sourcing',
+                label: 'Sourcing',
+                icon: Handshake,
+                description: 'Sourcing Logística e Compras'
+              },
+              {
                 id: 'almoxarifado',
                 label: 'Almoxarifado',
                 icon: Warehouse,
@@ -598,6 +605,7 @@ export const MENU_TO_PAGE_MAP: Record<string, string> = {
   'containers': 'CONTAINER',
   'reports': 'REPORTS',
   'data-import': 'DATA_IMPORT',
+  'sourcing': 'SOURCING',
   'stock-adjustment': 'STOCK_ADJUSTMENT',
   'users': 'USER_MANAGEMENT',
   'access-profiles': 'ACCESS_PROFILES', // Key separada para evitar duplicação

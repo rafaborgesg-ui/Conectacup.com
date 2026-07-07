@@ -57,6 +57,8 @@ const Shakedown = lazy(() => import('./pages/Shakedown'));
 const Demanda = lazy(() => import('./pages/Demanda'));
 const PedidosPneus = lazy(() => import('./pages/PedidosPneus'));
 const PitlaneRFID = lazy(() => import('./pages/PitlaneRFID').then(m => ({ default: m.PitlaneRFID })));
+const Sourcing = lazy(() => import('./pages/Sourcing').then(m => ({ default: m.Sourcing })));
+const SourcingSupplierPortal = lazy(() => import('./pages/SourcingSupplierPortal').then(m => ({ default: m.SourcingSupplierPortal })));
 const RodasDashboard = lazy(() => import('./pages/RodasDashboard').then(m => ({ default: m.RodasDashboard })));
 const Avarias = lazy(() => import('./pages/Avarias'));
 const Pendencias = lazy(() => import('./pages/Pendencias'));
@@ -124,6 +126,38 @@ export const router = createBrowserRouter([
         </div>
       }>
         <ResetPassword />
+      </Suspense>
+    )
+  },
+
+  // 🔓 PORTAL PÚBLICO DO FORNECEDOR (sem MainLayout e sem login)
+  {
+    path: '/sourcing/fornecedor/:token',
+    element: (
+      <Suspense fallback={
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#D50000] mx-auto mb-4"></div>
+            <p className="text-gray-600">Carregando...</p>
+          </div>
+        </div>
+      }>
+        <SourcingSupplierPortal />
+      </Suspense>
+    )
+  },
+  {
+    path: '/sourcing/convite/:token',
+    element: (
+      <Suspense fallback={
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#D50000] mx-auto mb-4"></div>
+            <p className="text-gray-600">Carregando...</p>
+          </div>
+        </div>
+      }>
+        <SourcingSupplierPortal />
       </Suspense>
     )
   },
@@ -395,6 +429,18 @@ export const router = createBrowserRouter([
                     <DiscardReports />
                   </ProtectedRoute>
                 )
+              },
+              {
+                path: 'Sourcing',
+                element: (
+                  <ProtectedRoute page={PAGES.SOURCING}>
+                    <Sourcing />
+                  </ProtectedRoute>
+                )
+              },
+              {
+                path: 'sourcing',
+                element: <Navigate to="/dev/rafael/Sourcing" replace />
               }
             ]
           },
@@ -543,6 +589,7 @@ export const MENU_ID_TO_ROUTE: Record<string, string> = {
   'tire-status-change': '/dev/rafael/mudar-status',
   'data-import': '/dev/rafael/importacao',
   'tire-discard-reports': '/dev/rafael/descarte-relatorios',
+  'sourcing': '/dev/rafael/Sourcing',
   
   // Dev - Caio
   'caio': '/dev/caio',

@@ -28,7 +28,7 @@ export function getSupabaseAdmin() {
 }
 
 export function getPublicBaseUrl(request: any) {
-  if (process.env.PUBLIC_APP_URL) return process.env.PUBLIC_APP_URL.replace(/\/$/, '');
+  if (process.env.PUBLIC_APP_URL) return process.env.PUBLIC_APP_URL.trim().replace(/\/$/, '');
   if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
 
   const forwardedHost = request.headers?.['x-forwarded-host'];

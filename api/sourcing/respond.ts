@@ -8,7 +8,7 @@ import {
   sanitizeToken,
   sendJson,
   setCors
-} from './_shared';
+} from './_shared.js';
 
 function scoreProposal(valorTotal: number) {
   return Math.round(Math.max(40, 100 - Math.min(50, valorTotal / 10000)) * 10) / 10;

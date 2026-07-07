@@ -736,9 +736,14 @@ async function trySupabaseInsert(table: string, payload: Record<string, unknown>
   try {
     const supabase = createClient();
     const { error } = await supabase.from(table).insert(payload);
-    if (error) console.info(`Sourcing: insert em ${table} ignorado:`, error.message);
+    if (error) {
+      console.info(`Sourcing: insert em ${table} ignorado:`, error.message);
+      return false;
+    }
+    return true;
   } catch (error) {
     console.info(`Sourcing: insert em ${table} ignorado no modo local.`, error);
+    return false;
   }
 }
 
@@ -746,9 +751,14 @@ async function trySupabaseUpsert(table: string, payload: Record<string, unknown>
   try {
     const supabase = createClient();
     const { error } = await supabase.from(table).upsert(payload, { onConflict });
-    if (error) console.info(`Sourcing: upsert em ${table} ignorado:`, error.message);
+    if (error) {
+      console.info(`Sourcing: upsert em ${table} ignorado:`, error.message);
+      return false;
+    }
+    return true;
   } catch (error) {
     console.info(`Sourcing: upsert em ${table} ignorado no modo local.`, error);
+    return false;
   }
 }
 
@@ -1191,6 +1201,36 @@ async function appendHistory(state: SourcingState, history: SourcingHistory) {
   await trySupabaseInsert('sourcing_history', historyToRow(history));
 }
 
+export async function syncSourcingEventToSupabase(state: SourcingState, eventId: string) {
+  const event = state.events.find(item => item.id === eventId);
+  if (!event) return false;
+
+  const items = state.items.filter(item => item.sourcingEventId === eventId);
+  const links = state.eventSuppliers.filter(item => item.sourcingEventId === eventId);
+  const linkedSupplierIds = new Set(links.map(link => link.supplierId));
+  const suppliers = state.suppliers.filter(supplier => linkedSupplierIds.has(supplier.id));
+
+  if (suppliers.length) {
+    const syncedSuppliers = await trySupabaseUpsert('sourcing_suppliers', suppliers.map(supplierToRow));
+    if (!syncedSuppliers) return false;
+  }
+
+  const syncedEvent = await trySupabaseUpsert('sourcing_events', eventToRow(event));
+  if (!syncedEvent) return false;
+
+  if (items.length) {
+    const syncedItems = await trySupabaseUpsert('sourcing_event_items', items.map(itemToRow));
+    if (!syncedItems) return false;
+  }
+
+  if (links.length) {
+    const syncedLinks = await trySupabaseUpsert('sourcing_event_suppliers', links.map(eventSupplierToRow));
+    if (!syncedLinks) return false;
+  }
+
+  return true;
+}
+
 export async function createSourcingSupplier(input: SourcingSupplierInput): Promise<{ state: SourcingState; supplier: SourcingSupplier }> {
   const state = await loadSourcingState();
   const user = await getUserInfo();
@@ -1307,6 +1347,8 @@ export async function createSourcingEvent(input: SourcingEventInput): Promise<{ 
   );
 
   writeLocalState(state);
+  const linkedSuppliers = state.suppliers.filter(supplier => input.supplierIds.includes(supplier.id));
+  if (linkedSuppliers.length) await trySupabaseUpsert('sourcing_suppliers', linkedSuppliers.map(supplierToRow));
   await trySupabaseInsert('sourcing_events', eventToRow(event));
   if (items.length) await trySupabaseInsert('sourcing_event_items', items.map(itemToRow));
   if (links.length) await trySupabaseInsert('sourcing_event_suppliers', links.map(eventSupplierToRow));
@@ -1385,6 +1427,8 @@ export async function updateInviteStatus(
   );
 
   writeLocalState(state);
+  if (supplier) await trySupabaseUpsert('sourcing_suppliers', supplierToRow(supplier));
+  if (event) await trySupabaseUpsert('sourcing_events', eventToRow(event));
   await trySupabaseUpsert('sourcing_event_suppliers', eventSupplierToRow(link));
   return state;
 }

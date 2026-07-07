@@ -48,6 +48,7 @@ import {
   loadSourcingState,
   recommendSourcingSupplier,
   resolveSourcingApproval,
+  syncSourcingEventToSupabase,
   updateSourcingEvent,
   updateSourcingSupplier,
   type SourcingEvent,
@@ -546,6 +547,12 @@ export function Sourcing() {
   async function handleSendSupplierInvite(eventSupplierId: string) {
     setSendingInviteId(eventSupplierId);
     try {
+      const link = state?.eventSuppliers.find(item => item.id === eventSupplierId);
+      if (state && link) {
+        const synced = await syncSourcingEventToSupabase(state, link.sourcingEventId);
+        if (!synced) throw new Error('Nao foi possivel sincronizar o evento no Supabase antes do envio.');
+      }
+
       const response = await fetch('/api/sourcing/send-invite', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -571,6 +578,11 @@ export function Sourcing() {
   async function handleSendEventInvites(eventId: string) {
     setSendingInviteId(eventId);
     try {
+      if (state) {
+        const synced = await syncSourcingEventToSupabase(state, eventId);
+        if (!synced) throw new Error('Nao foi possivel sincronizar o evento no Supabase antes do envio.');
+      }
+
       const response = await fetch('/api/sourcing/send-invite', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

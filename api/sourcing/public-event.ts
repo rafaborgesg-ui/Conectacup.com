@@ -1,4 +1,4 @@
-import { appendSourcingHistory, getSupabaseAdmin, sanitizeToken, sendJson, setCors } from './_shared';
+import { appendSourcingHistory, getSupabaseAdmin, sanitizeToken, sendJson, setCors } from './_shared.js';
 
 export default async function handler(request: any, response: any) {
   setCors(response, 'GET, OPTIONS');

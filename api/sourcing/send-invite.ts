@@ -9,7 +9,7 @@ import {
   readBody,
   sendJson,
   setCors
-} from './_shared';
+} from './_shared.js';
 
 function buildEmail(params: {
   event: any;

@@ -136,8 +136,8 @@ export default async function handler(request: any, response: any) {
 
     const eventsById = new Map((eventsResult.data || []).map((event: any) => [event.id, event]));
     const suppliersById = new Map((suppliersResult.data || []).map((supplier: any) => [supplier.id, supplier]));
-    const resendApiKey = process.env.RESEND_API_KEY;
-    const fromEmail = process.env.SOURCING_FROM_EMAIL || process.env.RESEND_FROM_EMAIL || 'ConectaCup Sourcing <onboarding@resend.dev>';
+    const resendApiKey = process.env.RESEND_API_KEY?.trim();
+    const fromEmail = (process.env.SOURCING_FROM_EMAIL || process.env.RESEND_FROM_EMAIL || 'ConectaCup Sourcing <onboarding@resend.dev>').trim();
     const results = [];
 
     for (const link of links) {

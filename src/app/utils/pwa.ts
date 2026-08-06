@@ -4,9 +4,24 @@
  * Registra o Service Worker
  */
 export async function registerServiceWorker() {
-  // 🔴 DESABILITADO TEMPORARIAMENTE PARA DEBUG OAUTH
-  // O Service Worker está causando erros MIME type que atrapalham o debug
-  console.log('⚠️ Service Worker DESABILITADO temporariamente (debug OAuth)');
+  // Service Worker desabilitado. Mantemos a limpeza para remover versões antigas
+  // que ainda possam estar controlando navegadores/coletor após novos deploys.
+  try {
+    if ('serviceWorker' in navigator) {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(registrations.map((registration) => registration.unregister()));
+    }
+
+    if ('caches' in window) {
+      const cacheNames = await caches.keys();
+      await Promise.all(cacheNames.map((cacheName) => caches.delete(cacheName)));
+    }
+
+    console.log('Service Worker desabilitado; caches antigos removidos');
+  } catch (error) {
+    console.warn('Nao foi possivel limpar Service Worker/cache antigo:', error);
+  }
+
   return;
   
   // Não tenta registrar em ambientes de preview/desenvolvimento

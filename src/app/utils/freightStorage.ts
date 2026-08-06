@@ -121,6 +121,7 @@ export interface FreightLookupOption {
   label: string;
   value: string;
   metadata?: Record<string, unknown>;
+  source?: 'freight_master_options' | 'setor' | 'projeto';
 }
 
 export interface FreightLookups {
@@ -903,7 +904,8 @@ export async function getFreightLookups(): Promise<FreightLookups> {
         id: row.id,
         label: row.label,
         value: row.value,
-        metadata: row.metadata || {}
+        metadata: row.metadata || {},
+        source: 'freight_master_options'
       }));
 
   const freightSetores = byCategory('setor_frete');
@@ -912,13 +914,15 @@ export async function getFreightLookups(): Promise<FreightLookups> {
     id: row.id,
     label: row.descricao ? `${row.setor} - ${row.descricao}` : row.setor,
     value: row.setor,
-    metadata: { descricao: row.descricao, responsavel: row.responsavel }
+    metadata: { descricao: row.descricao, responsavel: row.responsavel },
+    source: 'setor'
   }));
   const fallbackProjetos = (projetosResult.data || []).map((row: any) => ({
     id: row.id,
     label: row.descricao ? `${row.projeto} - ${row.descricao}` : row.projeto,
     value: row.projeto,
-    metadata: { descricao: row.descricao }
+    metadata: { descricao: row.descricao },
+    source: 'projeto'
   }));
 
   return {

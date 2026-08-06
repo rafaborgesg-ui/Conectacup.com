@@ -477,16 +477,18 @@ function FreightPage({ mode }: { mode: FreightMode }) {
   function updateNationalField(field: keyof typeof emptyNationalForm, value: string) {
     if (field === 'setor') {
       const option = lookups.setores.find(item => item.value === value);
-      setNationalForm(current => ({ ...current, setor: value, setorId: option?.id || '' }));
+      const setorId = option?.source === 'setor' ? option.id || '' : '';
+      setNationalForm(current => ({ ...current, setor: value, setorId }));
       return;
     }
 
     if (field === 'projeto') {
       const option = lookups.projetos.find(item => item.value === value);
+      const projetoId = option?.source === 'projeto' ? option.id || '' : '';
       setNationalForm(current => ({
         ...current,
         projeto: value,
-        projetoId: option?.id || '',
+        projetoId,
         projetoDescricao: String(option?.metadata?.descricao || '')
       }));
       return;

@@ -59,6 +59,9 @@ const PedidosPneus = lazy(() => import('./pages/PedidosPneus'));
 const PitlaneRFID = lazy(() => import('./pages/PitlaneRFID').then(m => ({ default: m.PitlaneRFID })));
 const Sourcing = lazy(() => import('./pages/Sourcing').then(m => ({ default: m.Sourcing })));
 const SourcingSupplierPortal = lazy(() => import('./pages/SourcingSupplierPortal').then(m => ({ default: m.SourcingSupplierPortal })));
+const FreightNational = lazy(() => import('./pages/Freight').then(m => ({ default: m.FreightNational })));
+const FreightDriver = lazy(() => import('./pages/Freight').then(m => ({ default: m.FreightDriver })));
+const FreightInternational = lazy(() => import('./pages/Freight').then(m => ({ default: m.FreightInternational })));
 const RodasDashboard = lazy(() => import('./pages/RodasDashboard').then(m => ({ default: m.RodasDashboard })));
 const Avarias = lazy(() => import('./pages/Avarias'));
 const Pendencias = lazy(() => import('./pages/Pendencias'));
@@ -171,6 +174,44 @@ export const router = createBrowserRouter([
       {
         index: true,
         element: <Welcome />
+      },
+
+      // 🚚 SOLICITAÇÃO DE FRETE
+      {
+        path: 'frete',
+        children: [
+          { index: true, element: <Navigate to="/frete/nacional/web" replace /> },
+          {
+            path: 'nacional',
+            children: [
+              { index: true, element: <Navigate to="/frete/nacional/web" replace /> },
+              {
+                path: 'web',
+                element: (
+                  <ProtectedRoute page={PAGES.FRETE_WEB}>
+                    <FreightNational />
+                  </ProtectedRoute>
+                )
+              },
+              {
+                path: 'smartphone',
+                element: (
+                  <ProtectedRoute page={PAGES.FRETE_SMARTPHONE}>
+                    <FreightDriver />
+                  </ProtectedRoute>
+                )
+              }
+            ]
+          },
+          {
+            path: 'internacional',
+            element: (
+              <ProtectedRoute page={PAGES.FRETE_INTERNACIONAL}>
+                <FreightInternational />
+              </ProtectedRoute>
+            )
+          }
+        ]
       },
 
       // 📦 PNEUS
@@ -590,6 +631,13 @@ export const MENU_ID_TO_ROUTE: Record<string, string> = {
   'data-import': '/dev/rafael/importacao',
   'tire-discard-reports': '/dev/rafael/descarte-relatorios',
   'sourcing': '/dev/rafael/Sourcing',
+
+  // Solicitação de frete
+  'solicitacao-frete': '/frete/nacional/web',
+  'frete-nacional': '/frete/nacional/web',
+  'frete-web': '/frete/nacional/web',
+  'frete-smartphone': '/frete/nacional/smartphone',
+  'frete-internacional': '/frete/internacional',
   
   // Dev - Caio
   'caio': '/dev/caio',

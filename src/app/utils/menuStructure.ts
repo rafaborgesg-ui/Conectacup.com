@@ -100,14 +100,12 @@ export const MENU_STRUCTURE: MenuItem[] = [
             id: 'frete-smartphone', 
             label: 'Smartphone', 
             icon: Smartphone, 
-            externalUrl: 'https://sites.google.com/view/motoristacup/in%C3%ADcio',
-            description: 'Acesso mobile para motoristas'
+            description: 'Fluxo interno mobile para motoristas'
           },
           { 
             id: 'frete-web', 
             label: 'Web', 
             icon: Monitor, 
-            externalUrl: 'https://script.google.com/macros/s/AKfycbxG8e_GeG9vOLBtnkv06Su-XjNGl_a2xS0R9swdyjjQZo_dnmQkegBiV3l1Z-FnzEhL/exec',
             description: 'Sistema web de frete'
           },
         ]
@@ -116,8 +114,7 @@ export const MENU_STRUCTURE: MenuItem[] = [
         id: 'frete-internacional', 
         label: 'Internacional', 
         icon: Globe, 
-        externalUrl: 'https://docs.google.com/spreadsheets/d/1-z_PLPueulEfPa7J3Owhg_mfjFKHF3nLDvRVVtyeUvQ/edit?usp=sharing',
-        description: 'Planilha de frete internacional'
+        description: 'Fluxo interno de frete internacional'
       },
     ]
   },

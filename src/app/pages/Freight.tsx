@@ -49,7 +49,7 @@ import {
 } from '../utils/freightStorage';
 
 type FreightMode = 'nacional' | 'motorista' | 'internacional';
-type TabKey = 'dashboard' | 'nova' | 'atendimento' | 'kanban' | 'relatorios';
+type TabKey = 'dashboard' | 'nova' | 'atendimento' | 'kanban' | 'motorista' | 'relatorios';
 
 const laneLabels: Record<string, string> = {
   nao_iniciado: 'Pendente',
@@ -372,7 +372,7 @@ function InfoLine({ label, value, multiline }: { label: string; value: string; m
 function FreightPage({ mode }: { mode: FreightMode }) {
   const isInternational = mode === 'internacional';
   const isDriver = mode === 'motorista';
-  const [tab, setTab] = useState<TabKey>(isInternational ? 'dashboard' : isDriver ? 'kanban' : 'dashboard');
+  const [tab, setTab] = useState<TabKey>(isInternational ? 'dashboard' : isDriver ? 'motorista' : 'dashboard');
   const [requests, setRequests] = useState<FreightRequest[]>([]);
   const [lookups, setLookups] = useState({
     setores: [] as FreightLookupOption[],
@@ -755,7 +755,8 @@ function FreightPage({ mode }: { mode: FreightMode }) {
             { id: 'dashboard', label: 'Dashboard', icon: BarChart3, visible: true },
             { id: 'nova', label: 'Nova solicitação', icon: Plus, visible: !isDriver },
             { id: 'atendimento', label: 'Atendimento', icon: CalendarClock, visible: !isInternational },
-            { id: 'kanban', label: isDriver ? 'Minhas entregas' : 'Kanban', icon: Columns3, visible: !isInternational },
+            { id: 'kanban', label: 'Kanban', icon: Columns3, visible: !isInternational },
+            { id: 'motorista', label: 'Motorista', icon: Smartphone, visible: !isInternational },
             { id: 'relatorios', label: 'Relatórios', icon: FileSpreadsheet, visible: true }
           ].filter(item => item.visible).map(item => (
             <button
@@ -847,7 +848,20 @@ function FreightPage({ mode }: { mode: FreightMode }) {
             {tab === 'kanban' && !isInternational && (
               <KanbanPanel
                 requests={filteredRequests}
-                isDriver={isDriver}
+                isDriver={false}
+                deliveryFiles={deliveryFiles}
+                setDeliveryFiles={setDeliveryFiles}
+                saving={saving}
+                onOpen={openDetails}
+                onStatus={changeStatus}
+                onDelivery={handleDeliveryPhoto}
+              />
+            )}
+
+            {tab === 'motorista' && !isInternational && (
+              <KanbanPanel
+                requests={filteredRequests}
+                isDriver={true}
                 deliveryFiles={deliveryFiles}
                 setDeliveryFiles={setDeliveryFiles}
                 saving={saving}

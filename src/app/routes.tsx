@@ -60,7 +60,6 @@ const PitlaneRFID = lazy(() => import('./pages/PitlaneRFID').then(m => ({ defaul
 const Sourcing = lazy(() => import('./pages/Sourcing').then(m => ({ default: m.Sourcing })));
 const SourcingSupplierPortal = lazy(() => import('./pages/SourcingSupplierPortal').then(m => ({ default: m.SourcingSupplierPortal })));
 const FreightNational = lazy(() => import('./pages/Freight').then(m => ({ default: m.FreightNational })));
-const FreightDriver = lazy(() => import('./pages/Freight').then(m => ({ default: m.FreightDriver })));
 const FreightInternational = lazy(() => import('./pages/Freight').then(m => ({ default: m.FreightInternational })));
 const RodasDashboard = lazy(() => import('./pages/RodasDashboard').then(m => ({ default: m.RodasDashboard })));
 const Avarias = lazy(() => import('./pages/Avarias'));
@@ -180,27 +179,20 @@ export const router = createBrowserRouter([
       {
         path: 'frete',
         children: [
-          { index: true, element: <Navigate to="/frete/nacional/web" replace /> },
+          { index: true, element: <Navigate to="/frete/nacional" replace /> },
           {
             path: 'nacional',
             children: [
-              { index: true, element: <Navigate to="/frete/nacional/web" replace /> },
               {
-                path: 'web',
+                index: true,
                 element: (
                   <ProtectedRoute page={PAGES.FRETE_WEB}>
                     <FreightNational />
                   </ProtectedRoute>
                 )
               },
-              {
-                path: 'smartphone',
-                element: (
-                  <ProtectedRoute page={PAGES.FRETE_SMARTPHONE}>
-                    <FreightDriver />
-                  </ProtectedRoute>
-                )
-              }
+              { path: 'web', element: <Navigate to="/frete/nacional" replace /> },
+              { path: 'smartphone', element: <Navigate to="/frete/nacional" replace /> }
             ]
           },
           {
@@ -633,10 +625,10 @@ export const MENU_ID_TO_ROUTE: Record<string, string> = {
   'sourcing': '/dev/rafael/Sourcing',
 
   // Solicitação de frete
-  'solicitacao-frete': '/frete/nacional/web',
-  'frete-nacional': '/frete/nacional/web',
-  'frete-web': '/frete/nacional/web',
-  'frete-smartphone': '/frete/nacional/smartphone',
+  'solicitacao-frete': '/frete/nacional',
+  'frete-nacional': '/frete/nacional',
+  'frete-web': '/frete/nacional',
+  'frete-smartphone': '/frete/nacional',
   'frete-internacional': '/frete/internacional',
   
   // Dev - Caio

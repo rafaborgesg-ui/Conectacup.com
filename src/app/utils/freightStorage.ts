@@ -706,7 +706,7 @@ async function currentUserMeta() {
 export async function getFreightLookups(): Promise<FreightLookups> {
   const [setoresResult, projetosResult, optionsResult] = await Promise.all([
     supabase.from('setor').select('id, setor, descricao, responsavel').order('setor', { ascending: true }),
-    supabase.from('projeto').select('id, projeto, descricao, temporada').order('projeto', { ascending: true }),
+    supabase.from('projeto').select('id, projeto, descricao').order('projeto', { ascending: true }),
     supabase.from('freight_master_options').select('*').eq('active', true).order('sort_order', { ascending: true })
   ]);
 
@@ -734,7 +734,7 @@ export async function getFreightLookups(): Promise<FreightLookups> {
       id: row.id,
       label: row.descricao ? `${row.projeto} - ${row.descricao}` : row.projeto,
       value: row.projeto,
-      metadata: { descricao: row.descricao, temporada: row.temporada }
+      metadata: { descricao: row.descricao }
     })),
     motoristas: byCategory('motorista'),
     veiculos: byCategory('veiculo'),
@@ -772,7 +772,7 @@ export async function getFreightRequests(filters: FreightFilters = {}): Promise<
       .from('freight_requests')
       .select('*')
       .order('created_at', { ascending: false })
-      .limit(500);
+      .limit(2000);
 
     if (filters.type) legacyQuery = legacyQuery.eq('type', filters.type);
 
@@ -817,7 +817,7 @@ export async function getFreightRequests(filters: FreightFilters = {}): Promise<
     .from('freight_requests')
     .select('*')
     .order('created_at', { ascending: false })
-    .limit(500);
+    .limit(2000);
 
   if (filters.type) query = query.eq('freight_type', filters.type);
   if (filters.status && filters.status !== 'Todos') query = query.eq('status', filters.status);

@@ -24,8 +24,6 @@ import {
   Database, 
   Shield,
   Truck,
-  Smartphone,
-  Monitor,
   Globe,
   MapPin,
   Code,
@@ -94,21 +92,7 @@ export const MENU_STRUCTURE: MenuItem[] = [
         id: 'frete-nacional',
         label: 'Nacional',
         icon: MapPin,
-        description: 'Frete nacional',
-        subItems: [
-          { 
-            id: 'frete-smartphone', 
-            label: 'Smartphone', 
-            icon: Smartphone, 
-            description: 'Fluxo interno mobile para motoristas'
-          },
-          { 
-            id: 'frete-web', 
-            label: 'Web', 
-            icon: Monitor, 
-            description: 'Sistema web de frete'
-          },
-        ]
+        description: 'Solicitação, atendimento e motorista em página única responsiva'
       },
       { 
         id: 'frete-internacional', 

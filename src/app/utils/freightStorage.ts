@@ -136,6 +136,28 @@ export interface FreightLookups {
   embalagens: FreightLookupOption[];
 }
 
+export interface FreightMasterCategory {
+  id: string;
+  label: string;
+  description: string;
+  valueLabel: string;
+  metadataFields: Array<{
+    key: string;
+    label: string;
+    placeholder?: string;
+  }>;
+}
+
+export interface FreightMasterOptionRecord {
+  id?: string;
+  category: string;
+  label: string;
+  value: string;
+  metadata?: Record<string, unknown>;
+  active?: boolean;
+  sortOrder?: number;
+}
+
 export interface FreightFilters {
   type?: FreightType;
   status?: string;
@@ -218,6 +240,143 @@ const DEFAULT_MODALIDADES: FreightLookupOption[] = [
 const DEFAULT_EMBALAGENS: FreightLookupOption[] = [
   { label: 'Palete', value: 'Palete' },
   { label: 'Caixa', value: 'Caixa' }
+];
+
+export const FREIGHT_MASTER_CATEGORIES: FreightMasterCategory[] = [
+  {
+    id: 'setor_frete',
+    label: 'Setores',
+    description: 'Setores disponíveis para novas solicitações nacionais.',
+    valueLabel: 'Código',
+    metadataFields: [{ key: 'descricao', label: 'Responsável/descrição' }]
+  },
+  {
+    id: 'projeto_frete',
+    label: 'Projetos',
+    description: 'Projetos/etapas usados no frete nacional.',
+    valueLabel: 'Código',
+    metadataFields: [{ key: 'descricao', label: 'Descrição' }]
+  },
+  {
+    id: 'endereco_recorrente',
+    label: 'Endereços recorrentes',
+    description: 'Locais usados nos campos de retirada e entrega.',
+    valueLabel: 'Nome curto',
+    metadataFields: [{ key: 'descricao', label: 'Endereço completo' }]
+  },
+  {
+    id: 'motorista',
+    label: 'Motoristas',
+    description: 'Motoristas e contatos para atendimento logístico.',
+    valueLabel: 'Nome',
+    metadataFields: [
+      { key: 'telefone', label: 'Telefone' },
+      { key: 'email', label: 'E-mail' },
+      { key: 'funcao', label: 'Função' }
+    ]
+  },
+  {
+    id: 'veiculo',
+    label: 'Veículos',
+    description: 'Veículos, placas e modelos para agendamento.',
+    valueLabel: 'Nome',
+    metadataFields: [
+      { key: 'placa', label: 'Placa' },
+      { key: 'modelo', label: 'Modelo' }
+    ]
+  },
+  {
+    id: 'fornecedor_logistica',
+    label: 'Fornecedores logística',
+    description: 'Fornecedores e e-mails recorrentes do fluxo de frete.',
+    valueLabel: 'Fornecedor',
+    metadataFields: [{ key: 'descricao', label: 'Contato/e-mail' }]
+  },
+  {
+    id: 'centro_custo',
+    label: 'Centros de custo',
+    description: 'Centros de custo importados da MasterData original.',
+    valueLabel: 'Código',
+    metadataFields: [{ key: 'descricao', label: 'Descrição' }]
+  },
+  {
+    id: 'conta_contabil',
+    label: 'Contas contábeis',
+    description: 'Contas contábeis auxiliares do processo logístico.',
+    valueLabel: 'Conta',
+    metadataFields: [{ key: 'descricao', label: 'Descrição' }]
+  },
+  {
+    id: 'ativo_logistico',
+    label: 'Ativos logísticos',
+    description: 'Ativos, veículos e carretas cadastrados para a operação.',
+    valueLabel: 'Ativo',
+    metadataFields: [
+      { key: 'modelo', label: 'Modelo' },
+      { key: 'local', label: 'Local' },
+      { key: 'sub_local', label: 'Sub-local' },
+      { key: 'coordenada', label: 'Coordenada' }
+    ]
+  },
+  {
+    id: 'posicao_estoque',
+    label: 'Posições de estoque',
+    description: 'Locais e posições auxiliares de estoque.',
+    valueLabel: 'Local',
+    metadataFields: [
+      { key: 'posicao', label: 'Posição' },
+      { key: 'coordenada', label: 'Coordenada' }
+    ]
+  },
+  {
+    id: 'portaria',
+    label: 'Portaria',
+    description: 'Contatos de portaria usados na operação.',
+    valueLabel: 'Telefone',
+    metadataFields: [{ key: 'descricao', label: 'Descrição' }]
+  },
+  {
+    id: 'horario',
+    label: 'Horários',
+    description: 'Janelas de horário importadas da MasterData.',
+    valueLabel: 'Horário',
+    metadataFields: []
+  },
+  {
+    id: 'status_nacional',
+    label: 'Status nacional',
+    description: 'Status usados no fluxo nacional.',
+    valueLabel: 'Status',
+    metadataFields: []
+  },
+  {
+    id: 'status_internacional',
+    label: 'Status internacional',
+    description: 'Status usados no fluxo internacional.',
+    valueLabel: 'Status',
+    metadataFields: []
+  },
+  {
+    id: 'tipo_frete_internacional',
+    label: 'Tipos de frete internacional',
+    description: 'Tipos/modais do formulário internacional.',
+    valueLabel: 'Tipo',
+    metadataFields: []
+  },
+  {
+    id: 'modalidade_frete',
+    label: 'Modalidades de frete',
+    description: 'Modalidades de contratação, como CIF e EXW.',
+    valueLabel: 'Modalidade',
+    metadataFields: []
+  },
+  {
+    id: 'tipo_embalagem',
+    label: 'Tipos de embalagem',
+    description: 'Embalagens usadas nos volumes internacionais.',
+    valueLabel: 'Embalagem',
+    metadataFields: []
+  }
 ];
 
 async function getSchemaMode(): Promise<FreightSchemaMode> {
@@ -520,8 +679,27 @@ function mapAttachment(row: any): FreightAttachment {
 }
 
 function requestToRow(input: Partial<FreightRequest>) {
+  const freightType = input.freightType || 'nacional';
+  const legacyPayload = buildLegacyPayload(input);
+  const origin = freightType === 'internacional'
+    ? input.enderecoOrigem || input.empresaRemetente
+    : input.enderecoRetirada;
+  const destination = freightType === 'internacional'
+    ? input.enderecoDestino || input.empresaDestinatario
+    : input.enderecoEntrega;
+  const deliveryDate = input.prazoEntrega || input.prazoDesejado;
+
   return {
-    freight_type: input.freightType,
+    type: freightType,
+    origin: nullable(origin),
+    destination: nullable(destination),
+    items: legacyPayload,
+    weight: sumWeights(input.volumes),
+    volume: (input.volumes?.length || input.items?.length) || null,
+    priority: 'normal',
+    notes: nullable(input.observacoes || input.observacoesFinais || input.observacoesLogistica),
+    delivery_date: dateOnlyOrNull(deliveryDate),
+    freight_type: freightType,
     status: input.status || 'Pendente',
     setor_id: input.setorId || null,
     setor: nullable(input.setor),
@@ -581,8 +759,13 @@ function partialRequestToRow(input: Partial<FreightRequest>) {
     }
   };
 
+  set('freightType', 'type', value => value || undefined);
   set('freightType', 'freight_type', value => value || undefined);
   set('status', 'status', value => value || undefined);
+  set('enderecoRetirada', 'origin');
+  set('enderecoEntrega', 'destination');
+  set('observacoes', 'notes');
+  set('prazoEntrega', 'delivery_date', dateOnlyOrNull);
   set('setorId', 'setor_id', value => value || null);
   set('setor', 'setor');
   set('projetoId', 'projeto_id', value => value || null);
@@ -723,19 +906,24 @@ export async function getFreightLookups(): Promise<FreightLookups> {
         metadata: row.metadata || {}
       }));
 
+  const freightSetores = byCategory('setor_frete');
+  const freightProjetos = byCategory('projeto_frete');
+  const fallbackSetores = (setoresResult.data || []).map((row: any) => ({
+    id: row.id,
+    label: row.descricao ? `${row.setor} - ${row.descricao}` : row.setor,
+    value: row.setor,
+    metadata: { descricao: row.descricao, responsavel: row.responsavel }
+  }));
+  const fallbackProjetos = (projetosResult.data || []).map((row: any) => ({
+    id: row.id,
+    label: row.descricao ? `${row.projeto} - ${row.descricao}` : row.projeto,
+    value: row.projeto,
+    metadata: { descricao: row.descricao }
+  }));
+
   return {
-    setores: (setoresResult.data || []).map((row: any) => ({
-      id: row.id,
-      label: row.descricao ? `${row.setor} - ${row.descricao}` : row.setor,
-      value: row.setor,
-      metadata: { descricao: row.descricao, responsavel: row.responsavel }
-    })),
-    projetos: (projetosResult.data || []).map((row: any) => ({
-      id: row.id,
-      label: row.descricao ? `${row.projeto} - ${row.descricao}` : row.projeto,
-      value: row.projeto,
-      metadata: { descricao: row.descricao }
-    })),
+    setores: freightSetores.length ? freightSetores : fallbackSetores,
+    projetos: freightProjetos.length ? freightProjetos : fallbackProjetos,
     motoristas: byCategory('motorista'),
     veiculos: byCategory('veiculo'),
     enderecos: byCategory('endereco_recorrente'),
@@ -762,6 +950,64 @@ export async function saveFreightMasterOption(category: string, label: string, m
       metadata: metadata || {},
       active: true
     }, { onConflict: 'category,value' });
+
+  if (error) throw error;
+}
+
+export async function getFreightMasterOptions(includeInactive = true): Promise<FreightMasterOptionRecord[]> {
+  let query = supabase
+    .from('freight_master_options')
+    .select('id, category, label, value, metadata, active, sort_order')
+    .order('category', { ascending: true })
+    .order('sort_order', { ascending: true })
+    .order('label', { ascending: true });
+
+  if (!includeInactive) query = query.eq('active', true);
+
+  const { data, error } = await query;
+  if (error) throw error;
+
+  return (data || []).map((row: any) => ({
+    id: row.id,
+    category: row.category,
+    label: row.label,
+    value: row.value,
+    metadata: row.metadata || {},
+    active: row.active !== false,
+    sortOrder: row.sort_order == null ? undefined : Number(row.sort_order)
+  }));
+}
+
+export async function saveFreightMasterOptionRecord(input: FreightMasterOptionRecord): Promise<void> {
+  const category = text(input.category);
+  const value = text(input.value || input.label);
+  const label = text(input.label || input.value);
+
+  if (!category) throw new Error('Categoria inválida.');
+  if (!value || !label) throw new Error('Informe código/valor e descrição.');
+
+  const row = {
+    category,
+    label,
+    value,
+    metadata: input.metadata || {},
+    active: input.active !== false,
+    sort_order: input.sortOrder ?? 0
+  };
+
+  const request = input.id
+    ? supabase.from('freight_master_options').update(row).eq('id', input.id)
+    : supabase.from('freight_master_options').upsert(row, { onConflict: 'category,value' });
+
+  const { error } = await request;
+  if (error) throw error;
+}
+
+export async function setFreightMasterOptionActive(id: string, active: boolean): Promise<void> {
+  const { error } = await supabase
+    .from('freight_master_options')
+    .update({ active })
+    .eq('id', id);
 
   if (error) throw error;
 }
@@ -907,6 +1153,8 @@ export async function createFreightRequest(input: CreateFreightInput): Promise<F
 
   const row = {
     ...requestToRow(input),
+    requested_by: user.id,
+    requested_by_name: nullable(input.solicitanteNome || user.name),
     created_by: user.id,
     updated_by: user.id,
     created_by_email: user.email

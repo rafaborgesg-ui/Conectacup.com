@@ -100,6 +100,13 @@ export const MENU_STRUCTURE: MenuItem[] = [
         icon: Globe, 
         description: 'Fluxo interno de frete internacional'
       },
+      {
+        id: 'frete-masterdata',
+        label: 'Masterdata Frete',
+        icon: Database,
+        adminOnly: true,
+        description: 'Cadastros dinâmicos do módulo de frete'
+      },
     ]
   },
   {
@@ -625,6 +632,7 @@ export const MENU_TO_PAGE_MAP: Record<string, string> = {
   'frete-web': 'FRETE_WEB',
   'frete-internacional': 'FRETE_INTERNACIONAL',
   'frete-nacional': 'FRETE_NACIONAL',
+  'frete-masterdata': 'MASTER_DATA',
   
   // Almoxarifado
   'almoxarifado': 'ALMOXARIFADO',

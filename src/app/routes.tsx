@@ -61,6 +61,7 @@ const Sourcing = lazy(() => import('./pages/Sourcing').then(m => ({ default: m.S
 const SourcingSupplierPortal = lazy(() => import('./pages/SourcingSupplierPortal').then(m => ({ default: m.SourcingSupplierPortal })));
 const FreightNational = lazy(() => import('./pages/Freight').then(m => ({ default: m.FreightNational })));
 const FreightInternational = lazy(() => import('./pages/Freight').then(m => ({ default: m.FreightInternational })));
+const FreightMasterData = lazy(() => import('./pages/FreightMasterData').then(m => ({ default: m.FreightMasterData })));
 const RodasDashboard = lazy(() => import('./pages/RodasDashboard').then(m => ({ default: m.RodasDashboard })));
 const Avarias = lazy(() => import('./pages/Avarias'));
 const Pendencias = lazy(() => import('./pages/Pendencias'));
@@ -200,6 +201,14 @@ export const router = createBrowserRouter([
             element: (
               <ProtectedRoute page={PAGES.FRETE_INTERNACIONAL}>
                 <FreightInternational />
+              </ProtectedRoute>
+            )
+          },
+          {
+            path: 'masterdata',
+            element: (
+              <ProtectedRoute page={PAGES.MASTER_DATA}>
+                <FreightMasterData />
               </ProtectedRoute>
             )
           }
@@ -630,6 +639,7 @@ export const MENU_ID_TO_ROUTE: Record<string, string> = {
   'frete-web': '/frete/nacional',
   'frete-smartphone': '/frete/nacional',
   'frete-internacional': '/frete/internacional',
+  'frete-masterdata': '/frete/masterdata',
   
   // Dev - Caio
   'caio': '/dev/caio',

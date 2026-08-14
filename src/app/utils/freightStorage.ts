@@ -182,6 +182,7 @@ const text = (value: unknown) => {
 };
 
 const nullable = (value: unknown) => text(value) || null;
+const requiredText = (value: unknown, fallback = 'Não informado') => text(value) || fallback;
 
 const numOrNull = (value: unknown) => {
   if (value === '' || value == null) return null;
@@ -206,9 +207,17 @@ const dateOnlyOrNull = (value: unknown) => {
 
 const onlyTruthy = (items?: string[]) => (items || []).map(item => String(item || '').trim()).filter(Boolean);
 
+const uuidOrNull = (value: unknown) => {
+  const normalized = text(value);
+  return normalized && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(normalized)
+    ? normalized
+    : null;
+};
+
 type FreightSchemaMode = 'full' | 'legacy';
 
 let schemaModeCache: FreightSchemaMode | null = null;
+const PROTOCOL_OVERFLOW_THRESHOLD = 100000;
 
 const DEFAULT_STATUS_NACIONAL: FreightLookupOption[] = [
   { label: 'Pendente', value: 'Pendente' },
@@ -292,6 +301,13 @@ export const FREIGHT_MASTER_CATEGORIES: FreightMasterCategory[] = [
     description: 'Fornecedores e e-mails recorrentes do fluxo de frete.',
     valueLabel: 'Fornecedor',
     metadataFields: [{ key: 'descricao', label: 'Contato/e-mail' }]
+  },
+  {
+    id: 'email_operacao_frete',
+    label: 'E-mails da operação',
+    description: 'Destinatários copiados nas notificações e no resumo diário de pendências.',
+    valueLabel: 'E-mail',
+    metadataFields: [{ key: 'funcao', label: 'Função', placeholder: 'Receber solicitações cadastradas' }]
   },
   {
     id: 'centro_custo',
@@ -391,6 +407,48 @@ async function getSchemaMode(): Promise<FreightSchemaMode> {
 
   schemaModeCache = coreResult.error || optionsResult.error || volumesResult.error ? 'legacy' : 'full';
   return schemaModeCache;
+}
+
+async function getNextFreightProtocol(): Promise<number | undefined> {
+  const { data, error } = await supabase
+    .from('freight_requests')
+    .select('protocol')
+    .lt('protocol', PROTOCOL_OVERFLOW_THRESHOLD)
+    .order('protocol', { ascending: false })
+    .limit(1);
+
+  if (error) {
+    console.warn('Falha ao calcular próximo protocolo de frete:', error);
+    return undefined;
+  }
+
+  const current = Number(data?.[0]?.protocol || 0);
+  return Number.isFinite(current) ? current + 1 : 1;
+}
+
+function isProtocolConflict(error: any) {
+  const message = `${error?.message || ''} ${error?.details || ''}`.toLowerCase();
+  return error?.code === '23505' && message.includes('protocol');
+}
+
+async function insertFreightRequestRow(row: Record<string, unknown>) {
+  let lastError: any;
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const nextProtocol = await getNextFreightProtocol();
+    const rowWithProtocol = nextProtocol ? { ...row, protocol: nextProtocol } : row;
+    const { data, error } = await supabase
+      .from('freight_requests')
+      .insert(rowWithProtocol)
+      .select('*')
+      .single();
+
+    if (!error) return data;
+    lastError = error;
+    if (!isProtocolConflict(error)) throw error;
+  }
+
+  throw lastError || new Error('Não foi possível gerar protocolo de frete.');
 }
 
 function protocolFromLegacyRow(row: any) {
@@ -493,8 +551,8 @@ function legacyRequestToRow(input: Partial<FreightRequest>, user: Awaited<Return
 
   return {
     type: freightType,
-    origin: nullable(origin),
-    destination: nullable(destination),
+    origin: requiredText(origin),
+    destination: requiredText(destination),
     items: payload,
     weight: sumWeights(payload.volumes),
     volume: payload.volumes.length || payload.freightItems.length || null,
@@ -702,9 +760,9 @@ function requestToRow(input: Partial<FreightRequest>) {
     delivery_date: dateOnlyOrNull(deliveryDate),
     freight_type: freightType,
     status: input.status || 'Pendente',
-    setor_id: input.setorId || null,
+    setor_id: uuidOrNull(input.setorId),
     setor: nullable(input.setor),
-    projeto_id: input.projetoId || null,
+    projeto_id: uuidOrNull(input.projetoId),
     projeto: nullable(input.projeto),
     projeto_descricao: nullable(input.projetoDescricao),
     prazo_entrega: dateOrNull(input.prazoEntrega),
@@ -767,9 +825,9 @@ function partialRequestToRow(input: Partial<FreightRequest>) {
   set('enderecoEntrega', 'destination');
   set('observacoes', 'notes');
   set('prazoEntrega', 'delivery_date', dateOnlyOrNull);
-  set('setorId', 'setor_id', value => value || null);
+  set('setorId', 'setor_id', uuidOrNull);
   set('setor', 'setor');
-  set('projetoId', 'projeto_id', value => value || null);
+  set('projetoId', 'projeto_id', uuidOrNull);
   set('projeto', 'projeto');
   set('projetoDescricao', 'projeto_descricao');
   set('prazoEntrega', 'prazo_entrega', dateOrNull);
@@ -1164,13 +1222,7 @@ export async function createFreightRequest(input: CreateFreightInput): Promise<F
     created_by_email: user.email
   };
 
-  const { data, error } = await supabase
-    .from('freight_requests')
-    .insert(row)
-    .select('*')
-    .single();
-
-  if (error) throw error;
+  const data = await insertFreightRequestRow(row);
 
   const request = mapRequest(data);
   const volumes = (input.volumes || []).filter(volume => volume.quantidade || volume.dimensoes || volume.pesoBruto || volume.tipoEmbalagem);

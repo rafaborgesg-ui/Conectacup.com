@@ -221,57 +221,6 @@ let schemaModeCache: FreightSchemaMode | null = null;
 const PROTOCOL_OVERFLOW_THRESHOLD = 100000;
 export const REQUESTED_FREIGHT_STATUS: FreightStatus = 'Solicitado';
 
-const FREIGHT_SECTOR_DESCRIPTIONS: Record<string, string> = {
-  ADE: 'ADESIVAGEM',
-  ADM: 'ADMINISTRATIVO',
-  ALM: 'ALMOXARIFADO',
-  ALN: 'ALINHAMENTO',
-  CLA: 'CLASSICOS',
-  CT1: 'CATEGORIA 1 - CARRERA',
-  CT2: 'CATEGORIA 2 - CHALLENGE',
-  CT3: 'CATEGORIA 3 - TROPHY',
-  DEM: 'DIRETORIA EVENTOS & MARKETING',
-  DOP: 'DIRETORIA DE OPERAÇÕES',
-  DPR: 'DIRETORIA PLANEJAMENTO E RELACIONAMENTO',
-  ENG: 'ENGENHARIA OFICINA',
-  ENQ: 'ENGENHARIA QUALIDADE',
-  EST: 'ESTOQUE',
-  EVT: 'EVENTOS',
-  FIN: 'FINANCEIRO',
-  FUN: 'FUNILARIA',
-  LOG: 'LOGISTICA',
-  MKT: 'MARKETING',
-  OFC: 'OFICINA',
-  PEC: 'PECAS',
-  PER: 'PLANEJAMENTO E RELACIONAMENTO',
-  PNR: 'PNEU/RODA',
-  PRE: 'PRESIDENCIA',
-  PWT: 'POWERTRAIN',
-  RED: 'RECUPERAÇÃO E DESENVOLVIMENTO',
-  REV: 'REVISAO',
-  RHU: 'RECURSOS HUMANOS'
-};
-
-function freightSectorCode(value: unknown) {
-  const normalized = text(value)?.toUpperCase() || '';
-  return normalized.split(/\s+-\s+|\s+/)[0]?.replace(/[^A-Z0-9]/g, '') || '';
-}
-
-function freightSectorLabel(option: FreightLookupOption) {
-  const code = freightSectorCode(option.value || option.label);
-  const description = FREIGHT_SECTOR_DESCRIPTIONS[code];
-  return description ? `${code} - ${description}` : option.label || option.value;
-}
-
-function normalizeFreightSectorOption(option: FreightLookupOption): FreightLookupOption {
-  const code = freightSectorCode(option.value || option.label);
-  return {
-    ...option,
-    label: freightSectorLabel(option),
-    value: code || option.value
-  };
-}
-
 export function normalizeFreightStatus(status?: string | null): FreightStatus {
   const normalized = String(status || REQUESTED_FREIGHT_STATUS)
     .normalize('NFD')
@@ -1042,7 +991,7 @@ export async function getFreightLookups(): Promise<FreightLookups> {
         source: 'freight_master_options'
       }));
 
-  const freightSetores = byCategory('setor_frete').map(normalizeFreightSectorOption);
+  const freightSetores = byCategory('setor_frete');
   const freightProjetos = byCategory('projeto_frete');
   const normalizeStatusOptions = (items: FreightLookupOption[], fallback: FreightLookupOption[]) => {
     const seen = new Set<string>();
@@ -1061,7 +1010,7 @@ export async function getFreightLookups(): Promise<FreightLookups> {
         return true;
       });
   };
-  const fallbackSetores = (setoresResult.data || []).map((row: any) => normalizeFreightSectorOption({
+  const fallbackSetores = (setoresResult.data || []).map((row: any) => ({
     id: row.id,
     label: row.descricao ? `${row.setor} - ${row.descricao}` : row.setor,
     value: row.setor,

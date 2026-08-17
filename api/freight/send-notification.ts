@@ -2,6 +2,7 @@ import {
   buildFreightEmail,
   buildFreightRecipients,
   getFreightOperationRecipients,
+  getFreightRecurringAddresses,
   getSupabaseAdmin,
   logFreightEmail,
   normalizeFreightRequest,
@@ -56,13 +57,17 @@ export default async function handler(request: any, response: any) {
       .maybeSingle();
 
     const normalizedRequest = normalizeFreightRequest(freightRequest);
-    const operationRecipients = await getFreightOperationRecipients(supabase);
+    const [operationRecipients, recurringAddresses] = await Promise.all([
+      getFreightOperationRecipients(supabase),
+      getFreightRecurringAddresses(supabase)
+    ]);
     const { to, cc } = buildFreightRecipients(normalizedRequest, operationRecipients);
     const { subject, html, text } = buildFreightEmail(normalizedRequest, eventType, {
       latestHistory,
       previousStatus: body.previousStatus,
       changedByEmail: body.changedByEmail,
-      comment: body.comment
+      comment: body.comment,
+      recurringAddresses
     });
     const result = await sendFreightEmail({ to, cc, subject, html, text });
 

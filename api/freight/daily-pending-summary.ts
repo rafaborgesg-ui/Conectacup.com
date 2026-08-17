@@ -21,7 +21,7 @@ function isPendingRequest(request: any) {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase();
-  return normalized === 'pendente' || normalized.includes('aguardando') || normalized.includes('cotacao');
+  return normalized === 'pendente' || normalized.includes('solicitad') || normalized.includes('aguardando') || normalized.includes('cotacao');
 }
 
 export default async function handler(request: any, response: any) {
@@ -94,6 +94,6 @@ export default async function handler(request: any, response: any) {
       warning: result.warning
     });
   } catch (error: any) {
-    sendJson(response, 500, { error: error.message || 'Erro ao enviar resumo diário de pendências.' });
+    sendJson(response, 500, { error: error.message || 'Erro ao enviar resumo diário de solicitações.' });
   }
 }

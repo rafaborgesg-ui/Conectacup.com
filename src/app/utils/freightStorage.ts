@@ -2,6 +2,7 @@ import { createClient, getCurrentUser } from './supabase/client';
 
 export type FreightType = 'nacional' | 'internacional';
 export type FreightStatus =
+  | 'Solicitado'
   | 'Pendente'
   | 'Agendado'
   | 'Em Rota'
@@ -218,16 +219,40 @@ type FreightSchemaMode = 'full' | 'legacy';
 
 let schemaModeCache: FreightSchemaMode | null = null;
 const PROTOCOL_OVERFLOW_THRESHOLD = 100000;
+export const REQUESTED_FREIGHT_STATUS: FreightStatus = 'Solicitado';
+
+export function normalizeFreightStatus(status?: string | null): FreightStatus {
+  const normalized = String(status || REQUESTED_FREIGHT_STATUS)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+
+  if (!normalized || normalized.includes('pendente') || normalized.includes('solicitad')) return REQUESTED_FREIGHT_STATUS;
+  if (normalized.includes('cancel')) return 'Cancelado';
+  if (normalized.includes('concl') || normalized.includes('entreg')) return 'Concluído';
+  if (normalized.includes('desembaraco')) return 'Desembaraço';
+  if (normalized.includes('em rota')) return 'Em Rota';
+  if (normalized.includes('em transito') || normalized === 'em_transito') return normalized === 'em_transito' ? 'Em Rota' : 'Em trânsito';
+  if (normalized.includes('aguardando coleta')) return 'Aguardando coleta';
+  if (normalized.includes('cotacao')) return 'Em cotação';
+  if (normalized.includes('agend') || normalized.includes('aprov')) return 'Agendado';
+  return REQUESTED_FREIGHT_STATUS;
+}
+
+export function isRequestedFreightStatus(status?: string | null) {
+  return normalizeFreightStatus(status) === REQUESTED_FREIGHT_STATUS;
+}
 
 const DEFAULT_STATUS_NACIONAL: FreightLookupOption[] = [
-  { label: 'Pendente', value: 'Pendente' },
+  { label: REQUESTED_FREIGHT_STATUS, value: REQUESTED_FREIGHT_STATUS },
   { label: 'Agendado', value: 'Agendado' },
   { label: 'Em Rota', value: 'Em Rota' },
   { label: 'Concluído', value: 'Concluído' }
 ];
 
 const DEFAULT_STATUS_INTERNACIONAL: FreightLookupOption[] = [
-  { label: 'Pendente', value: 'Pendente' },
+  { label: REQUESTED_FREIGHT_STATUS, value: REQUESTED_FREIGHT_STATUS },
   { label: 'Em cotação', value: 'Em cotação' },
   { label: 'Aguardando coleta', value: 'Aguardando coleta' },
   { label: 'Em trânsito', value: 'Em trânsito' },
@@ -517,7 +542,7 @@ function sumWeights(volumes?: FreightVolume[]) {
 }
 
 function legacyDbStatus(status?: string) {
-  const normalized = String(status || 'Pendente')
+  const normalized = String(status || REQUESTED_FREIGHT_STATUS)
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase();
@@ -535,7 +560,7 @@ function uiStatusFromLegacyDb(status?: string): FreightStatus {
   if (normalized === 'entregue') return 'Concluído';
   if (normalized === 'em_transito') return 'Em Rota';
   if (normalized === 'aprovado') return 'Agendado';
-  return 'Pendente';
+  return REQUESTED_FREIGHT_STATUS;
 }
 
 function legacyRequestToRow(input: Partial<FreightRequest>, user: Awaited<ReturnType<typeof currentUserMeta>>, previousRaw?: any) {
@@ -575,7 +600,7 @@ function mapLegacyRequest(row: any): FreightRequest {
     id: row.id,
     protocol: protocolFromLegacyRow(row),
     freightType,
-    status: data.status || uiStatusFromLegacyDb(row.status),
+    status: normalizeFreightStatus(data.status || uiStatusFromLegacyDb(row.status)),
     setorId: data.setorId,
     setor: data.setor,
     projetoId: data.projetoId,
@@ -641,7 +666,7 @@ function mapRequest(row: any): FreightRequest {
     id: row.id,
     protocol: Number(row.protocol || 0),
     freightType: row.freight_type || 'nacional',
-    status: row.status || 'Pendente',
+    status: normalizeFreightStatus(row.status),
     setorId: row.setor_id || undefined,
     setor: row.setor || undefined,
     projetoId: row.projeto_id || undefined,
@@ -759,7 +784,7 @@ function requestToRow(input: Partial<FreightRequest>) {
     notes: nullable(input.observacoes || input.observacoesFinais || input.observacoesLogistica),
     delivery_date: dateOnlyOrNull(deliveryDate),
     freight_type: freightType,
-    status: input.status || 'Pendente',
+    status: normalizeFreightStatus(input.status),
     setor_id: uuidOrNull(input.setorId),
     setor: nullable(input.setor),
     projeto_id: uuidOrNull(input.projetoId),
@@ -820,7 +845,7 @@ function partialRequestToRow(input: Partial<FreightRequest>) {
 
   set('freightType', 'type', value => value || undefined);
   set('freightType', 'freight_type', value => value || undefined);
-  set('status', 'status', value => value || undefined);
+  set('status', 'status', value => normalizeFreightStatus(String(value || REQUESTED_FREIGHT_STATUS)));
   set('enderecoRetirada', 'origin');
   set('enderecoEntrega', 'destination');
   set('observacoes', 'notes');
@@ -968,6 +993,23 @@ export async function getFreightLookups(): Promise<FreightLookups> {
 
   const freightSetores = byCategory('setor_frete');
   const freightProjetos = byCategory('projeto_frete');
+  const normalizeStatusOptions = (items: FreightLookupOption[], fallback: FreightLookupOption[]) => {
+    const seen = new Set<string>();
+    return (items.length ? items : fallback)
+      .map(option => {
+        const status = normalizeFreightStatus(option.value || option.label);
+        return {
+          ...option,
+          label: status,
+          value: status
+        };
+      })
+      .filter(option => {
+        if (seen.has(option.value)) return false;
+        seen.add(option.value);
+        return true;
+      });
+  };
   const fallbackSetores = (setoresResult.data || []).map((row: any) => ({
     id: row.id,
     label: row.descricao ? `${row.setor} - ${row.descricao}` : row.setor,
@@ -989,8 +1031,8 @@ export async function getFreightLookups(): Promise<FreightLookups> {
     motoristas: byCategory('motorista'),
     veiculos: byCategory('veiculo'),
     enderecos: byCategory('endereco_recorrente'),
-    statusNacional: byCategory('status_nacional').length ? byCategory('status_nacional') : DEFAULT_STATUS_NACIONAL,
-    statusInternacional: byCategory('status_internacional').length ? byCategory('status_internacional') : DEFAULT_STATUS_INTERNACIONAL,
+    statusNacional: normalizeStatusOptions(byCategory('status_nacional'), DEFAULT_STATUS_NACIONAL),
+    statusInternacional: normalizeStatusOptions(byCategory('status_internacional'), DEFAULT_STATUS_INTERNACIONAL),
     tiposFrete: byCategory('tipo_frete_internacional').length ? byCategory('tipo_frete_internacional') : DEFAULT_TIPOS_FRETE,
     modalidades: byCategory('modalidade_frete').length ? byCategory('modalidade_frete') : DEFAULT_MODALIDADES,
     embalagens: byCategory('tipo_embalagem').length ? byCategory('tipo_embalagem') : DEFAULT_EMBALAGENS
@@ -1089,10 +1131,10 @@ export async function getFreightRequests(filters: FreightFilters = {}): Promise<
 
     let rows = (data || []).map(mapLegacyRequest);
     if (filters.status && filters.status !== 'Todos') {
-      rows = rows.filter(request => request.status === filters.status);
+      rows = rows.filter(request => normalizeFreightStatus(request.status) === normalizeFreightStatus(filters.status));
     }
     if (filters.onlyPending) {
-      rows = rows.filter(request => request.status === 'Pendente');
+      rows = rows.filter(request => isRequestedFreightStatus(request.status));
     }
     if (filters.motorista && filters.motorista !== 'TODOS') {
       const motorista = filters.motorista.toLowerCase();
@@ -1128,8 +1170,11 @@ export async function getFreightRequests(filters: FreightFilters = {}): Promise<
     .limit(2000);
 
   if (filters.type) query = query.eq('freight_type', filters.type);
-  if (filters.status && filters.status !== 'Todos') query = query.eq('status', filters.status);
-  if (filters.onlyPending) query = query.eq('status', 'Pendente');
+  if (filters.status && filters.status !== 'Todos') {
+    const status = normalizeFreightStatus(filters.status);
+    query = isRequestedFreightStatus(status) ? query.in('status', [REQUESTED_FREIGHT_STATUS, 'Pendente']) : query.eq('status', status);
+  }
+  if (filters.onlyPending) query = query.in('status', [REQUESTED_FREIGHT_STATUS, 'Pendente']);
   if (filters.motorista && filters.motorista !== 'TODOS') query = query.ilike('motorista', `%${filters.motorista}%`);
 
   const { data, error } = await query;
@@ -1190,7 +1235,7 @@ export async function createFreightRequest(input: CreateFreightInput): Promise<F
       id: crypto.randomUUID(),
       freightRequestId: '',
       action: 'created',
-      newStatus: input.status || 'Pendente',
+      newStatus: normalizeFreightStatus(input.status),
       comment: `Solicitação ${input.freightType} criada.`,
       changedAt: new Date().toISOString(),
       changedByEmail: user.email || undefined

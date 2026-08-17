@@ -33,6 +33,7 @@ import {
   getFreightHistory,
   getFreightLookups,
   getFreightRequests,
+  isRequestedFreightStatus,
   replaceFreightCollections,
   saveFreightMasterOption,
   sendFreightNotification,
@@ -60,7 +61,7 @@ const laneLabels: Record<string, string> = {
 const laneOrder = ['nao_iniciado', 'em_andamento', 'em_rota', 'finalizado'];
 
 const laneTargetStatus: Record<string, FreightStatus> = {
-  nao_iniciado: 'Pendente',
+  nao_iniciado: 'Solicitado',
   em_andamento: 'Agendado',
   em_rota: 'Em Rota',
   finalizado: 'Concluído'
@@ -89,8 +90,8 @@ const laneStyles: Record<string, { border: string; bg: string; soft: string }> =
   }
 };
 
-const statusOptionsNational: FreightStatus[] = ['Pendente', 'Agendado', 'Em Rota', 'Concluído', 'Cancelado'];
-const statusOptionsInternational: FreightStatus[] = ['Pendente', 'Em cotação', 'Aguardando coleta', 'Em trânsito', 'Desembaraço', 'Concluído', 'Cancelado'];
+const statusOptionsNational: FreightStatus[] = ['Solicitado', 'Agendado', 'Em Rota', 'Concluído', 'Cancelado'];
+const statusOptionsInternational: FreightStatus[] = ['Solicitado', 'Em cotação', 'Aguardando coleta', 'Em trânsito', 'Desembaraço', 'Concluído', 'Cancelado'];
 
 const emptyNationalForm = {
   setor: '',
@@ -555,6 +556,7 @@ function FreightPage({ mode }: { mode: FreightMode }) {
     embalagens: [] as FreightLookupOption[]
   });
   const [filters, setFilters] = useState({ search: '', status: 'Todos', motorista: 'TODOS', setor: '', projeto: '', protocolo: '', dateFrom: '', dateTo: '' });
+  const [kanbanFiltersOpen, setKanbanFiltersOpen] = useState(true);
   const [selected, setSelected] = useState<FreightRequest | null>(null);
   const [history, setHistory] = useState<FreightHistory[]>([]);
   const [loading, setLoading] = useState(true);
@@ -639,7 +641,7 @@ function FreightPage({ mode }: { mode: FreightMode }) {
     const source = filteredRequests;
     return {
       total: source.length,
-      pendente: source.filter(item => item.status === 'Pendente').length,
+      pendente: source.filter(item => isRequestedFreightStatus(item.status)).length,
       agendado: source.filter(item => ['Agendado', 'Em cotação', 'Aguardando coleta'].includes(item.status)).length,
       rota: source.filter(item => ['Em Rota', 'Em trânsito', 'Desembaraço'].includes(item.status)).length,
       concluido: source.filter(item => item.status === 'Concluído').length
@@ -685,7 +687,7 @@ function FreightPage({ mode }: { mode: FreightMode }) {
     try {
       const created = await createFreightRequest({
         freightType: 'nacional',
-        status: 'Pendente',
+        status: 'Solicitado',
         ...nationalForm,
         setorId: nationalForm.setorId || undefined,
         projetoId: nationalForm.projetoId || undefined,
@@ -718,7 +720,7 @@ function FreightPage({ mode }: { mode: FreightMode }) {
     try {
       const created = await createFreightRequest({
         freightType: 'internacional',
-        status: 'Pendente',
+        status: 'Solicitado',
         ...internationalForm,
         volumes,
         items,
@@ -927,7 +929,7 @@ function FreightPage({ mode }: { mode: FreightMode }) {
 
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
           <StatCard label="Total" value={stats.total} icon={ClipboardList} tone="bg-slate-100 text-slate-700" />
-          <StatCard label="Pendentes" value={stats.pendente} icon={AlertTriangle} tone="bg-amber-100 text-amber-700" />
+          <StatCard label="Solicitadas" value={stats.pendente} icon={AlertTriangle} tone="bg-amber-100 text-amber-700" />
           <StatCard label={isInternational ? 'Em andamento' : 'Agendados'} value={stats.agendado} icon={CalendarClock} tone="bg-blue-100 text-blue-700" />
           <StatCard label={isInternational ? 'Trânsito/desembaraço' : 'Em rota'} value={stats.rota} icon={Route} tone="bg-red-100 text-red-700" />
           <StatCard label="Concluídos" value={stats.concluido} icon={CheckCircle2} tone="bg-emerald-100 text-emerald-700" />
@@ -970,6 +972,10 @@ function FreightPage({ mode }: { mode: FreightMode }) {
             setFilters={setFilters}
             requests={requests}
             lookups={lookups}
+            filtersOpen={kanbanFiltersOpen}
+            refreshing={loading}
+            onToggleFilters={() => setKanbanFiltersOpen(current => !current)}
+            onRefresh={loadData}
           />
         ) : null}
 
@@ -1025,7 +1031,7 @@ function FreightPage({ mode }: { mode: FreightMode }) {
 
             {tab === 'atendimento' && !isInternational && (
               <AttendancePanel
-                requests={filteredRequests.filter(request => request.status === 'Pendente' || selectedIds.includes(request.id))}
+                requests={filteredRequests.filter(request => isRequestedFreightStatus(request.status) || selectedIds.includes(request.id))}
                 selectedIds={selectedIds}
                 setSelectedIds={setSelectedIds}
                 draft={scheduleDraft}
@@ -1134,12 +1140,20 @@ function FreightKanbanFilters({
   filters,
   setFilters,
   requests,
-  lookups
+  lookups,
+  filtersOpen,
+  refreshing,
+  onToggleFilters,
+  onRefresh
 }: {
   filters: any;
   setFilters: (value: any) => void;
   requests: FreightRequest[];
   lookups: any;
+  filtersOpen: boolean;
+  refreshing: boolean;
+  onToggleFilters: () => void;
+  onRefresh: () => void;
 }) {
   const motoristaCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -1182,16 +1196,28 @@ function FreightKanbanFilters({
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-base font-bold text-slate-950">Fretes Porsche Cup</h2>
         <div className="flex items-center gap-2">
-          <span className="inline-flex h-8 items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 text-xs font-semibold text-slate-700">
+          <button
+            className={`inline-flex h-8 items-center gap-2 rounded-md border px-3 text-xs font-semibold transition ${filtersOpen ? 'border-red-200 bg-red-50 text-red-700' : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'}`}
+            type="button"
+            onClick={onToggleFilters}
+          >
             Filtros
             <BarChart3 className="h-3.5 w-3.5 text-red-500" />
-          </span>
-          <span className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-slate-50 text-slate-500">
-            <RefreshCw className="h-3.5 w-3.5" />
-          </span>
+          </button>
+          <button
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-slate-50 text-slate-500 transition hover:bg-slate-100 disabled:opacity-50"
+            type="button"
+            onClick={onRefresh}
+            disabled={refreshing}
+            aria-label="Atualizar Kanban"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+          </button>
         </div>
       </div>
 
+      {filtersOpen ? (
+        <>
       <div className="mt-3">
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -1236,7 +1262,7 @@ function FreightKanbanFilters({
             type="button"
             onClick={() => update({ status: filters.status === item.status ? 'Todos' : item.status })}
           >
-            {item.status === 'Pendente' ? 'Pendente' : item.status}
+            {item.status}
             <span className="rounded-full bg-white px-2 py-0.5 text-[11px] text-red-600">{item.count}</span>
           </button>
         ))}
@@ -1264,6 +1290,8 @@ function FreightKanbanFilters({
           <button className="h-9 rounded-md bg-red-600 px-3 text-xs font-semibold text-white hover:bg-red-700" type="button" onClick={() => update({ dateFrom: '', dateTo: '' })}>Limpar</button>
         </div>
       </div>
+        </>
+      ) : null}
     </div>
   );
 }
@@ -1339,7 +1367,7 @@ function RequestsTable({
                       <Eye className="h-4 w-4" />
                       Detalhes
                     </button>
-                    {!isInternational && request.status === 'Pendente' ? (
+                    {!isInternational && isRequestedFreightStatus(request.status) ? (
                       <button className={buttonClass('dark')} onClick={() => onSchedule(request)} type="button" disabled={saving}>
                         <CalendarClock className="h-4 w-4" />
                         Agendar
@@ -1389,8 +1417,10 @@ function NationalForm({
       </div>
       <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-3">
         <Field label="Setor">
-          <input className={fieldClass()} list="freight-setores" value={form.setor} onChange={event => onChange('setor', event.target.value)} required />
-          <datalist id="freight-setores"><SelectOptionList options={lookups.setores} /></datalist>
+          <select className={fieldClass()} value={form.setor} onChange={event => onChange('setor', event.target.value)} required>
+            <option value="">Selecione...</option>
+            <SelectOptionList options={lookups.setores} />
+          </select>
         </Field>
         <Field label="Prazo de entrega">
           <input className={fieldClass()} type="datetime-local" value={form.prazoEntrega} onChange={event => onChange('prazoEntrega', event.target.value)} required />
@@ -1629,7 +1659,7 @@ function AttendancePanel({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-xl font-bold text-slate-950">Painel de Atendimento de Fretes</h2>
-            <p className="text-sm text-slate-500">Filtre, selecione em lote e programe motoristas e veículos para as entregas pendentes.</p>
+            <p className="text-sm text-slate-500">Filtre, selecione em lote e programe motoristas e veículos para as entregas solicitadas.</p>
           </div>
           <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-sm font-semibold text-slate-700">
             Entregas para programar: {filteredRequests.length}
@@ -1637,7 +1667,7 @@ function AttendancePanel({
         </div>
 
         <div className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4">
-          <h3 className="font-bold text-red-600">Filtrar Solicitações Pendentes</h3>
+          <h3 className="font-bold text-red-600">Filtrar solicitações com status Solicitado</h3>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             <Field label="Nº Protocolo">
               <input className={fieldClass()} value={attendanceFilters.protocolo} onChange={event => setAttendanceFilters(current => ({ ...current, protocolo: event.target.value }))} placeholder="ex.: 12, 15-18, #20" />
@@ -2042,6 +2072,9 @@ function FreightKanbanCard({
 
         <div className="mt-1 space-y-0.5 text-[11px] leading-5 text-slate-600">
           <p>Solicitante: {compactText(request.solicitanteNome || request.createdByEmail, 36)}</p>
+          {lane !== 'nao_iniciado' ? (
+            <p>Motorista: {compactText(request.motorista || '-', 36)}</p>
+          ) : null}
           <p>Agendamento: {formatFreightDate(request.agendamentoAt || request.prazoEntrega)}</p>
           <p>Veículo: {compactText(route || '-', 34)}</p>
         </div>

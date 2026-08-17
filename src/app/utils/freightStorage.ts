@@ -1665,6 +1665,7 @@ export function formatFreightDate(value?: string, withTime = true) {
 
 export function freightLane(status: string) {
   const normalized = status.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  if (normalized.includes('cancel')) return 'cancelado';
   if (normalized.includes('concluido')) return 'finalizado';
   if (normalized.includes('em rota') || normalized.includes('transito')) return 'em_rota';
   if (normalized.includes('agendado') || normalized.includes('cotacao') || normalized.includes('aguardando')) return 'em_andamento';

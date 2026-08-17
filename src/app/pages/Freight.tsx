@@ -387,6 +387,10 @@ function wazeAddressUrl(address: string) {
   return `https://waze.com/ul?q=${encodeURIComponent(address)}&navigate=yes`;
 }
 
+function normalizedAddressText(value?: string) {
+  return String(value || '').trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
 function resolveAddressDisplay(value?: string, options: FreightLookupOption[] = []) {
   const raw = String(value || '').trim();
   if (!raw) return { display: '-', linkTarget: '' };
@@ -407,7 +411,11 @@ function resolveAddressDisplay(value?: string, options: FreightLookupOption[] = 
 
   const fullAddress = freightAddressOptionValue(match);
   const shortName = String(match.label || match.value || '').trim();
-  const display = shortName && fullAddress && shortName.toLowerCase() !== fullAddress.toLowerCase()
+  const normalizedShortName = normalizedAddressText(shortName);
+  const normalizedFullAddress = normalizedAddressText(fullAddress);
+  const display = shortName && fullAddress && normalizedShortName.includes(normalizedFullAddress)
+    ? shortName
+    : shortName && fullAddress && normalizedShortName !== normalizedFullAddress
     ? `${shortName} - ${fullAddress}`
     : fullAddress || shortName || raw;
 

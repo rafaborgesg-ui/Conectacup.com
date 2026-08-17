@@ -475,6 +475,20 @@ function nationalEditFormFromRequest(request: FreightRequest): typeof emptyNatio
   };
 }
 
+function freightDeadlineInfo(request: FreightRequest) {
+  if (isRequestedFreightStatus(request.status)) {
+    return {
+      label: 'Prazo',
+      value: request.prazoEntrega || request.prazoDesejado
+    };
+  }
+
+  return {
+    label: 'Agendamento',
+    value: request.agendamentoAt
+  };
+}
+
 function DetailDrawer({
   request,
   history,
@@ -524,6 +538,7 @@ function DetailDrawer({
   const imageMedia = media.filter(file => file.isImage);
   const documentMedia = media.filter(file => !file.isImage);
   const detailRouteEstimates = detailRouteEstimate ? { [request.id]: detailRouteEstimate } : {};
+  const deadlineInfo = freightDeadlineInfo(request);
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/30">
@@ -543,7 +558,7 @@ function DetailDrawer({
         <div className="space-y-5 p-6">
           <div className="grid gap-3 md:grid-cols-4">
             <InfoBox label="Status" value={request.status} />
-            <InfoBox label="Agendamento" value={formatFreightDate(request.agendamentoAt)} />
+            <InfoBox label={deadlineInfo.label} value={formatFreightDate(deadlineInfo.value)} />
             <InfoBox label="Motorista" value={request.motorista || '-'} />
             <InfoBox label="Veículo" value={[request.veiculo, request.placa].filter(Boolean).join(' - ') || '-'} />
           </div>
@@ -1336,7 +1351,6 @@ function FreightPage({ mode }: { mode: FreightMode }) {
                 onOpen={openDetails}
                 onEdit={openEditRequest}
                 onSchedule={startSchedule}
-                onStatus={changeStatus}
                 saving={saving}
               />
             )}
@@ -1657,7 +1671,6 @@ function RequestsTable({
   onOpen,
   onEdit,
   onSchedule,
-  onStatus,
   saving
 }: {
   requests: FreightRequest[];
@@ -1666,7 +1679,6 @@ function RequestsTable({
   onOpen: (request: FreightRequest) => void;
   onEdit: (request: FreightRequest) => void;
   onSchedule: (request: FreightRequest) => void;
-  onStatus: (request: FreightRequest, status: FreightStatus) => void;
   saving: boolean;
 }) {
   return (
@@ -1748,9 +1760,6 @@ function RequestsTable({
                         Agendar
                       </button>
                     ) : null}
-                    <select className="h-10 rounded-md border border-slate-200 bg-white px-2 text-sm" value={request.status} onChange={event => onStatus(request, event.target.value as FreightStatus)} disabled={saving}>
-                      {(isInternational ? statusOptionsInternational : statusOptionsNational).map(status => <option key={status}>{status}</option>)}
-                    </select>
                   </div>
                 </td>
               </tr>
@@ -2471,7 +2480,7 @@ function KanbanPanel({
               <div>
                 <div className="text-lg font-bold text-slate-950">{formatProtocol(request)}</div>
                 <div className="text-sm font-semibold text-slate-700">{request.setor || '-'} · {request.projeto || '-'}</div>
-                <div className="text-sm text-slate-500">{formatFreightDate(request.agendamentoAt || request.prazoEntrega)}</div>
+                <div className="text-sm text-slate-500">{formatFreightDate(freightDeadlineInfo(request).value)}</div>
               </div>
               <span className={`rounded-full border px-2 py-1 text-xs font-semibold ${statusBadgeClass(request.status)}`}>{request.status}</span>
             </div>
@@ -2592,10 +2601,11 @@ function FreightKanbanCard({
   const route = [request.veiculo, request.placa].filter(Boolean).join(' · ');
   const project = request.projeto || request.projetoDescricao || '-';
   const isRequestedCard = lane === 'nao_iniciado' || isRequestedFreightStatus(request.status);
-  const dateLabel = isRequestedCard ? 'Prazo' : 'Agendamento';
+  const deadlineInfo = freightDeadlineInfo(request);
+  const dateLabel = isRequestedCard ? 'Prazo' : deadlineInfo.label;
   const dateValue = isRequestedCard
     ? request.prazoEntrega || request.prazoDesejado
-    : request.agendamentoAt || request.prazoEntrega || request.prazoDesejado;
+    : deadlineInfo.value;
 
   return (
     <article

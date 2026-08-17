@@ -356,7 +356,7 @@ export function buildFreightEmail(rawRequest: any, eventType: string, context: R
     { label: 'Solicitante', text: requester },
     { label: 'Atualizado por', text: updatedBy },
     { label: 'Última atualização em', text: formatFreightDateTime(updatedAt) },
-    { label: 'Material / necessidade', text: item },
+    { label: 'Descreva as quantidades e itens a serem transportados', text: item },
     { label: isInternational ? 'Endereço de origem' : 'Endereço de retirada', text: origin.text, html: origin.html },
     { label: isInternational ? 'Endereço de destino' : 'Endereço de entrega', text: destination.text, html: destination.html }
   );

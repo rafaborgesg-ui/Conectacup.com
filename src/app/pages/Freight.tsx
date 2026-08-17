@@ -541,8 +541,8 @@ function DetailDrawer({
   const deadlineInfo = freightDeadlineInfo(request);
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/30">
-      <div className="h-full w-full max-w-3xl overflow-y-auto bg-white shadow-2xl">
+    <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/30" onClick={onClose}>
+      <div className="h-full w-full max-w-3xl overflow-y-auto bg-white shadow-2xl" onClick={event => event.stopPropagation()}>
         <div className="sticky top-0 z-10 flex items-start justify-between border-b border-slate-200 bg-white px-6 py-5">
           <div>
             <p className="text-sm font-semibold text-red-600">{formatProtocol(request)}</p>
@@ -584,7 +584,7 @@ function DetailDrawer({
           </section>
 
           {request.freightType !== 'internacional' ? (
-            <RouteEstimatePanel selectedRequests={[request]} estimates={detailRouteEstimates} />
+            <RouteEstimatePanel selectedRequests={[request]} estimates={detailRouteEstimates} showProtocol={false} />
           ) : null}
 
           {(request.volumes?.length || request.items?.length) ? (
@@ -2396,10 +2396,12 @@ function MultiSelectList({
 
 function RouteEstimatePanel({
   selectedRequests,
-  estimates
+  estimates,
+  showProtocol = true
 }: {
   selectedRequests: FreightRequest[];
   estimates: Record<string, RouteEstimate>;
+  showProtocol?: boolean;
 }) {
   return (
     <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
@@ -2417,8 +2419,8 @@ function RouteEstimatePanel({
             const estimate = estimates[request.id] || { status: 'loading' as const, origin: request.enderecoRetirada, destination: request.enderecoEntrega };
             return (
               <div key={request.id} className="rounded-md border border-slate-200 bg-white p-3 text-sm">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="font-bold text-slate-950">{formatProtocol(request)}</span>
+                <div className={`flex flex-wrap items-center gap-2 ${showProtocol ? 'justify-between' : 'justify-end'}`}>
+                  {showProtocol ? <span className="font-bold text-slate-950">{formatProtocol(request)}</span> : null}
                   <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-semibold text-slate-500">
                     {routeProviderLabel(estimate.provider, estimate.status)}
                   </span>

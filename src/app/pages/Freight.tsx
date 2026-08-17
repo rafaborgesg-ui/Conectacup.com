@@ -367,6 +367,41 @@ function freightAddressOptionValue(option: FreightLookupOption) {
   ].map(item => String(item || '').trim()).find(Boolean) || option.value;
 }
 
+function googleMapsAddressUrl(address: string) {
+  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address)}`;
+}
+
+function wazeAddressUrl(address: string) {
+  return `https://waze.com/ul?q=${encodeURIComponent(address)}&navigate=yes`;
+}
+
+function resolveAddressDisplay(value?: string, options: FreightLookupOption[] = []) {
+  const raw = String(value || '').trim();
+  if (!raw) return { display: '-', linkTarget: '' };
+
+  const match = options.find(option => {
+    const metadata = option.metadata || {};
+    return [
+      option.value,
+      option.label,
+      metadata.valor,
+      metadata.endereco,
+      metadata.address,
+      metadata.descricao
+    ].some(candidate => String(candidate || '').trim().toLowerCase() === raw.toLowerCase());
+  });
+
+  if (!match) return { display: raw, linkTarget: raw };
+
+  const fullAddress = freightAddressOptionValue(match);
+  const shortName = String(match.label || match.value || '').trim();
+  const display = shortName && fullAddress && shortName.toLowerCase() !== fullAddress.toLowerCase()
+    ? `${shortName} - ${fullAddress}`
+    : fullAddress || shortName || raw;
+
+  return { display, linkTarget: fullAddress || raw };
+}
+
 function SelectAddressOptionList({ options }: { options: FreightLookupOption[] }) {
   return (
     <>
@@ -385,25 +420,52 @@ function SelectAddressOptionList({ options }: { options: FreightLookupOption[] }
 function DetailDrawer({
   request,
   history,
+  addressOptions,
   onClose,
   onSaveObservation
 }: {
   request: FreightRequest | null;
   history: FreightHistory[];
+  addressOptions: FreightLookupOption[];
   onClose: () => void;
   onSaveObservation: (value: string) => Promise<void>;
 }) {
   const [obs, setObs] = useState('');
+  const [detailRouteEstimate, setDetailRouteEstimate] = useState<RouteEstimate | null>(null);
 
   useEffect(() => {
     setObs(request?.observacoesLogistica || '');
   }, [request?.id]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!request || request.freightType === 'internacional') {
+      setDetailRouteEstimate(null);
+      return;
+    }
+
+    setDetailRouteEstimate({
+      status: 'loading',
+      origin: request.enderecoRetirada,
+      destination: request.enderecoEntrega
+    });
+
+    fetchRouteEstimate(request, request.agendamentoAt).then(result => {
+      if (!cancelled) setDetailRouteEstimate(result);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [request?.id, request?.freightType, request?.enderecoRetirada, request?.enderecoEntrega, request?.agendamentoAt]);
 
   if (!request) return null;
 
   const media = getFreightMedia(request);
   const imageMedia = media.filter(file => file.isImage);
   const documentMedia = media.filter(file => !file.isImage);
+  const detailRouteEstimates = detailRouteEstimate ? { [request.id]: detailRouteEstimate } : {};
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/30">
@@ -423,7 +485,7 @@ function DetailDrawer({
         <div className="space-y-5 p-6">
           <div className="grid gap-3 md:grid-cols-4">
             <InfoBox label="Status" value={request.status} />
-            <InfoBox label="Prazo" value={formatFreightDate(request.prazoEntrega || request.prazoDesejado, Boolean(request.prazoEntrega))} />
+            <InfoBox label="Agendamento" value={formatFreightDate(request.agendamentoAt)} />
             <InfoBox label="Motorista" value={request.motorista || '-'} />
             <InfoBox label="Veículo" value={[request.veiculo, request.placa].filter(Boolean).join(' - ') || '-'} />
           </div>
@@ -437,8 +499,8 @@ function DetailDrawer({
               <InfoLine label="Projeto" value={request.projeto || request.projetoDescricao || '-'} />
               <InfoLine label="Solicitante" value={request.solicitanteNome || request.emailSolicitante || request.createdByEmail || '-'} />
               <InfoLine label="Responsável no local" value={request.responsavelLocal || request.responsavelEntrega || '-'} />
-              <InfoLine label="Origem" value={request.enderecoRetirada || request.enderecoOrigem || '-'} />
-              <InfoLine label="Destino" value={request.enderecoEntrega || request.enderecoDestino || '-'} />
+              <AddressInfoLine label="Origem" value={request.enderecoRetirada || request.enderecoOrigem} options={addressOptions} />
+              <AddressInfoLine label="Destino" value={request.enderecoEntrega || request.enderecoDestino} options={addressOptions} />
               <div className="md:col-span-2">
                 <InfoLine label="Materiais / necessidade" value={request.itemDescricao || request.necessidade || '-'} multiline />
               </div>
@@ -447,6 +509,10 @@ function DetailDrawer({
               </div>
             </div>
           </section>
+
+          {request.freightType !== 'internacional' ? (
+            <RouteEstimatePanel selectedRequests={[request]} estimates={detailRouteEstimates} />
+          ) : null}
 
           {(request.volumes?.length || request.items?.length) ? (
             <section className="rounded-lg border border-slate-200 bg-white">
@@ -501,10 +567,9 @@ function DetailDrawer({
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {imageMedia.map((file, index) => (
                     <a key={`${file.fileUrl}-${index}`} href={file.fileUrl} target="_blank" rel="noreferrer" className="group overflow-hidden rounded-md border border-slate-200 bg-slate-50 hover:border-red-200">
-                      <img src={file.fileUrl} alt={file.fileName || `Foto ${index + 1}`} className="h-40 w-full object-cover transition group-hover:scale-[1.02]" loading="lazy" />
-                      <div className="flex items-center justify-between gap-2 px-3 py-2 text-xs">
-                        <span className="truncate font-semibold text-slate-700">{file.fileName || `Foto ${index + 1}`}</span>
-                        <span className="shrink-0 rounded-full bg-white px-2 py-0.5 font-semibold text-slate-500">{file.category}</span>
+                      <img src={file.fileUrl} alt={`Foto ${index + 1}`} className="h-40 w-full object-cover transition group-hover:scale-[1.02]" loading="lazy" />
+                      <div className="px-3 py-2 text-xs">
+                        <span className="font-semibold text-slate-700">Foto {index + 1}</span>
                       </div>
                     </a>
                   ))}
@@ -565,6 +630,29 @@ function InfoLine({ label, value, multiline }: { label: string; value: string; m
     <div>
       <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</div>
       <div className={`mt-1 text-sm text-slate-900 ${multiline ? 'whitespace-pre-wrap' : ''}`}>{value}</div>
+    </div>
+  );
+}
+
+function AddressInfoLine({ label, value, options }: { label: string; value?: string; options?: FreightLookupOption[] }) {
+  const resolved = resolveAddressDisplay(value, options);
+  const hasLink = Boolean(resolved.linkTarget);
+
+  return (
+    <div>
+      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</div>
+      <div className="mt-1 text-sm text-slate-900">
+        {resolved.display}
+        {hasLink ? (
+          <span className="ml-1 whitespace-nowrap">
+            (
+            <a className="font-semibold text-blue-700 hover:text-blue-900" href={googleMapsAddressUrl(resolved.linkTarget)} target="_blank" rel="noreferrer">Google</a>
+            <span className="text-slate-400"> | </span>
+            <a className="font-semibold text-blue-700 hover:text-blue-900" href={wazeAddressUrl(resolved.linkTarget)} target="_blank" rel="noreferrer">Waze</a>
+            )
+          </span>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -1145,7 +1233,7 @@ function FreightPage({ mode }: { mode: FreightMode }) {
         )}
       </div>
 
-      <DetailDrawer request={selected} history={history} onClose={() => setSelected(null)} onSaveObservation={saveDetailObservation} />
+      <DetailDrawer request={selected} history={history} addressOptions={lookups.enderecos} onClose={() => setSelected(null)} onSaveObservation={saveDetailObservation} />
     </div>
   );
 }
@@ -1397,6 +1485,7 @@ function RequestsTable({
               <th className="px-4 py-3">{isInternational ? 'Necessidade' : 'Setor'}</th>
               <th className="px-4 py-3">{isInternational ? 'Origem / destino' : 'Solicitante'}</th>
               <th className="px-4 py-3">{isInternational ? 'Transporte' : 'Prazo'}</th>
+              {!isInternational ? <th className="px-4 py-3">Agendamento</th> : null}
               <th className="px-4 py-3">Logística</th>
               <th className="px-4 py-3 text-right">Ações</th>
             </tr>
@@ -1423,9 +1512,12 @@ function RequestsTable({
                       <div className="font-semibold text-slate-900">{request.solicitanteNome || '-'}</div>
                       <div className="max-w-sm truncate text-xs text-slate-500">{request.itemDescricao || '-'}</div>
                     </>
-                  )}
+                )}
                 </td>
                 <td className="px-4 py-3 text-slate-700">{isInternational ? `${request.tipoFrete || '-'} · ${request.modalidadeFrete || '-'}` : formatFreightDate(request.prazoEntrega)}</td>
+                {!isInternational ? (
+                  <td className="px-4 py-3 text-slate-700">{formatFreightDate(request.agendamentoAt)}</td>
+                ) : null}
                 <td className="px-4 py-3">
                   <div className="font-semibold text-slate-900">{request.motorista || '-'}</div>
                   <div className="text-xs text-slate-500">{[request.veiculo, request.placa].filter(Boolean).join(' - ') || formatFreightDate(request.agendamentoAt)}</div>
@@ -1451,7 +1543,7 @@ function RequestsTable({
             ))}
             {!requests.length ? (
               <tr>
-                <td className="px-4 py-10 text-center text-slate-500" colSpan={7}>Nenhuma solicitação encontrada.</td>
+                <td className="px-4 py-10 text-center text-slate-500" colSpan={isInternational ? 7 : 8}>Nenhuma solicitação encontrada.</td>
               </tr>
             ) : null}
           </tbody>
@@ -2139,6 +2231,11 @@ function FreightKanbanCard({
   const firstImage = imageMedia[0];
   const route = [request.veiculo, request.placa].filter(Boolean).join(' · ');
   const project = request.projeto || request.projetoDescricao || '-';
+  const isRequestedCard = lane === 'nao_iniciado' || isRequestedFreightStatus(request.status);
+  const dateLabel = isRequestedCard ? 'Prazo' : 'Agendamento';
+  const dateValue = isRequestedCard
+    ? request.prazoEntrega || request.prazoDesejado
+    : request.agendamentoAt || request.prazoEntrega || request.prazoDesejado;
 
   return (
     <article
@@ -2190,7 +2287,7 @@ function FreightKanbanCard({
           {lane !== 'nao_iniciado' ? (
             <p>Motorista: {compactText(request.motorista || '-', 36)}</p>
           ) : null}
-          <p>Agendamento: {formatFreightDate(request.agendamentoAt || request.prazoEntrega)}</p>
+          <p>{dateLabel}: {formatFreightDate(dateValue)}</p>
           <p>Veículo: {compactText(route || '-', 34)}</p>
         </div>
 

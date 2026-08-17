@@ -53,11 +53,23 @@ function protocolNumber(request: any) {
   return formatFreightProtocol(request).replace(/^#0*/, '') || '-';
 }
 
+const FREIGHT_TIME_ZONE = 'America/Sao_Paulo';
+
 function formatFreightDateTime(value?: string | null) {
   if (!value) return '-';
-  const date = new Date(value);
+  const normalized = String(value).trim();
+  const localDateMatch = normalized.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{2}):(\d{2}))?/);
+  const hasExplicitTimezone = /(?:z|[+-]\d{2}:?\d{2})$/i.test(normalized);
+
+  if (localDateMatch && !hasExplicitTimezone) {
+    const [, year, month, day, hour, minute] = localDateMatch;
+    return hour ? `${day}/${month}/${year} ${hour}:${minute || '00'}` : `${day}/${month}/${year}`;
+  }
+
+  const date = new Date(normalized);
   if (Number.isNaN(date.getTime())) return String(value);
   return new Intl.DateTimeFormat('pt-BR', {
+    timeZone: FREIGHT_TIME_ZONE,
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
@@ -397,6 +409,7 @@ export function buildFreightEmail(rawRequest: any, eventType: string, context: R
 export function buildPendingSummaryEmail(rawRequests: any[]) {
   const requests = rawRequests.map(normalizeFreightRequest);
   const dateLabel = new Intl.DateTimeFormat('pt-BR', {
+    timeZone: FREIGHT_TIME_ZONE,
     day: '2-digit',
     month: '2-digit',
     year: 'numeric'

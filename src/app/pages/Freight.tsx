@@ -15,6 +15,7 @@ import {
   Info,
   MapPin,
   Package,
+  Pencil,
   Plus,
   RefreshCw,
   Route,
@@ -47,6 +48,7 @@ import {
   type FreightStatus,
   type FreightVolume
 } from '../utils/freightStorage';
+import { usePermissions } from '../utils/usePermissions';
 
 type FreightMode = 'nacional' | 'motorista' | 'internacional';
 type TabKey = 'dashboard' | 'nova' | 'atendimento' | 'kanban' | 'motorista' | 'relatorios';
@@ -106,6 +108,16 @@ const emptyNationalForm = {
   enderecoRetirada: '',
   enderecoEntrega: '',
   observacoes: ''
+};
+
+const emptyNationalEditForm = {
+  ...emptyNationalForm,
+  status: 'Solicitado' as FreightStatus,
+  motorista: '',
+  veiculo: '',
+  placa: '',
+  agendamentoAt: '',
+  observacoesLogistica: ''
 };
 
 const emptyInternationalForm = {
@@ -417,6 +429,52 @@ function SelectAddressOptionList({ options }: { options: FreightLookupOption[] }
   );
 }
 
+function toDateTimeLocalInput(value?: string) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value).slice(0, 16);
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return localDate.toISOString().slice(0, 16);
+}
+
+function isLocalFreightAdminUser() {
+  try {
+    const user = JSON.parse(localStorage.getItem('porsche-cup-user') || '{}');
+    const values = [user.profileId, user.role, user.accessType, user.tipoAcesso, user.tipo_acesso]
+      .map(value => String(value || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim()
+        .toLowerCase());
+    return values.some(value => value === 'admin' || value === 'administrador');
+  } catch {
+    return false;
+  }
+}
+
+function nationalEditFormFromRequest(request: FreightRequest): typeof emptyNationalEditForm {
+  return {
+    setor: request.setor || '',
+    setorId: request.setorId || '',
+    prazoEntrega: toDateTimeLocalInput(request.prazoEntrega),
+    projeto: request.projeto || '',
+    projetoId: request.projetoId || '',
+    projetoDescricao: request.projetoDescricao || '',
+    solicitanteNome: request.solicitanteNome || '',
+    itemDescricao: request.itemDescricao || '',
+    responsavelLocal: request.responsavelLocal || '',
+    enderecoRetirada: request.enderecoRetirada || '',
+    enderecoEntrega: request.enderecoEntrega || '',
+    observacoes: request.observacoes || '',
+    status: request.status || 'Solicitado',
+    motorista: request.motorista || '',
+    veiculo: request.veiculo || '',
+    placa: request.placa || '',
+    agendamentoAt: toDateTimeLocalInput(request.agendamentoAt),
+    observacoesLogistica: request.observacoesLogistica || ''
+  };
+}
+
 function DetailDrawer({
   request,
   history,
@@ -660,6 +718,7 @@ function AddressInfoLine({ label, value, options }: { label: string; value?: str
 function FreightPage({ mode }: { mode: FreightMode }) {
   const isInternational = mode === 'internacional';
   const isDriver = mode === 'motorista';
+  const { isUserAdmin } = usePermissions();
   const [tab, setTab] = useState<TabKey>(isInternational ? 'dashboard' : isDriver ? 'motorista' : 'dashboard');
   const [requests, setRequests] = useState<FreightRequest[]>([]);
   const [lookups, setLookups] = useState({
@@ -682,6 +741,9 @@ function FreightPage({ mode }: { mode: FreightMode }) {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
   const [nationalForm, setNationalForm] = useState(emptyNationalForm);
+  const [editingRequest, setEditingRequest] = useState<FreightRequest | null>(null);
+  const [nationalEditForm, setNationalEditForm] = useState(emptyNationalEditForm);
+  const [editProductFiles, setEditProductFiles] = useState<File[]>([]);
   const [productFiles, setProductFiles] = useState<File[]>([]);
   const [deliveryFiles, setDeliveryFiles] = useState<Record<string, File[]>>({});
   const [scheduleDraft, setScheduleDraft] = useState({ motorista: '', veiculo: '', placa: '', agendamentoAt: '', observacoesLogistica: '' });
@@ -693,6 +755,7 @@ function FreightPage({ mode }: { mode: FreightMode }) {
   const [itemFiles, setItemFiles] = useState<File[]>([]);
 
   const freightType = isInternational ? 'internacional' : 'nacional';
+  const canEditFreightRequests = !isInternational && !isDriver && (isUserAdmin() || isLocalFreightAdminUser());
 
   useEffect(() => {
     loadData();
@@ -797,6 +860,127 @@ function FreightPage({ mode }: { mode: FreightMode }) {
     }
 
     setNationalForm(current => ({ ...current, [field]: value }));
+  }
+
+  function openEditRequest(request: FreightRequest) {
+    if (!canEditFreightRequests) {
+      setMessage({ type: 'error', text: 'Apenas administradores podem editar solicitações.' });
+      return;
+    }
+    setEditingRequest(request);
+    setNationalEditForm(nationalEditFormFromRequest(request));
+    setEditProductFiles([]);
+  }
+
+  function closeEditRequest() {
+    setEditingRequest(null);
+    setNationalEditForm(emptyNationalEditForm);
+    setEditProductFiles([]);
+  }
+
+  function updateNationalEditField(field: keyof typeof emptyNationalEditForm, value: string) {
+    if (field === 'setor') {
+      const option = lookups.setores.find(item => item.value === value);
+      const setorId = option?.source === 'setor' ? option.id || '' : '';
+      setNationalEditForm(current => ({ ...current, setor: value, setorId }));
+      return;
+    }
+
+    if (field === 'projeto') {
+      const option = lookups.projetos.find(item => item.value === value);
+      const projetoId = option?.source === 'projeto' ? option.id || '' : '';
+      setNationalEditForm(current => ({
+        ...current,
+        projeto: value,
+        projetoId,
+        projetoDescricao: String(option?.metadata?.descricao || '')
+      }));
+      return;
+    }
+
+    if (field === 'veiculo') {
+      const option = lookups.veiculos.find(item => item.value === value);
+      const placa = String(option?.metadata?.placa || '').trim();
+      setNationalEditForm(current => ({
+        ...current,
+        veiculo: value,
+        placa: placa || current.placa
+      }));
+      return;
+    }
+
+    setNationalEditForm(current => ({ ...current, [field]: value }));
+  }
+
+  async function handleSaveNationalEdit(event: React.FormEvent) {
+    event.preventDefault();
+    if (!editingRequest) return;
+    if (!canEditFreightRequests) {
+      setMessage({ type: 'error', text: 'Apenas administradores podem editar solicitações.' });
+      return;
+    }
+
+    setSaving(true);
+    setMessage(null);
+    try {
+      const previousPayload = editingRequest.payloadOriginal && typeof editingRequest.payloadOriginal === 'object'
+        ? editingRequest.payloadOriginal
+        : {};
+      const payloadOriginal = {
+        ...previousPayload,
+        ...nationalEditForm,
+        freightType: 'nacional'
+      };
+
+      await updateFreightRequest(editingRequest.id, {
+        freightType: 'nacional',
+        status: nationalEditForm.status,
+        setor: nationalEditForm.setor,
+        setorId: nationalEditForm.setorId || undefined,
+        projeto: nationalEditForm.projeto,
+        projetoId: nationalEditForm.projetoId || undefined,
+        projetoDescricao: nationalEditForm.projetoDescricao || undefined,
+        prazoEntrega: nationalEditForm.prazoEntrega,
+        solicitanteNome: nationalEditForm.solicitanteNome,
+        responsavelEntrega: undefined,
+        itemDescricao: nationalEditForm.itemDescricao,
+        responsavelLocal: nationalEditForm.responsavelLocal,
+        enderecoRetirada: nationalEditForm.enderecoRetirada,
+        enderecoEntrega: nationalEditForm.enderecoEntrega,
+        pagamento: undefined,
+        observacoes: nationalEditForm.observacoes,
+        motorista: nationalEditForm.motorista,
+        veiculo: nationalEditForm.veiculo,
+        placa: nationalEditForm.placa,
+        agendamentoAt: nationalEditForm.agendamentoAt,
+        observacoesLogistica: nationalEditForm.observacoesLogistica,
+        payloadOriginal
+      });
+
+      if (editProductFiles.length) {
+        await uploadFreightFiles(editingRequest.id, editProductFiles, 'produto');
+      }
+
+      await appendFreightHistory(editingRequest.id, {
+        action: 'admin_edit',
+        previousStatus: editingRequest.status,
+        newStatus: nationalEditForm.status,
+        comment: 'Solicitação editada por administrador.',
+        payload: {
+          protocol: editingRequest.protocol,
+          editedFields: Object.keys(nationalEditForm),
+          addedFiles: editProductFiles.length
+        }
+      });
+
+      setMessage({ type: 'success', text: `${formatProtocol(editingRequest)} atualizado.` });
+      closeEditRequest();
+      await loadData();
+    } catch (error: any) {
+      setMessage({ type: 'error', text: error.message || 'Erro ao editar solicitação.' });
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function handleCreateNational(event: React.FormEvent) {
@@ -1148,7 +1332,9 @@ function FreightPage({ mode }: { mode: FreightMode }) {
               <RequestsTable
                 requests={filteredRequests}
                 isInternational={isInternational}
+                canEdit={canEditFreightRequests}
                 onOpen={openDetails}
+                onEdit={openEditRequest}
                 onSchedule={startSchedule}
                 onStatus={changeStatus}
                 saving={saving}
@@ -1234,6 +1420,17 @@ function FreightPage({ mode }: { mode: FreightMode }) {
       </div>
 
       <DetailDrawer request={selected} history={history} addressOptions={lookups.enderecos} onClose={() => setSelected(null)} onSaveObservation={saveDetailObservation} />
+      <EditRequestDrawer
+        request={editingRequest}
+        form={nationalEditForm}
+        files={editProductFiles}
+        lookups={lookups}
+        saving={saving}
+        onChange={updateNationalEditField}
+        onFiles={setEditProductFiles}
+        onClose={closeEditRequest}
+        onSubmit={handleSaveNationalEdit}
+      />
     </div>
   );
 }
@@ -1456,14 +1653,18 @@ function FreightKanbanFilters({
 function RequestsTable({
   requests,
   isInternational,
+  canEdit,
   onOpen,
+  onEdit,
   onSchedule,
   onStatus,
   saving
 }: {
   requests: FreightRequest[];
   isInternational: boolean;
+  canEdit: boolean;
   onOpen: (request: FreightRequest) => void;
+  onEdit: (request: FreightRequest) => void;
   onSchedule: (request: FreightRequest) => void;
   onStatus: (request: FreightRequest, status: FreightStatus) => void;
   saving: boolean;
@@ -1524,6 +1725,19 @@ function RequestsTable({
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex justify-end gap-2">
+                    {!isInternational && canEdit ? (
+                      <button
+                        className={buttonClass('secondary')}
+                        onClick={() => onEdit(request)}
+                        type="button"
+                        disabled={saving}
+                        title="Editar solicitação"
+                        aria-label={`Editar ${formatProtocol(request)}`}
+                      >
+                        <Pencil className="h-4 w-4" />
+                        Editar
+                      </button>
+                    ) : null}
                     <button className={buttonClass('secondary')} onClick={() => onOpen(request)} type="button">
                       <Eye className="h-4 w-4" />
                       Detalhes
@@ -1631,6 +1845,152 @@ function NationalForm({
         </button>
       </div>
     </form>
+  );
+}
+
+function EditRequestDrawer({
+  request,
+  form,
+  files,
+  lookups,
+  saving,
+  onChange,
+  onFiles,
+  onClose,
+  onSubmit
+}: {
+  request: FreightRequest | null;
+  form: typeof emptyNationalEditForm;
+  files: File[];
+  lookups: any;
+  saving: boolean;
+  onChange: (field: keyof typeof emptyNationalEditForm, value: string) => void;
+  onFiles: (files: File[]) => void;
+  onClose: () => void;
+  onSubmit: (event: FormEvent) => void;
+}) {
+  if (!request) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/40">
+      <form className="flex h-full w-full max-w-4xl flex-col bg-white shadow-2xl" onSubmit={onSubmit}>
+        <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Edição administrativa</p>
+            <h2 className="text-xl font-bold text-slate-950">Editar solicitação {formatProtocol(request)}</h2>
+            <p className="mt-1 text-sm text-slate-500">Altere os dados da solicitação nacional e salve para atualizar o Supabase.</p>
+          </div>
+          <button className="rounded-md p-2 text-slate-500 hover:bg-slate-100" type="button" onClick={onClose} aria-label="Fechar edição">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-5 py-5">
+          <div className="grid gap-5">
+            <section className="rounded-lg border border-slate-200 bg-white">
+              <div className="border-b border-slate-100 px-4 py-3">
+                <h3 className="font-semibold text-slate-950">Dados da solicitação</h3>
+              </div>
+              <div className="grid gap-4 p-4 md:grid-cols-2">
+                <Field label="Protocolo">
+                  <input className={fieldClass()} value={formatProtocol(request)} disabled />
+                </Field>
+                <Field label="Status">
+                  <select className={fieldClass()} value={form.status} onChange={event => onChange('status', event.target.value)} required>
+                    {statusOptionsNational.map(status => <option key={status}>{status}</option>)}
+                  </select>
+                </Field>
+                <Field label="Setor">
+                  <select className={fieldClass()} value={form.setor} onChange={event => onChange('setor', event.target.value)} required>
+                    <option value="">Selecione...</option>
+                    <SelectOptionList options={lookups.setores} />
+                  </select>
+                </Field>
+                <Field label="Projeto">
+                  <select className={fieldClass()} value={form.projeto} onChange={event => onChange('projeto', event.target.value)} required>
+                    <option value="">Selecione...</option>
+                    <SelectOptionList options={lookups.projetos} />
+                  </select>
+                </Field>
+                <Field label="Prazo de entrega">
+                  <input className={fieldClass()} type="datetime-local" value={form.prazoEntrega} onChange={event => onChange('prazoEntrega', event.target.value)} required />
+                </Field>
+                <Field label="Responsável pela solicitação">
+                  <input className={fieldClass()} value={form.solicitanteNome} onChange={event => onChange('solicitanteNome', event.target.value)} required />
+                </Field>
+                <Field label="Responsável no local da retirada">
+                  <input className={fieldClass()} value={form.responsavelLocal} onChange={event => onChange('responsavelLocal', event.target.value)} />
+                </Field>
+                <Field label="Endereço de retirada">
+                  <input className={fieldClass()} list="edit-freight-addresses" value={form.enderecoRetirada} onChange={event => onChange('enderecoRetirada', event.target.value)} />
+                </Field>
+                <Field label="Endereço de entrega">
+                  <input className={fieldClass()} list="edit-freight-addresses" value={form.enderecoEntrega} onChange={event => onChange('enderecoEntrega', event.target.value)} />
+                  <datalist id="edit-freight-addresses"><SelectAddressOptionList options={lookups.enderecos} /></datalist>
+                </Field>
+                <div className="md:col-span-2">
+                  <Field label="Descreva as quantidades e itens a serem transportados">
+                    <textarea className={areaClass()} value={form.itemDescricao} onChange={event => onChange('itemDescricao', event.target.value)} required />
+                  </Field>
+                </div>
+                <div className="md:col-span-2">
+                  <Field label="Observações do solicitante">
+                    <textarea className={areaClass()} value={form.observacoes} onChange={event => onChange('observacoes', event.target.value)} />
+                  </Field>
+                </div>
+              </div>
+            </section>
+
+            <section className="rounded-lg border border-slate-200 bg-white">
+              <div className="border-b border-slate-100 px-4 py-3">
+                <h3 className="font-semibold text-slate-950">Atendimento logístico</h3>
+              </div>
+              <div className="grid gap-4 p-4 md:grid-cols-2">
+                <Field label="Motorista">
+                  <input className={fieldClass()} list="edit-freight-drivers" value={form.motorista} onChange={event => onChange('motorista', event.target.value)} />
+                  <datalist id="edit-freight-drivers"><SelectOptionList options={lookups.motoristas} /></datalist>
+                </Field>
+                <Field label="Veículo">
+                  <input className={fieldClass()} list="edit-freight-vehicles" value={form.veiculo} onChange={event => onChange('veiculo', event.target.value)} />
+                  <datalist id="edit-freight-vehicles"><SelectOptionList options={lookups.veiculos} /></datalist>
+                </Field>
+                <Field label="Placa">
+                  <input className={fieldClass()} value={form.placa} onChange={event => onChange('placa', event.target.value.toUpperCase())} />
+                </Field>
+                <Field label="Agendamento">
+                  <input className={fieldClass()} type="datetime-local" value={form.agendamentoAt} onChange={event => onChange('agendamentoAt', event.target.value)} />
+                </Field>
+                <div className="md:col-span-2">
+                  <Field label="Observações logística">
+                    <textarea className={areaClass()} value={form.observacoesLogistica} onChange={event => onChange('observacoesLogistica', event.target.value)} />
+                  </Field>
+                </div>
+              </div>
+            </section>
+
+            <section className="rounded-lg border border-slate-200 bg-white">
+              <div className="border-b border-slate-100 px-4 py-3">
+                <h3 className="font-semibold text-slate-950">Fotos do produto</h3>
+              </div>
+              <div className="p-4">
+                <div className="flex flex-col gap-3 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4">
+                  <input type="file" accept="image/*" multiple onChange={event => onFiles(Array.from(event.target.files || []))} />
+                  <p className="text-sm text-slate-500">{files.length ? `${files.length} nova(s) foto(s) selecionada(s)` : 'Selecione apenas se quiser anexar novas fotos.'}</p>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap justify-end gap-2 border-t border-slate-200 px-5 py-4">
+          <button className={buttonClass('secondary')} type="button" onClick={onClose} disabled={saving}>Cancelar</button>
+          <button className={buttonClass('primary')} type="submit" disabled={saving}>
+            <Save className="h-4 w-4" />
+            {saving ? 'Salvando...' : 'Salvar alterações'}
+          </button>
+        </div>
+      </form>
+    </div>
   );
 }
 

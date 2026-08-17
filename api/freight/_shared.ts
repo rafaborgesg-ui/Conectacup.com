@@ -288,11 +288,14 @@ export function buildFreightEmail(rawRequest: any, eventType: string, context: R
   const title = isInternational ? 'Frete Internacional' : 'Frete Nacional';
   const previousStatus = normalizeFreightStatusLabel(context.previousStatus || latestHistory.previous_status || latestHistory.previousStatus || '');
   const currentStatus = normalizeFreightStatusLabel(request.status || latestHistory.new_status || latestHistory.newStatus || '');
-  const scheduleDate = request.agendamento_at || request.prazo_entrega || request.prazo_desejado;
+  const isStatusUpdate = eventType === 'status';
+  const requestedDeadline = request.prazo_entrega || request.prazo_desejado;
+  const scheduledAt = request.agendamento_at;
+  const subjectDate = isStatusUpdate ? scheduledAt : requestedDeadline;
   const project = compactLine([request.projeto, request.projeto_descricao]) || '-';
   const subjectDetails = compactLine([
     request.setor,
-    scheduleDate ? formatFreightDateTime(scheduleDate) : ''
+    subjectDate ? formatFreightDateTime(subjectDate) : ''
   ]);
   const subject = eventType === 'status'
     ? `Atualização de frete ${formatFreightProtocol(request)}: ${currentStatus}${subjectDetails ? ` - ${subjectDetails}` : ''}`
@@ -317,15 +320,18 @@ export function buildFreightEmail(rawRequest: any, eventType: string, context: R
   const statusLine = eventType === 'status' && previousStatus && previousStatus !== currentStatus
     ? `${previousStatus} > ${currentStatus}`
     : currentStatus;
-  const isStatusUpdate = eventType === 'status';
 
   const rows: Array<{ label: string; text: string; html?: string }> = [
     { label: 'Número da Solicitação (Protocolo)', text: protocolNumber(request) },
     { label: isStatusUpdate ? 'Status alterado' : 'Status', text: statusLine },
     { label: 'Setor', text: request.setor || '-' },
-    { label: 'Projeto', text: project },
-    { label: 'Data do Agendamento', text: request.agendamento_at ? formatFreightDateTime(request.agendamento_at) : formatFreightDateTime(request.prazo_entrega || request.prazo_desejado) }
+    { label: 'Projeto', text: project }
   ];
+
+  rows.push(isStatusUpdate
+    ? { label: 'Agendamento', text: scheduledAt ? formatFreightDateTime(scheduledAt) : '-' }
+    : { label: 'Prazo', text: requestedDeadline ? formatFreightDateTime(requestedDeadline) : '-' }
+  );
 
   if (isStatusUpdate) {
     rows.push(
@@ -405,7 +411,8 @@ export function buildPendingSummaryEmail(rawRequests: any[]) {
       setor: request.setor || '-',
       projeto: request.projeto || request.projeto_descricao || '-',
       solicitante: request.solicitante_nome || request.email_solicitante || request.created_by_email || '-',
-      prazo: formatDate(request.prazo_entrega || request.prazo_desejado || request.delivery_date),
+      prazo: formatFreightDateTime(request.prazo_entrega || request.prazo_desejado || request.delivery_date),
+      agendamento: formatFreightDateTime(request.agendamento_at),
       origem: isInternational ? (request.endereco_origem || request.empresa_remetente || '-') : (request.endereco_retirada || request.origin || '-'),
       destino: isInternational ? (request.endereco_destino || request.empresa_destinatario || '-') : (request.endereco_entrega || request.destination || '-')
     };
@@ -421,9 +428,10 @@ export function buildPendingSummaryEmail(rawRequests: any[]) {
         <td style="padding:10px;border-top:1px solid #e5e7eb;">${escapeHtml(row.projeto)}</td>
         <td style="padding:10px;border-top:1px solid #e5e7eb;">${escapeHtml(row.solicitante)}</td>
         <td style="padding:10px;border-top:1px solid #e5e7eb;">${escapeHtml(row.prazo)}</td>
+        <td style="padding:10px;border-top:1px solid #e5e7eb;">${escapeHtml(row.agendamento)}</td>
       </tr>
     `).join('')
-    : '<tr><td colspan="7" style="padding:18px;border-top:1px solid #e5e7eb;color:#16a34a;font-weight:700;">Nenhuma solicitação em aberto.</td></tr>';
+    : '<tr><td colspan="8" style="padding:18px;border-top:1px solid #e5e7eb;color:#16a34a;font-weight:700;">Nenhuma solicitação em aberto.</td></tr>';
 
   const html = `
     <div style="margin:0;background:#f5f7fb;padding:24px;font-family:Arial,Helvetica,sans-serif;color:#0f172a;">
@@ -443,7 +451,8 @@ export function buildPendingSummaryEmail(rawRequests: any[]) {
               <th style="padding:10px;">Setor</th>
               <th style="padding:10px;">Projeto</th>
               <th style="padding:10px;">Solicitante</th>
-              <th style="padding:10px;">Prazo</th>
+              <th style="padding:10px;">Prazo solicitado</th>
+              <th style="padding:10px;">Agendamento</th>
             </tr>
           </thead>
           <tbody>${htmlRows}</tbody>
@@ -455,7 +464,7 @@ export function buildPendingSummaryEmail(rawRequests: any[]) {
   const text = [
     subject,
     `${requests.length} solicitação(ões) em aberto.`,
-    ...rows.map(row => `${row.protocolo} | ${row.tipo} | ${row.status} | ${row.setor} | ${row.projeto} | ${row.solicitante} | ${row.prazo}`)
+    ...rows.map(row => `${row.protocolo} | ${row.tipo} | ${row.status} | ${row.setor} | ${row.projeto} | ${row.solicitante} | ${row.prazo} | ${row.agendamento}`)
   ].join('\n');
 
   return { subject, html, text };

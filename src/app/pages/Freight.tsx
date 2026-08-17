@@ -101,12 +101,10 @@ const emptyNationalForm = {
   projetoId: '',
   projetoDescricao: '',
   solicitanteNome: '',
-  responsavelEntrega: '',
   itemDescricao: '',
   responsavelLocal: '',
   enderecoRetirada: '',
   enderecoEntrega: '',
-  pagamento: '',
   observacoes: ''
 };
 
@@ -353,6 +351,33 @@ function SelectOptionList({ options }: { options: FreightLookupOption[] }) {
           {option.label}
         </option>
       ))}
+    </>
+  );
+}
+
+function freightAddressOptionValue(option: FreightLookupOption) {
+  const metadata = option.metadata || {};
+  return [
+    metadata.valor,
+    metadata.endereco,
+    metadata.address,
+    metadata.descricao,
+    option.value,
+    option.label
+  ].map(item => String(item || '').trim()).find(Boolean) || option.value;
+}
+
+function SelectAddressOptionList({ options }: { options: FreightLookupOption[] }) {
+  return (
+    <>
+      {options.map(option => {
+        const value = freightAddressOptionValue(option);
+        return (
+          <option key={option.id || option.value} value={value} label={option.label}>
+            {option.label}
+          </option>
+        );
+      })}
     </>
   );
 }
@@ -697,9 +722,15 @@ function FreightPage({ mode }: { mode: FreightMode }) {
         ...nationalForm,
         setorId: nationalForm.setorId || undefined,
         projetoId: nationalForm.projetoId || undefined,
+        responsavelEntrega: undefined,
+        pagamento: undefined,
         fotosProdutoUrls: [],
         fotoEntregaUrls: [],
-        payloadOriginal: nationalForm
+        payloadOriginal: {
+          ...nationalForm,
+          responsavelEntrega: undefined,
+          pagamento: undefined
+        }
       });
 
       if (productFiles.length) {
@@ -820,6 +851,37 @@ function FreightPage({ mode }: { mode: FreightMode }) {
       await loadData();
     } catch (error: any) {
       setMessage({ type: 'error', text: error.message || 'Erro ao atualizar status.' });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function cancelFreightRequests(targets: FreightRequest[], reason: string) {
+    const normalizedReason = reason.trim();
+    if (!targets.length) {
+      setMessage({ type: 'error', text: 'Selecione ao menos uma solicitação para cancelar.' });
+      return;
+    }
+    if (!normalizedReason) {
+      setMessage({ type: 'error', text: 'Informe o motivo do cancelamento.' });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      for (const request of targets) {
+        const cancelNote = `Motivo do cancelamento: ${normalizedReason}`;
+        const updatedNotes = [request.observacoesLogistica, cancelNote].filter(Boolean).join('\n');
+        await updateFreightStatus(request, 'Cancelado', cancelNote, {
+          observacoesLogistica: updatedNotes
+        });
+        await sendFreightNotification(request.id, 'status');
+      }
+      setSelectedIds([]);
+      setMessage({ type: 'success', text: `${targets.length} solicitação(ões) cancelada(s).` });
+      await loadData();
+    } catch (error: any) {
+      setMessage({ type: 'error', text: error.message || 'Erro ao cancelar solicitação.' });
     } finally {
       setSaving(false);
     }
@@ -1046,6 +1108,7 @@ function FreightPage({ mode }: { mode: FreightMode }) {
                 saving={saving}
                 onApply={applySchedule}
                 onOpen={openDetails}
+                onCancel={cancelFreightRequests}
               />
             )}
 
@@ -1440,9 +1503,6 @@ function NationalForm({
         <Field label="Responsável pela solicitação">
           <input className={fieldClass()} value={form.solicitanteNome} onChange={event => onChange('solicitanteNome', event.target.value)} required />
         </Field>
-        <Field label="Responsável pela entrega">
-          <input className={fieldClass()} value={form.responsavelEntrega} onChange={event => onChange('responsavelEntrega', event.target.value)} />
-        </Field>
         <Field label="Responsável no local da retirada">
           <input className={fieldClass()} value={form.responsavelLocal} onChange={event => onChange('responsavelLocal', event.target.value)} />
         </Field>
@@ -1451,13 +1511,10 @@ function NationalForm({
         </Field>
         <Field label="Endereço de entrega">
           <input className={fieldClass()} list="freight-addresses" value={form.enderecoEntrega} onChange={event => onChange('enderecoEntrega', event.target.value)} />
-          <datalist id="freight-addresses"><SelectOptionList options={lookups.enderecos} /></datalist>
-        </Field>
-        <Field label="Pagamento">
-          <input className={fieldClass()} value={form.pagamento} onChange={event => onChange('pagamento', event.target.value)} placeholder="Centro de custo, forma ou condição" />
+          <datalist id="freight-addresses"><SelectAddressOptionList options={lookups.enderecos} /></datalist>
         </Field>
         <div className="md:col-span-2 xl:col-span-3">
-          <Field label="Quantidades e materiais transportados">
+          <Field label="Descreva as quantidades e itens a serem transportados">
             <textarea className={areaClass()} value={form.itemDescricao} onChange={event => onChange('itemDescricao', event.target.value)} placeholder={'Exemplo:\n1x Parachoque traseiro\n2x Molde de alumínio'} required />
           </Field>
         </div>
@@ -1503,7 +1560,8 @@ function AttendancePanel({
   lookups,
   saving,
   onApply,
-  onOpen
+  onOpen,
+  onCancel
 }: {
   requests: FreightRequest[];
   selectedIds: string[];
@@ -1514,13 +1572,16 @@ function AttendancePanel({
   saving: boolean;
   onApply: () => void;
   onOpen: (request: FreightRequest) => void;
+  onCancel: (targets: FreightRequest[], reason: string) => void;
 }) {
-  const [attendanceFilters, setAttendanceFilters] = useState({ protocolo: '', setor: '', prioridade: '' });
-  const [sortState, setSortState] = useState<{ column: 'protocol' | 'setor' | 'prazo' | 'solicitante' | 'item' | 'prioridade'; direction: 'asc' | 'desc' }>({
+  const [attendanceFilters, setAttendanceFilters] = useState({ protocolo: '', setor: '', projeto: '' });
+  const [sortState, setSortState] = useState<{ column: 'protocol' | 'setor' | 'projeto' | 'prazo' | 'solicitante' | 'item'; direction: 'asc' | 'desc' }>({
     column: 'prazo',
     direction: 'asc'
   });
   const [routeEstimates, setRouteEstimates] = useState<Record<string, RouteEstimate>>({});
+  const [cancelPanelOpen, setCancelPanelOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
   const toggle = (id: string) => {
     setSelectedIds(selectedIds.includes(id) ? selectedIds.filter(item => item !== id) : [...selectedIds, id]);
   };
@@ -1542,7 +1603,7 @@ function AttendancePanel({
     return requests
       .filter(request => {
         if (attendanceFilters.setor && request.setor !== attendanceFilters.setor) return false;
-        if (attendanceFilters.prioridade && requestPriority(request) !== attendanceFilters.prioridade) return false;
+        if (attendanceFilters.projeto && request.projeto !== attendanceFilters.projeto) return false;
         if (protocolTerms.length && !protocolTerms.some(term => String(request.protocol).includes(term))) return false;
         return true;
       })
@@ -1551,10 +1612,10 @@ function AttendancePanel({
         const getValue = (request: FreightRequest) => {
           if (sortState.column === 'protocol') return request.protocol;
           if (sortState.column === 'setor') return request.setor || '';
+          if (sortState.column === 'projeto') return request.projeto || request.projetoDescricao || '';
           if (sortState.column === 'prazo') return new Date(request.prazoEntrega || request.agendamentoAt || request.createdAt).getTime() || 0;
           if (sortState.column === 'solicitante') return request.solicitanteNome || '';
-          if (sortState.column === 'item') return request.itemDescricao || '';
-          return requestPriority(request);
+          return request.itemDescricao || '';
         };
         const valueA = getValue(a);
         const valueB = getValue(b);
@@ -1659,6 +1720,20 @@ function AttendancePanel({
     </button>
   );
 
+  const openCancelPanel = (request?: FreightRequest) => {
+    if (request) {
+      setSelectedIds([request.id]);
+    }
+    setCancelReason('');
+    setCancelPanelOpen(true);
+  };
+
+  const confirmCancel = () => {
+    onCancel(selectedRequests, cancelReason);
+    setCancelPanelOpen(false);
+    setCancelReason('');
+  };
+
   return (
     <div className="space-y-5">
       <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
@@ -1678,24 +1753,20 @@ function AttendancePanel({
             <Field label="Nº Protocolo">
               <input className={fieldClass()} value={attendanceFilters.protocolo} onChange={event => setAttendanceFilters(current => ({ ...current, protocolo: event.target.value }))} placeholder="ex.: 12, 15-18, #20" />
             </Field>
-            <Field label="Prioridade">
-              <select className={fieldClass()} value={attendanceFilters.prioridade} onChange={event => setAttendanceFilters(current => ({ ...current, prioridade: event.target.value }))}>
-                <option value="">Todas</option>
-                <option>Baixa</option>
-                <option>Média</option>
-                <option>Alta</option>
-                <option>Crítica</option>
-                <option>undefined</option>
-              </select>
-            </Field>
             <Field label="Filtrar por Setor">
               <select className={fieldClass()} value={attendanceFilters.setor} onChange={event => setAttendanceFilters(current => ({ ...current, setor: event.target.value }))}>
                 <option value="">Todos</option>
                 <SelectOptionList options={lookups.setores} />
               </select>
             </Field>
+            <Field label="Filtrar por Projeto">
+              <select className={fieldClass()} value={attendanceFilters.projeto} onChange={event => setAttendanceFilters(current => ({ ...current, projeto: event.target.value }))}>
+                <option value="">Todos</option>
+                <SelectOptionList options={lookups.projetos} />
+              </select>
+            </Field>
             <div className="flex items-end">
-              <button className={buttonClass('primary')} type="button" onClick={() => setAttendanceFilters({ protocolo: '', setor: '', prioridade: '' })}>
+              <button className={buttonClass('primary')} type="button" onClick={() => setAttendanceFilters({ protocolo: '', setor: '', projeto: '' })}>
                 Limpar filtros
               </button>
             </div>
@@ -1706,8 +1777,41 @@ function AttendancePanel({
           <button className="inline-flex h-10 items-center justify-center rounded-md bg-blue-600 px-4 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50" type="button" disabled={!selectedIds.length}>
             Agendar Selecionados
           </button>
+          <button className={buttonClass('danger')} type="button" onClick={() => openCancelPanel()} disabled={!selectedIds.length || saving}>
+            <X className="h-4 w-4" />
+            Cancelar solicitação
+          </button>
           {selectedIds.length ? <span className="inline-flex h-10 items-center rounded-md bg-slate-100 px-3 text-sm font-semibold text-slate-700">{selectedIds.length} selecionado(s)</span> : null}
         </div>
+
+        {cancelPanelOpen ? (
+          <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h3 className="font-bold text-red-700">Cancelar solicitação</h3>
+                <p className="text-sm text-red-700/80">
+                  Informe o motivo para registrar no histórico e comunicar a atualização por e-mail.
+                </p>
+              </div>
+              <button className="rounded-full p-1 text-red-700 hover:bg-red-100" type="button" onClick={() => setCancelPanelOpen(false)}>
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="mt-3">
+              <Field label="Motivo">
+                <textarea className={areaClass()} value={cancelReason} onChange={event => setCancelReason(event.target.value)} placeholder="Descreva o motivo do cancelamento..." />
+              </Field>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button className={buttonClass('primary')} type="button" onClick={confirmCancel} disabled={saving || !selectedIds.length || !cancelReason.trim()}>
+                Confirmar cancelamento
+              </button>
+              <button className={buttonClass('secondary')} type="button" onClick={() => setCancelPanelOpen(false)} disabled={saving}>
+                Fechar
+              </button>
+            </div>
+          </div>
+        ) : null}
 
         <div className="mt-3 overflow-x-auto">
           <table className="min-w-full border-collapse text-sm">
@@ -1718,10 +1822,10 @@ function AttendancePanel({
                 </th>
                 <th className="w-20 border border-slate-200 p-2">{headerCell('Nº', 'protocol')}</th>
                 <th className="w-36 border border-slate-200 p-2">{headerCell('Setor', 'setor')}</th>
+                <th className="w-40 border border-slate-200 p-2">{headerCell('Projeto', 'projeto')}</th>
                 <th className="w-32 border border-slate-200 p-2">{headerCell('Prazo', 'prazo')}</th>
                 <th className="w-36 border border-slate-200 p-2">{headerCell('Solicitante', 'solicitante')}</th>
                 <th className="border border-slate-200 p-2">{headerCell('Item', 'item')}</th>
-                <th className="w-28 border border-slate-200 p-2">{headerCell('Prioridade', 'prioridade')}</th>
                 <th className="w-16 border border-slate-200 p-2"></th>
               </tr>
             </thead>
@@ -1733,14 +1837,19 @@ function AttendancePanel({
                   </td>
                   <td className="border border-slate-200 p-2 font-bold text-slate-950">{request.protocol}</td>
                   <td className="border border-slate-200 p-2">{request.setor || '-'}</td>
+                  <td className="border border-slate-200 p-2">{request.projeto || request.projetoDescricao || '-'}</td>
                   <td className="border border-slate-200 p-2">{formatFreightDate(request.prazoEntrega)}</td>
                   <td className="border border-slate-200 p-2">{request.solicitanteNome || '-'}</td>
                   <td className="border border-slate-200 p-2">{request.itemDescricao || '-'}</td>
-                  <td className="border border-slate-200 p-2">{requestPriority(request)}</td>
-                  <td className="border border-slate-200 p-2 text-center">
-                    <button className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 hover:text-red-600" type="button" onClick={() => onOpen(request)}>
+                  <td className="border border-slate-200 p-2">
+                    <div className="flex items-center justify-center gap-1">
+                      <button className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 hover:text-red-600" type="button" onClick={() => onOpen(request)} title="Abrir detalhes">
                       <Eye className="h-4 w-4" />
-                    </button>
+                      </button>
+                      <button className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-red-100 bg-red-50 text-red-600 hover:bg-red-100" type="button" onClick={() => openCancelPanel(request)} title="Cancelar solicitação" disabled={saving}>
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

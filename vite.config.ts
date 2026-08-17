@@ -23,6 +23,7 @@ function sourcingApiDevServer() {
     ['/api/sourcing/respond', path.resolve(__dirname, 'api/sourcing/respond.ts')],
     ['/api/sourcing/send-invite', path.resolve(__dirname, 'api/sourcing/send-invite.ts')],
     ['/api/freight/send-notification', path.resolve(__dirname, 'api/freight/send-notification.ts')],
+    ['/api/freight/route-estimate', path.resolve(__dirname, 'api/freight/route-estimate.ts')],
   ])
 
   return {

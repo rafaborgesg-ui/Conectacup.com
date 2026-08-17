@@ -289,6 +289,12 @@ type RouteEstimate = {
   message?: string;
 };
 
+function routeProviderLabel(provider?: string, status?: RouteEstimate['status']) {
+  if (provider === 'distancematrix_ai') return 'DistanceMatrix.ai';
+  if (provider === 'google_distance_matrix') return 'Google Distance Matrix';
+  return status === 'loading' ? 'calculando...' : '—';
+}
+
 async function fetchRouteEstimate(request: FreightRequest, departureAt?: string): Promise<RouteEstimate> {
   const origin = request.enderecoRetirada || '';
   const destination = request.enderecoEntrega || '';
@@ -1844,7 +1850,7 @@ function RouteEstimatePanel({
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="font-bold text-slate-950">{formatProtocol(request)}</span>
                   <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-semibold text-slate-500">
-                    {estimate.provider === 'google_distance_matrix' ? 'Distance Matrix' : estimate.status === 'loading' ? 'calculando...' : '—'}
+                    {routeProviderLabel(estimate.provider, estimate.status)}
                   </span>
                 </div>
                 <div className="mt-2 grid gap-2 md:grid-cols-2">

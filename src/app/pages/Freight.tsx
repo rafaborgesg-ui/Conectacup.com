@@ -1246,42 +1246,43 @@ function FreightPage({ mode }: { mode: FreightMode }) {
     ? { title: 'Frete Internacional', subtitle: 'Importação, exportação, volumes, mercadorias, anexos e status internos.', icon: Globe2 }
     : isDriver
       ? { title: 'Frete Nacional - Motorista', subtitle: 'Fluxo mobile para retirada, rota, conclusão e foto de entrega.', icon: Smartphone }
-      : { title: 'Frete Nacional', subtitle: 'Solicitação, atendimento logístico, kanban, motorista e histórico integrados ao ConectaCup.', icon: Truck };
+      : { title: 'Frete Nacional', subtitle: '', icon: Truck };
   const HeaderIcon = header.icon;
 
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-6">
       <div className="mx-auto max-w-7xl space-y-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="flex items-start gap-3">
+          <div className="flex min-w-0 items-start gap-3">
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-red-600 text-white shadow-sm">
               <HeaderIcon className="h-6 w-6" />
             </div>
-            <div>
-              <h1 className="text-2xl font-bold text-slate-950 md:text-3xl">{header.title}</h1>
-              <p className="mt-1 max-w-3xl text-sm text-slate-600">{header.subtitle}</p>
+            <div className="min-w-0">
+              <h1 className="break-words text-2xl font-bold text-slate-950 md:text-3xl">{header.title}</h1>
+              {header.subtitle ? <p className="mt-1 max-w-3xl text-sm text-slate-600">{header.subtitle}</p> : null}
               <div className="mt-2 flex flex-wrap gap-2">
                 <span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-semibold text-white">{isInternational ? 'Internacional' : 'Nacional'}</span>
-                <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">Integrado ao Supabase</span>
               </div>
             </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <button className={buttonClass('secondary')} onClick={loadData} type="button" disabled={loading}>
-              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-              Atualizar
-            </button>
-            <button className={buttonClass('secondary')} onClick={exportXlsx} type="button">
-              <Download className="h-4 w-4" />
-              Exportar
-            </button>
-            {!isDriver ? (
-              <button className={buttonClass('primary')} onClick={() => setTab('nova')} type="button">
-                <Plus className="h-4 w-4" />
-                Nova solicitação
+          {tab === 'dashboard' ? (
+            <div className="grid w-full grid-cols-1 gap-2 sm:w-auto sm:grid-cols-3">
+              <button className={buttonClass('secondary')} onClick={loadData} type="button" disabled={loading}>
+                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                Atualizar
               </button>
-            ) : null}
-          </div>
+              <button className={buttonClass('secondary')} onClick={exportXlsx} type="button">
+                <Download className="h-4 w-4" />
+                Exportar
+              </button>
+              {!isDriver ? (
+                <button className={buttonClass('primary')} onClick={() => setTab('nova')} type="button">
+                  <Plus className="h-4 w-4" />
+                  Nova solicitação
+                </button>
+              ) : null}
+            </div>
+          ) : null}
         </div>
 
         {message ? (
@@ -1290,15 +1291,17 @@ function FreightPage({ mode }: { mode: FreightMode }) {
           </div>
         ) : null}
 
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-          <StatCard label="Total" value={stats.total} icon={ClipboardList} tone="bg-slate-100 text-slate-700" />
-          <StatCard label="Solicitadas" value={stats.pendente} icon={AlertTriangle} tone="bg-amber-100 text-amber-700" />
-          <StatCard label={isInternational ? 'Em andamento' : 'Agendados'} value={stats.agendado} icon={CalendarClock} tone="bg-blue-100 text-blue-700" />
-          <StatCard label={isInternational ? 'Trânsito/desembaraço' : 'Em rota'} value={stats.rota} icon={Route} tone="bg-red-100 text-red-700" />
-          <StatCard label="Concluídos" value={stats.concluido} icon={CheckCircle2} tone="bg-emerald-100 text-emerald-700" />
-        </div>
+        {tab === 'dashboard' ? (
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            <StatCard label="Total" value={stats.total} icon={ClipboardList} tone="bg-slate-100 text-slate-700" />
+            <StatCard label="Solicitadas" value={stats.pendente} icon={AlertTriangle} tone="bg-amber-100 text-amber-700" />
+            <StatCard label={isInternational ? 'Em andamento' : 'Agendados'} value={stats.agendado} icon={CalendarClock} tone="bg-blue-100 text-blue-700" />
+            <StatCard label={isInternational ? 'Trânsito/desembaraço' : 'Em rota'} value={stats.rota} icon={Route} tone="bg-red-100 text-red-700" />
+            <StatCard label="Concluídos" value={stats.concluido} icon={CheckCircle2} tone="bg-emerald-100 text-emerald-700" />
+          </div>
+        ) : null}
 
-        <div className="flex gap-2 overflow-x-auto border-b border-slate-200 pb-2">
+        <div className="-mx-1 flex gap-2 overflow-x-auto border-b border-slate-200 px-1 pb-2">
           {[
             { id: 'dashboard', label: 'Dashboard', icon: BarChart3, visible: true },
             { id: 'nova', label: 'Nova solicitação', icon: Plus, visible: !isDriver },
@@ -1309,7 +1312,7 @@ function FreightPage({ mode }: { mode: FreightMode }) {
           ].filter(item => item.visible).map(item => (
             <button
               key={item.id}
-              className={`inline-flex h-10 items-center gap-2 rounded-md px-4 text-sm font-semibold transition ${tab === item.id ? 'bg-slate-950 text-white' : 'bg-white text-slate-700 hover:bg-slate-100'}`}
+              className={`inline-flex h-10 shrink-0 items-center gap-2 rounded-md px-4 text-sm font-semibold transition ${tab === item.id ? 'bg-slate-950 text-white' : 'bg-white text-slate-700 hover:bg-slate-100'}`}
               onClick={() => setTab(item.id as TabKey)}
               type="button"
             >
@@ -1804,8 +1807,7 @@ function NationalForm({
   return (
     <form className="rounded-lg border border-slate-200 bg-white shadow-sm" onSubmit={onSubmit}>
       <div className="border-b border-slate-100 px-5 py-4">
-        <h2 className="text-lg font-bold text-slate-950">Cadastrar solicitação nacional</h2>
-        <p className="text-sm text-slate-500">Campos equivalentes ao formulário Google Sheets atual, agora persistidos no Supabase.</p>
+        <h2 className="text-lg font-bold text-slate-950">Cadastrar solicitação de frete nacional</h2>
       </div>
       <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-3">
         <Field label="Setor">

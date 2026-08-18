@@ -379,6 +379,15 @@ function freightAddressOptionValue(option: FreightLookupOption) {
   ].map(item => String(item || '').trim()).find(Boolean) || option.value;
 }
 
+function recurringAddressShortcutLabel(option: FreightLookupOption) {
+  return String(option.value || option.label || '').trim();
+}
+
+function recurringAddressFullValue(option: FreightLookupOption) {
+  const metadata = option.metadata || {};
+  return String(metadata.descricao || metadata.endereco || metadata.address || freightAddressOptionValue(option)).trim();
+}
+
 function googleMapsAddressUrl(address: string) {
   return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address)}`;
 }
@@ -1825,6 +1834,8 @@ function NationalForm({
   onFiles: (files: File[]) => void;
   onSubmit: (event: FormEvent) => void;
 }) {
+  const [openAddressMenu, setOpenAddressMenu] = useState<'retirada' | 'entrega' | null>(null);
+
   return (
     <form className="rounded-lg border border-slate-200 bg-white shadow-sm" onSubmit={onSubmit}>
       <div className="border-b border-slate-100 px-5 py-4">
@@ -1852,13 +1863,24 @@ function NationalForm({
         <Field label="Responsável no local da retirada">
           <input className={fieldClass()} value={form.responsavelLocal} onChange={event => onChange('responsavelLocal', event.target.value)} />
         </Field>
-        <Field label="Endereço de retirada">
-          <input className={fieldClass()} list="freight-addresses" value={form.enderecoRetirada} onChange={event => onChange('enderecoRetirada', event.target.value)} />
-        </Field>
-        <Field label="Endereço de entrega">
-          <input className={fieldClass()} list="freight-addresses" value={form.enderecoEntrega} onChange={event => onChange('enderecoEntrega', event.target.value)} />
-          <datalist id="freight-addresses"><SelectAddressOptionList options={lookups.enderecos} /></datalist>
-        </Field>
+        <RecurringAddressField
+          label="Endereço de retirada"
+          value={form.enderecoRetirada}
+          options={lookups.enderecos}
+          open={openAddressMenu === 'retirada'}
+          onToggle={() => setOpenAddressMenu(current => current === 'retirada' ? null : 'retirada')}
+          onClose={() => setOpenAddressMenu(null)}
+          onChange={value => onChange('enderecoRetirada', value)}
+        />
+        <RecurringAddressField
+          label="Endereço de entrega"
+          value={form.enderecoEntrega}
+          options={lookups.enderecos}
+          open={openAddressMenu === 'entrega'}
+          onToggle={() => setOpenAddressMenu(current => current === 'entrega' ? null : 'entrega')}
+          onClose={() => setOpenAddressMenu(null)}
+          onChange={value => onChange('enderecoEntrega', value)}
+        />
         <div className="md:col-span-2 xl:col-span-3">
           <Field label="Descreva as quantidades e itens a serem transportados">
             <textarea className={areaClass()} value={form.itemDescricao} onChange={event => onChange('itemDescricao', event.target.value)} placeholder={'Exemplo:\n1x Parachoque traseiro\n2x Molde de alumínio'} required />
@@ -1885,6 +1907,77 @@ function NationalForm({
         </button>
       </div>
     </form>
+  );
+}
+
+function RecurringAddressField({
+  label,
+  value,
+  options,
+  open,
+  onToggle,
+  onClose,
+  onChange
+}: {
+  label: string;
+  value: string;
+  options: FreightLookupOption[];
+  open: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="block">
+      <span className={labelClass()}>{label}</span>
+      <div className="relative">
+        <input className={`${fieldClass()} pr-32`} value={value} onChange={event => onChange(event.target.value)} />
+        <button
+          className="absolute right-1 top-1/2 inline-flex h-8 -translate-y-1/2 items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-white"
+          type="button"
+          onClick={onToggle}
+        >
+          <MapPin className="h-3.5 w-3.5 text-pink-500" />
+          Endereços
+        </button>
+        {open ? (
+          <div className="absolute right-0 top-full z-30 mt-1 w-64 overflow-hidden rounded-md border border-slate-200 bg-white py-1 text-sm shadow-lg">
+            <div className="max-h-72 overflow-y-auto">
+              {options.length ? options.map(option => {
+                const shortcut = recurringAddressShortcutLabel(option);
+                const fullAddress = recurringAddressFullValue(option);
+                return (
+                  <button
+                    key={option.id || option.value || option.label}
+                    className="block w-full px-3 py-2 text-left text-slate-700 hover:bg-slate-50"
+                    type="button"
+                    title={fullAddress}
+                    onClick={() => {
+                      onChange(fullAddress);
+                      onClose();
+                    }}
+                  >
+                    {shortcut || fullAddress}
+                  </button>
+                );
+              }) : (
+                <div className="px-3 py-2 text-slate-500">Nenhum endereço cadastrado.</div>
+              )}
+            </div>
+            <button
+              className="block w-full border-t border-slate-100 px-3 py-2 text-left text-slate-700 hover:bg-slate-50"
+              type="button"
+              onClick={() => {
+                onChange('');
+                onClose();
+              }}
+            >
+              Limpar
+            </button>
+          </div>
+        ) : null}
+      </div>
+    </div>
   );
 }
 

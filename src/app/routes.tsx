@@ -187,7 +187,7 @@ export const router = createBrowserRouter([
               {
                 index: true,
                 element: (
-                  <ProtectedRoute page={PAGES.FRETE_WEB}>
+                  <ProtectedRoute page={PAGES.FRETE_NACIONAL}>
                     <FreightNational />
                   </ProtectedRoute>
                 )

@@ -203,6 +203,7 @@ export const DEFAULT_PROFILES: Omit<AccessProfile, 'createdAt' | 'updatedAt'>[] 
       PAGES.MANUTENCAO_PREDIAL,
       PAGES.FRETE_SMARTPHONE,
       PAGES.FRETE_WEB,
+      PAGES.FRETE_NACIONAL,
       PAGES.FRETE_INTERNACIONAL,
     ],
     features: [
@@ -246,6 +247,7 @@ export const DEFAULT_PROFILES: Omit<AccessProfile, 'createdAt' | 'updatedAt'>[] 
       PAGES.MANUTENCAO_PREDIAL,
       PAGES.FRETE_SMARTPHONE,
       PAGES.FRETE_WEB,
+      PAGES.FRETE_NACIONAL,
       PAGES.FRETE_INTERNACIONAL,
     ],
     features: [
@@ -705,7 +707,15 @@ export function getDynamicPageCategories(): Record<string, PageKey[]> {
  */
 export function hasPageAccess(profile: AccessProfile, page: PageKey): boolean {
   if (isAdministratorProfile(profile)) return true;
-  return profile.pages.includes(page);
+  if (profile.pages.includes(page)) return true;
+
+  const legacyPageAliases: Partial<Record<PageKey, PageKey[]>> = {
+    [PAGES.FRETE_NACIONAL]: [PAGES.FRETE_WEB, PAGES.FRETE_SMARTPHONE],
+    [PAGES.FRETE_WEB]: [PAGES.FRETE_NACIONAL, PAGES.FRETE_SMARTPHONE],
+    [PAGES.FRETE_SMARTPHONE]: [PAGES.FRETE_NACIONAL, PAGES.FRETE_WEB],
+  };
+
+  return (legacyPageAliases[page] || []).some(alias => profile.pages.includes(alias));
 }
 
 /**

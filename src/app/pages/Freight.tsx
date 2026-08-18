@@ -445,15 +445,19 @@ function toDateTimeLocalInput(value?: string) {
   return localDate.toISOString().slice(0, 16);
 }
 
+function normalizeFreightProfileValue(value: unknown) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+}
+
 function isLocalFreightAdminUser() {
   try {
     const user = JSON.parse(localStorage.getItem('porsche-cup-user') || '{}');
     const values = [user.profileId, user.role, user.accessType, user.tipoAcesso, user.tipo_acesso]
-      .map(value => String(value || '')
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .trim()
-        .toLowerCase());
+      .map(normalizeFreightProfileValue);
     return values.some(value => value === 'admin' || value === 'administrador');
   } catch {
     return false;
@@ -741,8 +745,15 @@ function AddressInfoLine({ label, value, options }: { label: string; value?: str
 function FreightPage({ mode }: { mode: FreightMode }) {
   const isInternational = mode === 'internacional';
   const isDriver = mode === 'motorista';
-  const { isUserAdmin } = usePermissions();
+  const { isUserAdmin, profile } = usePermissions();
   const [tab, setTab] = useState<TabKey>(isInternational ? 'dashboard' : isDriver ? 'motorista' : 'dashboard');
+  const profileId = normalizeFreightProfileValue(profile?.id);
+  const profileName = normalizeFreightProfileValue(profile?.name);
+  const isOperatorFreightProfile = !isInternational && !isDriver && (profileId === 'operator' || profileName === 'operador');
+  const isDriverFreightProfile = !isInternational && !isDriver && (profileId === 'driver' || profileId === 'motorista' || profileName === 'motorista');
+  const forcedTab: TabKey | null = isDriver || isDriverFreightProfile ? 'motorista' : isOperatorFreightProfile ? 'nova' : null;
+  const activeTab = forcedTab || tab;
+  const isSingleTabView = Boolean(forcedTab);
   const [requests, setRequests] = useState<FreightRequest[]>([]);
   const [lookups, setLookups] = useState({
     setores: [] as FreightLookupOption[],
@@ -778,11 +789,17 @@ function FreightPage({ mode }: { mode: FreightMode }) {
   const [itemFiles, setItemFiles] = useState<File[]>([]);
 
   const freightType = isInternational ? 'internacional' : 'nacional';
-  const canEditFreightRequests = !isInternational && !isDriver && (isUserAdmin() || isLocalFreightAdminUser());
+  const canEditFreightRequests = !isInternational && !isDriver && !isSingleTabView && (isUserAdmin() || isLocalFreightAdminUser());
 
   useEffect(() => {
     loadData();
   }, [freightType]);
+
+  useEffect(() => {
+    if (forcedTab && tab !== forcedTab) {
+      setTab(forcedTab);
+    }
+  }, [forcedTab, tab]);
 
   async function loadData() {
     setLoading(true);
@@ -807,7 +824,7 @@ function FreightPage({ mode }: { mode: FreightMode }) {
       if (filters.motorista !== 'TODOS' && !(request.motorista || '').toLowerCase().includes(filters.motorista.toLowerCase())) return false;
       if (filters.setor && request.setor !== filters.setor) return false;
       if (filters.projeto && request.projeto !== filters.projeto) return false;
-      if (tab === 'kanban' && !isInternational && (filters.dateFrom || filters.dateTo)) {
+      if (activeTab === 'kanban' && !isInternational && (filters.dateFrom || filters.dateTo)) {
         if (!request.agendamentoAt) return false;
         const scheduledAt = new Date(request.agendamentoAt).getTime();
         if (Number.isNaN(scheduledAt)) return false;
@@ -840,7 +857,7 @@ function FreightPage({ mode }: { mode: FreightMode }) {
         request.empresaDestinatario
       ].some(value => String(value || '').toLowerCase().includes(search));
     });
-  }, [filters, isInternational, requests, tab]);
+  }, [activeTab, filters, isInternational, requests]);
 
   const stats = useMemo(() => {
     const source = filteredRequests;
@@ -1035,7 +1052,7 @@ function FreightPage({ mode }: { mode: FreightMode }) {
       await sendFreightNotification(created.id, 'created');
       setNationalForm(emptyNationalForm);
       setProductFiles([]);
-      setTab('dashboard');
+      setTab(forcedTab || 'dashboard');
       setMessage({ type: 'success', text: `Solicitação ${formatProtocol(created)} cadastrada.` });
       await loadData();
     } catch (error: any) {
@@ -1244,7 +1261,7 @@ function FreightPage({ mode }: { mode: FreightMode }) {
 
   const header = isInternational
     ? { title: 'Frete Internacional', subtitle: 'Importação, exportação, volumes, mercadorias, anexos e status internos.', icon: Globe2 }
-    : isDriver
+    : isDriver || isDriverFreightProfile
       ? { title: 'Frete Nacional - Motorista', subtitle: 'Fluxo mobile para retirada, rota, conclusão e foto de entrega.', icon: Smartphone }
       : { title: 'Frete Nacional', subtitle: '', icon: Truck };
   const HeaderIcon = header.icon;
@@ -1252,38 +1269,40 @@ function FreightPage({ mode }: { mode: FreightMode }) {
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-6">
       <div className="mx-auto max-w-7xl space-y-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="flex min-w-0 items-start gap-3">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-red-600 text-white shadow-sm">
-              <HeaderIcon className="h-6 w-6" />
-            </div>
-            <div className="min-w-0">
-              <h1 className="break-words text-2xl font-bold text-slate-950 md:text-3xl">{header.title}</h1>
-              {header.subtitle ? <p className="mt-1 max-w-3xl text-sm text-slate-600">{header.subtitle}</p> : null}
-              <div className="mt-2 flex flex-wrap gap-2">
-                <span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-semibold text-white">{isInternational ? 'Internacional' : 'Nacional'}</span>
+        {!isSingleTabView ? (
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex min-w-0 items-start gap-3">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-red-600 text-white shadow-sm">
+                <HeaderIcon className="h-6 w-6" />
+              </div>
+              <div className="min-w-0">
+                <h1 className="break-words text-2xl font-bold text-slate-950 md:text-3xl">{header.title}</h1>
+                {header.subtitle ? <p className="mt-1 max-w-3xl text-sm text-slate-600">{header.subtitle}</p> : null}
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-semibold text-white">{isInternational ? 'Internacional' : 'Nacional'}</span>
+                </div>
               </div>
             </div>
-          </div>
-          {tab === 'dashboard' ? (
-            <div className="grid w-full grid-cols-1 gap-2 sm:w-auto sm:grid-cols-3">
-              <button className={buttonClass('secondary')} onClick={loadData} type="button" disabled={loading}>
-                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-                Atualizar
-              </button>
-              <button className={buttonClass('secondary')} onClick={exportXlsx} type="button">
-                <Download className="h-4 w-4" />
-                Exportar
-              </button>
-              {!isDriver ? (
-                <button className={buttonClass('primary')} onClick={() => setTab('nova')} type="button">
-                  <Plus className="h-4 w-4" />
-                  Nova solicitação
+            {activeTab === 'dashboard' ? (
+              <div className="grid w-full grid-cols-1 gap-2 sm:w-auto sm:grid-cols-3">
+                <button className={buttonClass('secondary')} onClick={loadData} type="button" disabled={loading}>
+                  <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                  Atualizar
                 </button>
-              ) : null}
-            </div>
-          ) : null}
-        </div>
+                <button className={buttonClass('secondary')} onClick={exportXlsx} type="button">
+                  <Download className="h-4 w-4" />
+                  Exportar
+                </button>
+                {!isDriver ? (
+                  <button className={buttonClass('primary')} onClick={() => setTab('nova')} type="button">
+                    <Plus className="h-4 w-4" />
+                    Nova solicitação
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
 
         {message ? (
           <div className={`rounded-lg border px-4 py-3 text-sm font-medium ${message.type === 'error' ? 'border-red-200 bg-red-50 text-red-700' : message.type === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-blue-200 bg-blue-50 text-blue-700'}`}>
@@ -1291,7 +1310,7 @@ function FreightPage({ mode }: { mode: FreightMode }) {
           </div>
         ) : null}
 
-        {tab === 'dashboard' ? (
+        {activeTab === 'dashboard' ? (
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
             <StatCard label="Total" value={stats.total} icon={ClipboardList} tone="bg-slate-100 text-slate-700" />
             <StatCard label="Solicitadas" value={stats.pendente} icon={AlertTriangle} tone="bg-amber-100 text-amber-700" />
@@ -1301,28 +1320,30 @@ function FreightPage({ mode }: { mode: FreightMode }) {
           </div>
         ) : null}
 
-        <div className="-mx-1 flex gap-2 overflow-x-auto border-b border-slate-200 px-1 pb-2">
-          {[
-            { id: 'dashboard', label: 'Dashboard', icon: BarChart3, visible: true },
-            { id: 'nova', label: 'Nova solicitação', icon: Plus, visible: !isDriver },
-            { id: 'atendimento', label: 'Atendimento', icon: CalendarClock, visible: !isInternational },
-            { id: 'kanban', label: 'Kanban', icon: Columns3, visible: !isInternational },
-            { id: 'motorista', label: 'Motorista', icon: Smartphone, visible: !isInternational },
-            { id: 'relatorios', label: 'Relatórios', icon: FileSpreadsheet, visible: true }
-          ].filter(item => item.visible).map(item => (
-            <button
-              key={item.id}
-              className={`inline-flex h-10 shrink-0 items-center gap-2 rounded-md px-4 text-sm font-semibold transition ${tab === item.id ? 'bg-slate-950 text-white' : 'bg-white text-slate-700 hover:bg-slate-100'}`}
-              onClick={() => setTab(item.id as TabKey)}
-              type="button"
-            >
-              <item.icon className="h-4 w-4" />
-              {item.label}
-            </button>
-          ))}
-        </div>
+        {!isSingleTabView ? (
+          <div className="-mx-1 flex gap-2 overflow-x-auto border-b border-slate-200 px-1 pb-2">
+            {[
+              { id: 'dashboard', label: 'Dashboard', icon: BarChart3, visible: true },
+              { id: 'nova', label: 'Nova solicitação', icon: Plus, visible: !isDriver },
+              { id: 'atendimento', label: 'Atendimento', icon: CalendarClock, visible: !isInternational },
+              { id: 'kanban', label: 'Kanban', icon: Columns3, visible: !isInternational },
+              { id: 'motorista', label: 'Motorista', icon: Smartphone, visible: !isInternational },
+              { id: 'relatorios', label: 'Relatórios', icon: FileSpreadsheet, visible: true }
+            ].filter(item => item.visible).map(item => (
+              <button
+                key={item.id}
+                className={`inline-flex h-10 shrink-0 items-center gap-2 rounded-md px-4 text-sm font-semibold transition ${activeTab === item.id ? 'bg-slate-950 text-white' : 'bg-white text-slate-700 hover:bg-slate-100'}`}
+                onClick={() => setTab(item.id as TabKey)}
+                type="button"
+              >
+                <item.icon className="h-4 w-4" />
+                {item.label}
+              </button>
+            ))}
+          </div>
+        ) : null}
 
-        {tab !== 'nova' && !(tab === 'kanban' && !isInternational) ? (
+        {activeTab !== 'nova' && !(activeTab === 'kanban' && !isInternational) ? (
           <FilterBar
             filters={filters}
             setFilters={setFilters}
@@ -1332,7 +1353,7 @@ function FreightPage({ mode }: { mode: FreightMode }) {
           />
         ) : null}
 
-        {tab === 'kanban' && !isInternational ? (
+        {activeTab === 'kanban' && !isInternational ? (
           <FreightKanbanFilters
             filters={filters}
             setFilters={setFilters}
@@ -1354,7 +1375,7 @@ function FreightPage({ mode }: { mode: FreightMode }) {
           </div>
         ) : (
           <>
-            {tab === 'dashboard' && (
+            {activeTab === 'dashboard' && (
               <RequestsTable
                 requests={filteredRequests}
                 isInternational={isInternational}
@@ -1366,7 +1387,7 @@ function FreightPage({ mode }: { mode: FreightMode }) {
               />
             )}
 
-            {tab === 'nova' && !isInternational && (
+            {activeTab === 'nova' && !isInternational && (
               <NationalForm
                 form={nationalForm}
                 files={productFiles}
@@ -1378,7 +1399,7 @@ function FreightPage({ mode }: { mode: FreightMode }) {
               />
             )}
 
-            {tab === 'nova' && isInternational && (
+            {activeTab === 'nova' && isInternational && (
               <InternationalForm
                 form={internationalForm}
                 setForm={setInternationalForm}
@@ -1396,7 +1417,7 @@ function FreightPage({ mode }: { mode: FreightMode }) {
               />
             )}
 
-            {tab === 'atendimento' && !isInternational && (
+            {activeTab === 'atendimento' && !isInternational && (
               <AttendancePanel
                 requests={filteredRequests.filter(request => isRequestedFreightStatus(request.status) || selectedIds.includes(request.id))}
                 selectedIds={selectedIds}
@@ -1411,7 +1432,7 @@ function FreightPage({ mode }: { mode: FreightMode }) {
               />
             )}
 
-            {tab === 'kanban' && !isInternational && (
+            {activeTab === 'kanban' && !isInternational && (
               <KanbanPanel
                 requests={filteredRequests}
                 isDriver={false}
@@ -1424,7 +1445,7 @@ function FreightPage({ mode }: { mode: FreightMode }) {
               />
             )}
 
-            {tab === 'motorista' && !isInternational && (
+            {activeTab === 'motorista' && !isInternational && (
               <KanbanPanel
                 requests={filteredRequests}
                 isDriver={true}
@@ -1437,7 +1458,7 @@ function FreightPage({ mode }: { mode: FreightMode }) {
               />
             )}
 
-            {tab === 'relatorios' && (
+            {activeTab === 'relatorios' && (
               <ReportsPanel requests={filteredRequests} isInternational={isInternational} onExport={exportXlsx} />
             )}
           </>

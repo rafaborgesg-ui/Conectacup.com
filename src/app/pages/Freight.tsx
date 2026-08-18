@@ -1556,12 +1556,14 @@ function FreightKanbanFilters({
   const motoristaCounts = useMemo(() => {
     const counts = new Map<string, number>();
     requests.forEach(request => {
-      const motorista = (request.motorista || 'Sem motorista').trim() || 'Sem motorista';
+      const motorista = (request.motorista || '').trim();
+      if (!motorista) return;
       counts.set(motorista, (counts.get(motorista) || 0) + 1);
     });
     return Array.from(counts.entries())
       .map(([label, count]) => ({ label, count }))
-      .sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'));
+      .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, 'pt-BR'))
+      .slice(0, 5);
   }, [requests]);
 
   const statusCounts = useMemo(() => {
@@ -2689,7 +2691,11 @@ function FreightKanbanCard({
             <p>Motorista: {compactText(request.motorista || '-', 36)}</p>
           ) : null}
           <p>{dateLabel}: {formatFreightDate(dateValue)}</p>
-          <p>Veículo: {compactText(route || '-', 34)}</p>
+          {isRequestedCard ? (
+            <p>Observação: {compactText(request.observacoes || request.observacoesFinais || '-', 34)}</p>
+          ) : (
+            <p>Veículo: {compactText(route || '-', 34)}</p>
+          )}
         </div>
 
         <div className="mt-2 flex flex-wrap gap-1.5">

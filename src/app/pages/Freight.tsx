@@ -180,11 +180,11 @@ function statusBadgeClass(status: string) {
 }
 
 function fieldClass() {
-  return 'h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-100 disabled:bg-slate-50 disabled:text-slate-400';
+  return 'h-10 w-full min-w-0 max-w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-100 disabled:bg-slate-50 disabled:text-slate-400';
 }
 
 function areaClass() {
-  return 'min-h-24 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-100';
+  return 'min-h-24 w-full min-w-0 max-w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-100';
 }
 
 function buttonClass(variant: 'primary' | 'secondary' | 'dark' | 'danger' = 'secondary') {
@@ -1277,8 +1277,8 @@ function FreightPage({ mode }: { mode: FreightMode }) {
   const showPageHeader = !isSingleTabView && (isInternational || activeTab === 'dashboard');
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 md:p-6">
-      <div className="mx-auto max-w-7xl space-y-5">
+    <div className="min-h-screen overflow-x-hidden bg-slate-50 p-3 sm:p-4 md:p-6">
+      <div className="mx-auto w-full min-w-0 max-w-7xl space-y-5">
         {showPageHeader ? (
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="flex min-w-0 items-start gap-3">
@@ -1837,11 +1837,11 @@ function NationalForm({
   const [openAddressMenu, setOpenAddressMenu] = useState<'retirada' | 'entrega' | null>(null);
 
   return (
-    <form className="rounded-lg border border-slate-200 bg-white shadow-sm" onSubmit={onSubmit}>
-      <div className="border-b border-slate-100 px-5 py-4">
-        <h2 className="text-lg font-bold text-slate-950">Cadastrar solicitação de frete nacional</h2>
+    <form className="w-full max-w-full rounded-lg border border-slate-200 bg-white shadow-sm" onSubmit={onSubmit}>
+      <div className="border-b border-slate-100 px-4 py-4 pl-20 sm:px-5 sm:pl-5">
+        <h2 className="break-words text-base font-bold leading-snug text-slate-950 sm:text-lg">Cadastrar solicitação de frete nacional</h2>
       </div>
-      <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid min-w-0 gap-4 p-4 sm:p-5 md:grid-cols-2 xl:grid-cols-3">
         <Field label="Setor">
           <select className={fieldClass()} value={form.setor} onChange={event => onChange('setor', event.target.value)} required>
             <option value="">Selecione...</option>
@@ -1892,12 +1892,16 @@ function NationalForm({
           </Field>
         </div>
         <div className="md:col-span-2 xl:col-span-3">
-          <Field label="Fotos do produto">
-            <div className="flex flex-col gap-3 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4">
-              <input type="file" accept="image/*" multiple onChange={event => onFiles(Array.from(event.target.files || []))} />
+          <div className="block min-w-0">
+            <span className={labelClass()}>Fotos do produto</span>
+            <div className="flex min-w-0 flex-col gap-3 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-3 sm:p-4">
+              <label className={`${buttonClass('secondary')} w-full cursor-pointer sm:w-fit`}>
+                Escolher arquivos
+                <input className="sr-only" type="file" accept="image/*" multiple onChange={event => onFiles(Array.from(event.target.files || []))} />
+              </label>
               <p className="text-sm text-slate-500">{files.length ? `${files.length} arquivo(s) selecionado(s)` : 'Nenhuma foto selecionada.'}</p>
             </div>
-          </Field>
+          </div>
         </div>
       </div>
       <div className="flex justify-end border-t border-slate-100 px-5 py-4">
@@ -1928,12 +1932,12 @@ function RecurringAddressField({
   onChange: (value: string) => void;
 }) {
   return (
-    <div className="block">
+    <div className="block min-w-0">
       <span className={labelClass()}>{label}</span>
-      <div className="relative">
-        <input className={`${fieldClass()} pr-32`} value={value} onChange={event => onChange(event.target.value)} />
+      <div className="relative min-w-0">
+        <input className={`${fieldClass()} pr-3 sm:pr-32`} value={value} onChange={event => onChange(event.target.value)} />
         <button
-          className="absolute right-1 top-1/2 inline-flex h-8 -translate-y-1/2 items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-white"
+          className="mt-2 inline-flex h-9 w-full items-center justify-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-white sm:absolute sm:right-1 sm:top-1/2 sm:mt-0 sm:h-8 sm:w-auto sm:-translate-y-1/2"
           type="button"
           onClick={onToggle}
         >
@@ -1941,7 +1945,7 @@ function RecurringAddressField({
           Endereços
         </button>
         {open ? (
-          <div className="absolute right-0 top-full z-30 mt-1 w-64 overflow-hidden rounded-md border border-slate-200 bg-white py-1 text-sm shadow-lg">
+          <div className="absolute left-0 right-0 top-full z-30 mt-1 overflow-hidden rounded-md border border-slate-200 bg-white py-1 text-sm shadow-lg sm:left-auto sm:w-64">
             <div className="max-h-72 overflow-y-auto">
               {options.length ? options.map(option => {
                 const shortcut = recurringAddressShortcutLabel(option);
@@ -2129,7 +2133,7 @@ function EditRequestDrawer({
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <label className="block">
+    <label className="block min-w-0">
       <span className={labelClass()}>{label}</span>
       {children}
     </label>

@@ -1277,7 +1277,7 @@ function FreightPage({ mode }: { mode: FreightMode }) {
   const showPageHeader = !isSingleTabView && (isInternational || activeTab === 'dashboard');
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-slate-50 p-3 sm:p-4 md:p-6">
+    <div className="overflow-x-hidden bg-slate-50 px-3 pb-0 pt-3 sm:min-h-screen sm:p-4 md:p-6">
       <div className="mx-auto w-full min-w-0 max-w-7xl space-y-5">
         {showPageHeader ? (
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -1835,6 +1835,17 @@ function NationalForm({
   onSubmit: (event: FormEvent) => void;
 }) {
   const [openAddressMenu, setOpenAddressMenu] = useState<'retirada' | 'entrega' | null>(null);
+  const [filePreviews, setFilePreviews] = useState<Array<{ name: string; url: string }>>([]);
+
+  useEffect(() => {
+    const previews = files.map(file => ({ name: file.name, url: URL.createObjectURL(file) }));
+    setFilePreviews(previews);
+    return () => previews.forEach(preview => URL.revokeObjectURL(preview.url));
+  }, [files]);
+
+  const removeFile = (index: number) => {
+    onFiles(files.filter((_, currentIndex) => currentIndex !== index));
+  };
 
   return (
     <form className="w-full max-w-full rounded-lg border border-slate-200 bg-white shadow-sm" onSubmit={onSubmit}>
@@ -1883,7 +1894,7 @@ function NationalForm({
         />
         <div className="md:col-span-2 xl:col-span-3">
           <Field label="Descreva as quantidades e itens a serem transportados">
-            <textarea className={areaClass()} value={form.itemDescricao} onChange={event => onChange('itemDescricao', event.target.value)} placeholder={'Exemplo:\n1x Parachoque traseiro\n2x Molde de alumínio'} required />
+            <textarea className={`${areaClass()} text-[13px] leading-5 placeholder:text-[13px] sm:text-sm sm:placeholder:text-sm`} value={form.itemDescricao} onChange={event => onChange('itemDescricao', event.target.value)} placeholder={'Exemplo:\n1x Parachoque traseiro\n2x Molde de alumínio'} required />
           </Field>
         </div>
         <div className="md:col-span-2 xl:col-span-3">
@@ -1897,9 +1908,36 @@ function NationalForm({
             <div className="flex min-w-0 flex-col gap-3 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-3 sm:p-4">
               <label className={`${buttonClass('secondary')} w-full cursor-pointer sm:w-fit`}>
                 Escolher arquivos
-                <input className="sr-only" type="file" accept="image/*" multiple onChange={event => onFiles(Array.from(event.target.files || []))} />
+                <input
+                  className="sr-only"
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={event => {
+                    onFiles(Array.from(event.target.files || []));
+                    event.currentTarget.value = '';
+                  }}
+                />
               </label>
-              <p className="text-sm text-slate-500">{files.length ? `${files.length} arquivo(s) selecionado(s)` : 'Nenhuma foto selecionada.'}</p>
+              <p className="text-sm text-slate-500">{files.length ? `${files.length} foto(s) selecionada(s)` : 'Nenhuma foto selecionada.'}</p>
+              {filePreviews.length ? (
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-6">
+                  {filePreviews.map((preview, index) => (
+                    <div key={`${preview.name}-${index}`} className="relative overflow-hidden rounded-md border border-slate-200 bg-white">
+                      <img src={preview.url} alt={`Foto ${index + 1}`} className="aspect-square w-full object-cover" />
+                      <div className="truncate px-2 py-1 text-[11px] font-semibold text-slate-600">Foto {index + 1}</div>
+                      <button
+                        className="absolute right-1 top-1 flex h-7 w-7 items-center justify-center rounded-full bg-white/95 text-red-600 shadow-sm transition hover:bg-red-50"
+                        type="button"
+                        onClick={() => removeFile(index)}
+                        aria-label={`Remover Foto ${index + 1}`}
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
             </div>
           </div>
         </div>
@@ -1935,17 +1973,16 @@ function RecurringAddressField({
     <div className="block min-w-0">
       <span className={labelClass()}>{label}</span>
       <div className="relative min-w-0">
-        <input className={`${fieldClass()} pr-3 sm:pr-32`} value={value} onChange={event => onChange(event.target.value)} />
         <button
-          className="mt-2 inline-flex h-9 w-full items-center justify-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-white sm:absolute sm:right-1 sm:top-1/2 sm:mt-0 sm:h-8 sm:w-auto sm:-translate-y-1/2"
+          className="mb-2 inline-flex h-9 w-full items-center justify-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-white sm:absolute sm:right-1 sm:top-1/2 sm:mb-0 sm:h-8 sm:w-auto sm:-translate-y-1/2"
           type="button"
           onClick={onToggle}
         >
           <MapPin className="h-3.5 w-3.5 text-pink-500" />
-          Endereços
+          Endereços recorrentes
         </button>
         {open ? (
-          <div className="absolute left-0 right-0 top-full z-30 mt-1 overflow-hidden rounded-md border border-slate-200 bg-white py-1 text-sm shadow-lg sm:left-auto sm:w-64">
+          <div className="mb-2 overflow-hidden rounded-md border border-slate-200 bg-white py-1 text-sm shadow-lg sm:absolute sm:left-auto sm:right-0 sm:top-full sm:z-30 sm:mb-0 sm:mt-1 sm:w-64">
             <div className="max-h-72 overflow-y-auto">
               {options.length ? options.map(option => {
                 const shortcut = recurringAddressShortcutLabel(option);
@@ -1980,6 +2017,7 @@ function RecurringAddressField({
             </button>
           </div>
         ) : null}
+        <input className={`${fieldClass()} pr-3 sm:pr-48`} value={value} onChange={event => onChange(event.target.value)} />
       </div>
     </div>
   );

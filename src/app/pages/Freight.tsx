@@ -94,6 +94,7 @@ const laneStyles: Record<string, { border: string; bg: string; soft: string }> =
 
 const statusOptionsNational: FreightStatus[] = ['Solicitado', 'Agendado', 'Em Rota', 'Concluído', 'Cancelado'];
 const statusOptionsInternational: FreightStatus[] = ['Solicitado', 'Em cotação', 'Aguardando coleta', 'Em trânsito', 'Desembaraço', 'Concluído', 'Cancelado'];
+const driverVisibleStatuses = new Set<FreightStatus>(['Agendado', 'Em Rota']);
 
 const emptyNationalForm = {
   setor: '',
@@ -177,6 +178,10 @@ function statusBadgeClass(status: string) {
   if (lane === 'em_rota') return 'bg-red-50 text-red-700 border-red-200';
   if (lane === 'em_andamento') return 'bg-amber-50 text-amber-700 border-amber-200';
   return 'bg-slate-50 text-slate-700 border-slate-200';
+}
+
+function isDriverVisibleStatus(status?: string | null) {
+  return driverVisibleStatuses.has(status as FreightStatus);
 }
 
 function fieldClass() {
@@ -810,9 +815,26 @@ function FreightPage({ mode }: { mode: FreightMode }) {
     }
   }, [forcedTab, tab]);
 
-  async function loadData() {
-    setLoading(true);
-    setMessage(null);
+  useEffect(() => {
+    if (activeTab !== 'kanban' || isInternational) return;
+
+    let refreshing = false;
+    const intervalId = window.setInterval(() => {
+      if (refreshing) return;
+      refreshing = true;
+      loadData({ silent: true }).finally(() => {
+        refreshing = false;
+      });
+    }, 60000);
+
+    return () => window.clearInterval(intervalId);
+  }, [activeTab, freightType, isInternational]);
+
+  async function loadData(options: { silent?: boolean } = {}) {
+    if (!options.silent) {
+      setLoading(true);
+      setMessage(null);
+    }
     try {
       const [lookupData, requestData] = await Promise.all([
         getFreightLookups(),
@@ -823,13 +845,15 @@ function FreightPage({ mode }: { mode: FreightMode }) {
     } catch (error: any) {
       setMessage({ type: 'error', text: error.message || 'Erro ao carregar o módulo de frete.' });
     } finally {
-      setLoading(false);
+      if (!options.silent) {
+        setLoading(false);
+      }
     }
   }
 
   const filteredRequests = useMemo(() => {
     return requests.filter(request => {
-      if (filters.status !== 'Todos' && request.status !== filters.status) return false;
+      if (activeTab !== 'motorista' && filters.status !== 'Todos' && request.status !== filters.status) return false;
       if (filters.motorista !== 'TODOS' && !(request.motorista || '').toLowerCase().includes(filters.motorista.toLowerCase())) return false;
       if (filters.setor && request.setor !== filters.setor) return false;
       if (filters.projeto && request.projeto !== filters.projeto) return false;
@@ -1292,7 +1316,7 @@ function FreightPage({ mode }: { mode: FreightMode }) {
             </div>
             {activeTab === 'dashboard' ? (
               <div className="grid w-full grid-cols-1 gap-2 sm:w-auto sm:grid-cols-3">
-                <button className={buttonClass('secondary')} onClick={loadData} type="button" disabled={loading}>
+                <button className={buttonClass('secondary')} onClick={() => loadData()} type="button" disabled={loading}>
                   <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                   Atualizar
                 </button>
@@ -1357,6 +1381,7 @@ function FreightPage({ mode }: { mode: FreightMode }) {
             statuses={isInternational ? statusOptionsInternational : statusOptionsNational}
             lookups={lookups}
             isInternational={isInternational}
+            hideStatus={activeTab === 'motorista' && !isInternational}
           />
         ) : null}
 
@@ -1493,13 +1518,15 @@ function FilterBar({
   setFilters,
   statuses,
   lookups,
-  isInternational
+  isInternational,
+  hideStatus = false
 }: {
   filters: any;
   setFilters: (value: any) => void;
   statuses: FreightStatus[];
   lookups: any;
   isInternational: boolean;
+  hideStatus?: boolean;
 }) {
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
@@ -1511,13 +1538,15 @@ function FilterBar({
             <input className={`${fieldClass()} pl-9`} value={filters.search} onChange={event => setFilters((current: any) => ({ ...current, search: event.target.value }))} placeholder="Protocolo, solicitante, item, motorista..." />
           </div>
         </div>
-        <div>
+        {!hideStatus ? (
+          <div>
           <label className={labelClass()}>Status</label>
           <select className={fieldClass()} value={filters.status} onChange={event => setFilters((current: any) => ({ ...current, status: event.target.value }))}>
             <option>Todos</option>
             {statuses.map(status => <option key={status}>{status}</option>)}
           </select>
-        </div>
+          </div>
+        ) : null}
         {!isInternational ? (
           <div>
             <label className={labelClass()}>Motorista</label>
@@ -2637,7 +2666,7 @@ function KanbanPanel({
     }, {});
   }, [requests]);
 
-  const driverRows = isDriver ? requests.filter(request => request.status !== 'Concluído') : requests;
+  const driverRows = isDriver ? requests.filter(request => isDriverVisibleStatus(request.status)) : requests;
 
   if (isDriver) {
     return (

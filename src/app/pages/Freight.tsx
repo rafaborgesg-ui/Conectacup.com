@@ -1265,11 +1265,12 @@ function FreightPage({ mode }: { mode: FreightMode }) {
       ? { title: 'Frete Nacional - Motorista', subtitle: 'Fluxo mobile para retirada, rota, conclusão e foto de entrega.', icon: Smartphone }
       : { title: 'Frete Nacional', subtitle: '', icon: Truck };
   const HeaderIcon = header.icon;
+  const showPageHeader = !isSingleTabView && (isInternational || activeTab === 'dashboard');
 
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-6">
       <div className="mx-auto max-w-7xl space-y-5">
-        {!isSingleTabView ? (
+        {showPageHeader ? (
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="flex min-w-0 items-start gap-3">
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-red-600 text-white shadow-sm">
@@ -1278,9 +1279,6 @@ function FreightPage({ mode }: { mode: FreightMode }) {
               <div className="min-w-0">
                 <h1 className="break-words text-2xl font-bold text-slate-950 md:text-3xl">{header.title}</h1>
                 {header.subtitle ? <p className="mt-1 max-w-3xl text-sm text-slate-600">{header.subtitle}</p> : null}
-                <div className="mt-2 flex flex-wrap gap-2">
-                  <span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-semibold text-white">{isInternational ? 'Internacional' : 'Nacional'}</span>
-                </div>
               </div>
             </div>
             {activeTab === 'dashboard' ? (

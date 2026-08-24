@@ -2847,7 +2847,7 @@ function AttendancePanel({
             <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-sm font-semibold text-slate-700">
               Entregas para programar: {filteredRequests.length}
             </span>
-            <span className="rounded-full border border-red-100 bg-red-50 px-3 py-1 text-sm font-semibold text-red-700">
+            <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-700">
               SLA agendamento: {slaLimitDays} dia{slaLimitDays === 1 ? '' : 's'}
             </span>
           </div>
@@ -2897,6 +2897,7 @@ function AttendancePanel({
           <table className="min-w-full border-collapse text-sm">
             <thead className="bg-slate-100">
               <tr className="border border-slate-200">
+                <th className="w-24 border border-slate-200 p-2">{headerCell('SLA', 'sla')}</th>
                 <th className="w-10 border border-slate-200 p-2">
                   <input type="checkbox" checked={Boolean(filteredRequests.length && filteredRequests.every(request => selectedIds.includes(request.id)))} onChange={event => toggleAllDisplayed(event.target.checked)} />
                 </th>
@@ -2906,7 +2907,6 @@ function AttendancePanel({
                 <th className="w-36 border border-slate-200 p-2">{headerCell('Registro', 'registro')}</th>
                 <th className="w-32 border border-slate-200 p-2">{headerCell('Prazo', 'prazo')}</th>
                 <th className="w-36 border border-slate-200 p-2">{headerCell('Atendimento', 'atendimento')}</th>
-                <th className="w-24 border border-slate-200 p-2">{headerCell('SLA', 'sla')}</th>
                 <th className="w-36 border border-slate-200 p-2">{headerCell('Solicitante', 'solicitante')}</th>
                 <th className="border border-slate-200 p-2">{headerCell('Item', 'item')}</th>
                 <th className="w-16 border border-slate-200 p-2"></th>
@@ -2918,6 +2918,11 @@ function AttendancePanel({
                 const isSlaLate = slaDays > slaLimitDays;
                 return (
                 <tr key={request.id} className="border border-slate-200 bg-white hover:bg-slate-50">
+                  <td className="border border-slate-200 p-2">
+                    <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${isSlaLate ? 'border-red-200 bg-red-100 text-red-700' : 'border-emerald-200 bg-emerald-100 text-emerald-700'}`}>
+                      {slaDays} dia{slaDays === 1 ? '' : 's'}
+                    </span>
+                  </td>
                   <td className="border border-slate-200 p-2 text-center">
                     <input type="checkbox" checked={selectedIds.includes(request.id)} onChange={() => toggle(request.id)} />
                   </td>
@@ -2927,11 +2932,6 @@ function AttendancePanel({
                   <td className="border border-slate-200 p-2">{formatFreightDate(request.createdAt)}</td>
                   <td className="border border-slate-200 p-2">{formatFreightDate(request.prazoEntrega)}</td>
                   <td className="border border-slate-200 p-2">{formatFreightDate(request.atendimentoAt)}</td>
-                  <td className="border border-slate-200 p-2">
-                    <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${isSlaLate ? 'border-red-200 bg-red-100 text-red-700' : 'border-slate-200 bg-slate-100 text-slate-700'}`}>
-                      {slaDays} dia{slaDays === 1 ? '' : 's'}
-                    </span>
-                  </td>
                   <td className="border border-slate-200 p-2">{request.solicitanteNome || '-'}</td>
                   <td className="border border-slate-200 p-2">{request.itemDescricao || '-'}</td>
                   <td className="border border-slate-200 p-2">

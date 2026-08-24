@@ -782,7 +782,8 @@ function FreightPage({ mode }: { mode: FreightMode }) {
     embalagens: [] as FreightLookupOption[]
   });
   const [filters, setFilters] = useState({ search: '', status: 'Todos', motorista: 'TODOS', setor: '', projeto: '', protocolo: '', dateFrom: '', dateTo: '' });
-  const [kanbanFiltersOpen, setKanbanFiltersOpen] = useState(true);
+  const [standardFiltersOpen, setStandardFiltersOpen] = useState(false);
+  const [kanbanFiltersOpen, setKanbanFiltersOpen] = useState(false);
   const [selected, setSelected] = useState<FreightRequest | null>(null);
   const [history, setHistory] = useState<FreightHistory[]>([]);
   const [loading, setLoading] = useState(true);
@@ -814,6 +815,11 @@ function FreightPage({ mode }: { mode: FreightMode }) {
       setTab(forcedTab);
     }
   }, [forcedTab, tab]);
+
+  useEffect(() => {
+    setStandardFiltersOpen(false);
+    setKanbanFiltersOpen(false);
+  }, [activeTab]);
 
   useEffect(() => {
     if (activeTab !== 'kanban' || isInternational) return;
@@ -1375,14 +1381,23 @@ function FreightPage({ mode }: { mode: FreightMode }) {
         ) : null}
 
         {activeTab !== 'nova' && !(activeTab === 'kanban' && !isInternational) ? (
-          <FilterBar
-            filters={filters}
-            setFilters={setFilters}
-            statuses={isInternational ? statusOptionsInternational : statusOptionsNational}
-            lookups={lookups}
-            isInternational={isInternational}
-            hideStatus={activeTab === 'motorista' && !isInternational}
-          />
+          <>
+            <FilterToggleButton
+              filtersOpen={standardFiltersOpen}
+              onToggle={() => setStandardFiltersOpen(current => !current)}
+            />
+            {standardFiltersOpen ? (
+              <FilterBar
+                filters={filters}
+                setFilters={setFilters}
+                statuses={isInternational ? statusOptionsInternational : statusOptionsNational}
+                lookups={lookups}
+                isInternational={isInternational}
+                hideStatus={activeTab === 'motorista' && !isInternational}
+                hideProject={activeTab === 'motorista' && !isInternational}
+              />
+            ) : null}
+          </>
         ) : null}
 
         {activeTab === 'kanban' && !isInternational ? (
@@ -1519,7 +1534,8 @@ function FilterBar({
   statuses,
   lookups,
   isInternational,
-  hideStatus = false
+  hideStatus = false,
+  hideProject = false
 }: {
   filters: any;
   setFilters: (value: any) => void;
@@ -1527,10 +1543,11 @@ function FilterBar({
   lookups: any;
   isInternational: boolean;
   hideStatus?: boolean;
+  hideProject?: boolean;
 }) {
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-7">
         <div className="xl:col-span-2">
           <label className={labelClass()}>Busca</label>
           <div className="relative">
@@ -1563,11 +1580,41 @@ function FilterBar({
             <SelectOptionList options={lookups.setores} />
           </select>
         </div>
+        {!isInternational && !hideProject ? (
+          <div>
+            <label className={labelClass()}>Projeto</label>
+            <select className={fieldClass()} value={filters.projeto} onChange={event => setFilters((current: any) => ({ ...current, projeto: event.target.value }))}>
+              <option value="">Todos</option>
+              <SelectOptionList options={lookups.projetos} />
+            </select>
+          </div>
+        ) : null}
         <div>
           <label className={labelClass()}>Protocolo</label>
           <input className={fieldClass()} value={filters.protocolo} onChange={event => setFilters((current: any) => ({ ...current, protocolo: event.target.value }))} placeholder="#12, #15" />
         </div>
       </div>
+    </div>
+  );
+}
+
+function FilterToggleButton({
+  filtersOpen,
+  onToggle
+}: {
+  filtersOpen: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <div className="flex justify-end">
+      <button
+        className={`inline-flex h-9 items-center gap-2 rounded-md border px-3 text-xs font-semibold transition ${filtersOpen ? 'border-red-200 bg-red-50 text-red-700' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+        type="button"
+        onClick={onToggle}
+      >
+        {filtersOpen ? 'Recolher filtros' : 'Exibir filtros'}
+        <BarChart3 className="h-3.5 w-3.5 text-red-500" />
+      </button>
     </div>
   );
 }
@@ -1760,16 +1807,30 @@ function RequestsTable({
         </div>
       </div>
       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-slate-100 text-sm">
+        <table className={`${isInternational ? 'min-w-full' : 'min-w-[1280px]'} divide-y divide-slate-100 text-sm`}>
           <thead className="bg-slate-50">
             <tr className="text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
               <th className="px-4 py-3">Protocolo</th>
               <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3">{isInternational ? 'Necessidade' : 'Setor'}</th>
-              <th className="px-4 py-3">{isInternational ? 'Origem / destino' : 'Solicitante'}</th>
-              <th className="px-4 py-3">{isInternational ? 'Transporte' : 'Prazo'}</th>
-              {!isInternational ? <th className="px-4 py-3">Agendamento</th> : null}
-              <th className="px-4 py-3">Logística</th>
+              {isInternational ? (
+                <>
+                  <th className="px-4 py-3">Necessidade</th>
+                  <th className="px-4 py-3">Origem / destino</th>
+                  <th className="px-4 py-3">Transporte</th>
+                  <th className="px-4 py-3">Logística</th>
+                </>
+              ) : (
+                <>
+                  <th className="px-4 py-3">Setor</th>
+                  <th className="px-4 py-3">Projeto</th>
+                  <th className="px-4 py-3">Solicitante</th>
+                  <th className="px-4 py-3">Itens</th>
+                  <th className="px-4 py-3">Prazo</th>
+                  <th className="px-4 py-3">Agendamento</th>
+                  <th className="px-4 py-3">Veículo</th>
+                  <th className="px-4 py-3">Motorista</th>
+                </>
+              )}
               <th className="px-4 py-3 text-right">Ações</th>
             </tr>
           </thead>
@@ -1780,31 +1841,36 @@ function RequestsTable({
                 <td className="px-4 py-3">
                   <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${statusBadgeClass(request.status)}`}>{request.status}</span>
                 </td>
-                <td className="px-4 py-3">
-                  <div className="font-semibold text-slate-900">{isInternational ? request.necessidade || '-' : request.setor || '-'}</div>
-                  <div className="text-xs text-slate-500">{isInternational ? request.definitivaTemporaria || '-' : request.projeto || request.projetoDescricao || '-'}</div>
-                </td>
-                <td className="px-4 py-3">
-                  {isInternational ? (
-                    <>
+                {isInternational ? (
+                  <>
+                    <td className="px-4 py-3">
+                      <div className="font-semibold text-slate-900">{request.necessidade || '-'}</div>
+                      <div className="text-xs text-slate-500">{request.definitivaTemporaria || '-'}</div>
+                    </td>
+                    <td className="px-4 py-3">
                       <div className="font-semibold text-slate-900">{request.empresaRemetente || '-'}</div>
                       <div className="text-xs text-slate-500">{request.empresaDestinatario || '-'}</div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="font-semibold text-slate-900">{request.solicitanteNome || '-'}</div>
-                      <div className="max-w-sm truncate text-xs text-slate-500">{request.itemDescricao || '-'}</div>
-                    </>
+                    </td>
+                    <td className="px-4 py-3 text-slate-700">{`${request.tipoFrete || '-'} · ${request.modalidadeFrete || '-'}`}</td>
+                    <td className="px-4 py-3">
+                      <div className="font-semibold text-slate-900">{request.motorista || '-'}</div>
+                      <div className="text-xs text-slate-500">{[request.veiculo, request.placa].filter(Boolean).join(' - ') || formatFreightDate(request.agendamentoAt)}</div>
+                    </td>
+                  </>
+                ) : (
+                  <>
+                    <td className="px-4 py-3 font-semibold text-slate-900">{request.setor || '-'}</td>
+                    <td className="px-4 py-3 text-slate-700">{request.projeto || request.projetoDescricao || '-'}</td>
+                    <td className="px-4 py-3 font-semibold text-slate-900">{request.solicitanteNome || '-'}</td>
+                    <td className="px-4 py-3">
+                      <div className="max-w-sm whitespace-pre-wrap text-slate-700">{request.itemDescricao || '-'}</div>
+                    </td>
+                    <td className="px-4 py-3 text-slate-700">{formatFreightDate(request.prazoEntrega)}</td>
+                    <td className="px-4 py-3 text-slate-700">{formatFreightDate(request.agendamentoAt)}</td>
+                    <td className="px-4 py-3 text-slate-700">{[request.veiculo, request.placa].filter(Boolean).join(' - ') || '-'}</td>
+                    <td className="px-4 py-3 font-semibold text-slate-900">{request.motorista || '-'}</td>
+                  </>
                 )}
-                </td>
-                <td className="px-4 py-3 text-slate-700">{isInternational ? `${request.tipoFrete || '-'} · ${request.modalidadeFrete || '-'}` : formatFreightDate(request.prazoEntrega)}</td>
-                {!isInternational ? (
-                  <td className="px-4 py-3 text-slate-700">{formatFreightDate(request.agendamentoAt)}</td>
-                ) : null}
-                <td className="px-4 py-3">
-                  <div className="font-semibold text-slate-900">{request.motorista || '-'}</div>
-                  <div className="text-xs text-slate-500">{[request.veiculo, request.placa].filter(Boolean).join(' - ') || formatFreightDate(request.agendamentoAt)}</div>
-                </td>
                 <td className="px-4 py-3">
                   <div className="flex justify-end gap-2">
                     {!isInternational && canEdit ? (
@@ -1836,7 +1902,7 @@ function RequestsTable({
             ))}
             {!requests.length ? (
               <tr>
-                <td className="px-4 py-10 text-center text-slate-500" colSpan={isInternational ? 7 : 8}>Nenhuma solicitação encontrada.</td>
+                <td className="px-4 py-10 text-center text-slate-500" colSpan={isInternational ? 7 : 11}>Nenhuma solicitação encontrada.</td>
               </tr>
             ) : null}
           </tbody>
@@ -2230,7 +2296,6 @@ function AttendancePanel({
   onOpen: (request: FreightRequest) => void;
   onCancel: (targets: FreightRequest[], reason: string) => void;
 }) {
-  const [attendanceFilters, setAttendanceFilters] = useState({ protocolo: '', setor: '', projeto: '' });
   const [sortState, setSortState] = useState<{ column: 'protocol' | 'setor' | 'projeto' | 'prazo' | 'solicitante' | 'item'; direction: 'asc' | 'desc' }>({
     column: 'prazo',
     direction: 'asc'
@@ -2243,26 +2308,7 @@ function AttendancePanel({
   };
   const selectedRequests = useMemo(() => requests.filter(request => selectedIds.includes(request.id)), [requests, selectedIds]);
   const filteredRequests = useMemo(() => {
-    const protocolTerms = attendanceFilters.protocolo
-      .split(',')
-      .flatMap(term => {
-        const normalized = term.trim().replace(/^#/, '');
-        if (!normalized) return [];
-        const range = normalized.match(/^(\d+)\s*-\s*(\d+)$/);
-        if (!range) return [normalized];
-        const start = Number(range[1]);
-        const end = Number(range[2]);
-        if (!Number.isFinite(start) || !Number.isFinite(end) || end < start || end - start > 500) return [normalized];
-        return Array.from({ length: end - start + 1 }, (_, index) => String(start + index));
-      });
-
-    return requests
-      .filter(request => {
-        if (attendanceFilters.setor && request.setor !== attendanceFilters.setor) return false;
-        if (attendanceFilters.projeto && request.projeto !== attendanceFilters.projeto) return false;
-        if (protocolTerms.length && !protocolTerms.some(term => String(request.protocol).includes(term))) return false;
-        return true;
-      })
+    return [...requests]
       .sort((a, b) => {
         const direction = sortState.direction === 'asc' ? 1 : -1;
         const getValue = (request: FreightRequest) => {
@@ -2278,7 +2324,7 @@ function AttendancePanel({
         if (typeof valueA === 'number' && typeof valueB === 'number') return (valueA - valueB) * direction;
         return String(valueA).localeCompare(String(valueB), 'pt-BR', { sensitivity: 'base' }) * direction;
       });
-  }, [attendanceFilters, requests, sortState]);
+  }, [requests, sortState]);
 
   const selectedVehicleValues = splitSelection(draft.veiculo);
   const vehicleOptions = useMemo(() => {
@@ -2401,32 +2447,6 @@ function AttendancePanel({
           <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-sm font-semibold text-slate-700">
             Entregas para programar: {filteredRequests.length}
           </span>
-        </div>
-
-        <div className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4">
-          <h3 className="font-bold text-red-600">Filtrar solicitações com status Solicitado</h3>
-          <div className="mt-4 grid gap-3 md:grid-cols-2">
-            <Field label="Nº Protocolo">
-              <input className={fieldClass()} value={attendanceFilters.protocolo} onChange={event => setAttendanceFilters(current => ({ ...current, protocolo: event.target.value }))} placeholder="ex.: 12, 15-18, #20" />
-            </Field>
-            <Field label="Filtrar por Setor">
-              <select className={fieldClass()} value={attendanceFilters.setor} onChange={event => setAttendanceFilters(current => ({ ...current, setor: event.target.value }))}>
-                <option value="">Todos</option>
-                <SelectOptionList options={lookups.setores} />
-              </select>
-            </Field>
-            <Field label="Filtrar por Projeto">
-              <select className={fieldClass()} value={attendanceFilters.projeto} onChange={event => setAttendanceFilters(current => ({ ...current, projeto: event.target.value }))}>
-                <option value="">Todos</option>
-                <SelectOptionList options={lookups.projetos} />
-              </select>
-            </Field>
-            <div className="flex items-end">
-              <button className={buttonClass('primary')} type="button" onClick={() => setAttendanceFilters({ protocolo: '', setor: '', projeto: '' })}>
-                Limpar filtros
-              </button>
-            </div>
-          </div>
         </div>
 
         <div className="mt-5 flex flex-wrap gap-2">

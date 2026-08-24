@@ -3087,19 +3087,19 @@ function KanbanPanel({
                         ) : null}
                       </div>
                     </div>
-                    <div className="mt-4 min-w-0 space-y-2 break-words text-sm text-slate-700">
-                      <div><strong>Retirada:</strong> {request.enderecoRetirada || '-'}</div>
-                      <div><strong>Entrega:</strong> {request.enderecoEntrega || '-'}</div>
-                      <div><strong>Item:</strong> {request.itemDescricao || '-'}</div>
-                      {requesterObservation ? (
-                        <div><strong>Observação do solicitante:</strong> {compactText(requesterObservation, 120)}</div>
-                      ) : null}
-                    </div>
                     {productMedia.length ? (
                       <div className="mt-4 min-w-0 space-y-3 rounded-md border border-slate-100 bg-slate-50 p-3">
                         <FreightMediaSection title="Foto solicitante" media={productMedia} compact />
                       </div>
                     ) : null}
+                    <div className="mt-4 min-w-0 space-y-2 break-words text-sm text-slate-700">
+                      <div><strong>Item:</strong> {request.itemDescricao || '-'}</div>
+                      {requesterObservation ? (
+                        <div><strong>Observação do solicitante:</strong> {compactText(requesterObservation, 120)}</div>
+                      ) : null}
+                      <div><strong>Retirada:</strong> {request.enderecoRetirada || '-'}</div>
+                      <div><strong>Entrega:</strong> {request.enderecoEntrega || '-'}</div>
+                    </div>
                     <div className="mt-4 grid min-w-0 gap-2">
                       <a className={buttonClass('secondary')} href={`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(request.enderecoRetirada || '')}&destination=${encodeURIComponent(request.enderecoEntrega || '')}`} target="_blank" rel="noreferrer">
                         <MapPin className="h-4 w-4" />

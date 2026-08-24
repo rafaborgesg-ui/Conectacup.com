@@ -260,6 +260,51 @@ function getFreightMedia(request: FreightRequest, categories?: FreightAttachment
   return media;
 }
 
+function FreightMediaSection({ title, media, compact = false }: { title: string; media: FreightMedia[]; compact?: boolean }) {
+  if (!media.length) return null;
+
+  const imageMedia = media.filter(file => file.isImage);
+  const documentMedia = media.filter(file => !file.isImage);
+  const visibleImages = compact ? imageMedia.slice(0, 2) : imageMedia;
+  const hiddenImageCount = imageMedia.length - visibleImages.length;
+
+  return (
+    <div className="min-w-0 space-y-2">
+      <h4 className={`font-bold text-slate-800 ${compact ? 'text-xs' : 'text-sm'}`}>{title}</h4>
+      {visibleImages.length ? (
+        <div className={`grid min-w-0 gap-2 ${compact ? 'grid-cols-2' : 'sm:grid-cols-2 lg:grid-cols-3'}`}>
+          {visibleImages.map((file, index) => (
+            <a key={`${file.fileUrl}-${index}`} href={file.fileUrl} target="_blank" rel="noreferrer" className="group min-w-0 overflow-hidden rounded-md border border-slate-200 bg-slate-50 hover:border-red-200">
+              <div className="relative">
+                <img src={file.fileUrl} alt={`${title} ${index + 1}`} className={`${compact ? 'h-20' : 'h-40'} w-full object-cover transition group-hover:scale-[1.02]`} loading="lazy" />
+                {compact && hiddenImageCount > 0 && index === visibleImages.length - 1 ? (
+                  <span className="absolute inset-0 flex items-center justify-center bg-slate-950/50 text-xs font-bold text-white">+{hiddenImageCount}</span>
+                ) : null}
+              </div>
+              {!compact ? (
+                <div className="px-3 py-2 text-xs">
+                  <span className="font-semibold text-slate-700">Foto {index + 1}</span>
+                </div>
+              ) : null}
+            </a>
+          ))}
+        </div>
+      ) : null}
+
+      {documentMedia.length ? (
+        <div className={`grid min-w-0 gap-2 ${compact ? 'grid-cols-1' : 'sm:grid-cols-2 lg:grid-cols-3'}`}>
+          {documentMedia.map((file, index) => (
+            <a key={`${file.fileUrl}-${index}`} href={file.fileUrl} target="_blank" rel="noreferrer" className="min-w-0 rounded-md border border-slate-200 bg-slate-50 p-3 text-xs font-semibold text-slate-700 hover:border-red-200 hover:text-red-700">
+              <FileSpreadsheet className="mb-2 h-4 w-4" />
+              <span className="block truncate">{file.fileName || `Anexo ${index + 1}`}</span>
+            </a>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function firstLine(value?: string) {
   return String(value || '-').split(/\r?\n/).map(item => item.trim()).filter(Boolean)[0] || '-';
 }
@@ -568,7 +613,7 @@ function DetailDrawer({
   const [detailRouteEstimate, setDetailRouteEstimate] = useState<RouteEstimate | null>(null);
 
   useEffect(() => {
-    setObs(request?.observacoesLogistica || '');
+    setObs('');
   }, [request?.id]);
 
   useEffect(() => {
@@ -596,9 +641,10 @@ function DetailDrawer({
 
   if (!request) return null;
 
-  const media = getFreightMedia(request);
-  const imageMedia = media.filter(file => file.isImage);
-  const documentMedia = media.filter(file => !file.isImage);
+  const productMedia = getFreightMedia(request, ['produto']);
+  const deliveryMedia = getFreightMedia(request, ['entrega']);
+  const otherMedia = getFreightMedia(request, ['volume', 'itens', 'documento']);
+  const hasMedia = Boolean(productMedia.length || deliveryMedia.length || otherMedia.length);
   const detailRouteEstimates = detailRouteEstimate ? { [request.id]: detailRouteEstimate } : {};
   const deadlineInfo = freightDeadlineInfo(request);
 
@@ -685,7 +731,7 @@ function DetailDrawer({
               <h3 className="font-semibold text-slate-950">Observação logística</h3>
             </div>
             <div className="space-y-3 p-4">
-              <textarea className={areaClass()} value={obs} onChange={event => setObs(event.target.value)} />
+              <textarea className={areaClass()} value={obs} onChange={event => setObs(event.target.value)} placeholder="Digite uma observação para registrar no histórico." />
               <button className={buttonClass('dark')} onClick={() => onSaveObservation(obs)} type="button">
                 <Save className="h-4 w-4" />
                 Salvar observação
@@ -693,41 +739,18 @@ function DetailDrawer({
             </div>
           </section>
 
-          <section className="rounded-lg border border-slate-200 bg-white">
-            <div className="border-b border-slate-100 px-4 py-3">
-              <h3 className="font-semibold text-slate-950">Anexos e fotos</h3>
-            </div>
-            <div className="space-y-4 p-4">
-              {imageMedia.length ? (
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {imageMedia.map((file, index) => (
-                    <a key={`${file.fileUrl}-${index}`} href={file.fileUrl} target="_blank" rel="noreferrer" className="group overflow-hidden rounded-md border border-slate-200 bg-slate-50 hover:border-red-200">
-                      <img src={file.fileUrl} alt={`Foto ${index + 1}`} className="h-40 w-full object-cover transition group-hover:scale-[1.02]" loading="lazy" />
-                      <div className="px-3 py-2 text-xs">
-                        <span className="font-semibold text-slate-700">Foto {index + 1}</span>
-                      </div>
-                    </a>
-                  ))}
-                </div>
-              ) : null}
-
-              {documentMedia.length ? (
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {documentMedia.map((file, index) => (
-                    <a key={`${file.fileUrl}-${index}`} href={file.fileUrl} target="_blank" rel="noreferrer" className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm font-semibold text-slate-700 hover:border-red-200 hover:text-red-700">
-                      <FileSpreadsheet className="mb-2 h-4 w-4" />
-                      {file.fileName || `Anexo ${index + 1}`}
-                      <span className="mt-1 block text-xs font-normal text-slate-500">{file.category}</span>
-                    </a>
-                  ))}
-                </div>
-              ) : null}
-
-              {!media.length ? (
-                <p className="text-sm text-slate-500">Nenhum anexo registrado.</p>
-              ) : null}
-            </div>
-          </section>
+          {hasMedia ? (
+            <section className="rounded-lg border border-slate-200 bg-white">
+              <div className="border-b border-slate-100 px-4 py-3">
+                <h3 className="font-semibold text-slate-950">Anexos e fotos</h3>
+              </div>
+              <div className="space-y-5 p-4">
+                <FreightMediaSection title="Foto solicitante" media={productMedia} />
+                <FreightMediaSection title="Foto da Entrega (Motorista)" media={deliveryMedia} />
+                <FreightMediaSection title="Anexos" media={otherMedia} />
+              </div>
+            </section>
+          ) : null}
 
           <section className="rounded-lg border border-slate-200 bg-white">
             <div className="border-b border-slate-100 px-4 py-3">
@@ -1376,15 +1399,20 @@ function FreightPage({ mode }: { mode: FreightMode }) {
 
   async function saveDetailObservation(value: string) {
     if (!selected) return;
+    const comment = value.trim();
+    if (!comment) {
+      setMessage({ type: 'error', text: 'Digite uma observação antes de salvar.' });
+      return;
+    }
     try {
-      await updateFreightRequest(selected.id, { observacoesLogistica: value });
-      await appendFreightHistory(selected.id, { action: 'observation', comment: 'Observação logística atualizada.' });
-      setMessage({ type: 'success', text: 'Observação salva.' });
+      await appendFreightHistory(selected.id, { action: 'Observação logística', comment });
+      setMessage({ type: 'success', text: 'Observação registrada no histórico.' });
       const refreshed = await getFreightRequests({ type: freightType });
       setRequests(refreshed);
       const updated = refreshed.find(item => item.id === selected.id) || null;
       setSelected(updated);
       if (updated) setHistory(await getFreightHistory(updated.id));
+      setObs('');
     } catch (error: any) {
       setMessage({ type: 'error', text: error.message || 'Erro ao salvar observação.' });
     }
@@ -2828,40 +2856,50 @@ function KanbanPanel({
 
   if (isDriver) {
     return (
-      <div className="grid min-h-[520px] gap-3 lg:grid-cols-2">
-        {(['Agendado', 'Em Rota'] as FreightStatus[]).map(status => {
+      <div className="grid min-h-[520px] min-w-0 max-w-full gap-3 overflow-hidden lg:grid-cols-2">
+        {(['Em Rota', 'Agendado'] as FreightStatus[]).map(status => {
           const rows = driverGrouped[status] || [];
           const accentClass = status === 'Agendado' ? 'border-yellow-400 bg-yellow-50/60' : 'border-blue-500 bg-blue-50/60';
           const countClass = status === 'Agendado' ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800';
 
           return (
-            <section key={status} className={`flex min-h-[420px] flex-col rounded-lg border bg-white shadow-sm ${accentClass}`}>
+            <section key={status} className={`flex min-h-[420px] min-w-0 flex-col overflow-hidden rounded-lg border bg-white shadow-sm ${accentClass}`}>
               <div className="flex items-center justify-between border-b border-slate-100 bg-white px-4 py-3">
                 <h3 className="font-bold text-slate-950">{status}</h3>
                 <span className={`rounded-full px-2 py-1 text-xs font-bold ${countClass}`}>{rows.length}</span>
               </div>
-              <div className="flex-1 space-y-3 p-3">
-                {rows.map(request => (
-                  <div key={request.id} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
+              <div className="min-w-0 flex-1 space-y-3 p-3">
+                {rows.map(request => {
+                  const productMedia = getFreightMedia(request, ['produto']);
+                  const deliveryMedia = getFreightMedia(request, ['entrega']);
+                  const selectedDeliveryFiles = deliveryFiles[request.id] || [];
+
+                  return (
+                  <div key={request.id} className="min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="flex min-w-0 items-start justify-between gap-3">
+                      <div className="min-w-0">
                         <div className="text-lg font-bold text-slate-950">{formatProtocol(request)}</div>
-                        <div className="text-sm font-semibold text-slate-700">{request.setor || '-'} · {request.projeto || '-'}</div>
+                        <div className="break-words text-sm font-semibold text-slate-700">{request.setor || '-'} · {request.projeto || '-'}</div>
                         <div className="text-sm text-slate-500">Agendamento: {formatFreightDate(request.agendamentoAt)}</div>
                       </div>
-                      <div className="flex flex-col items-end gap-1">
-                        <span className={`rounded-full border px-2 py-1 text-xs font-semibold ${statusBadgeClass(request.status)}`}>{request.status}</span>
+                      <div className="shrink-0">
                         {isScheduledFreightLate(request) ? (
-                          <span className="rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-700">Atrasado</span>
+                          <span className="rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-bold text-red-700">Atrasado</span>
                         ) : null}
                       </div>
                     </div>
-                    <div className="mt-4 space-y-2 text-sm text-slate-700">
+                    <div className="mt-4 min-w-0 space-y-2 break-words text-sm text-slate-700">
                       <div><strong>Retirada:</strong> {request.enderecoRetirada || '-'}</div>
                       <div><strong>Entrega:</strong> {request.enderecoEntrega || '-'}</div>
                       <div><strong>Item:</strong> {request.itemDescricao || '-'}</div>
                     </div>
-                    <div className="mt-4 grid gap-2">
+                    {productMedia.length || deliveryMedia.length ? (
+                      <div className="mt-4 min-w-0 space-y-3 rounded-md border border-slate-100 bg-slate-50 p-3">
+                        <FreightMediaSection title="Foto solicitante" media={productMedia} compact />
+                        <FreightMediaSection title="Foto da Entrega (Motorista)" media={deliveryMedia} compact />
+                      </div>
+                    ) : null}
+                    <div className="mt-4 grid min-w-0 gap-2">
                       <a className={buttonClass('secondary')} href={`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(request.enderecoRetirada || '')}&destination=${encodeURIComponent(request.enderecoEntrega || '')}`} target="_blank" rel="noreferrer">
                         <MapPin className="h-4 w-4" />
                         Abrir rota
@@ -2872,10 +2910,13 @@ function KanbanPanel({
                           Iniciar rota
                         </button>
                       ) : null}
-                      <label className="block rounded-md border border-dashed border-slate-300 bg-slate-50 p-3 text-sm">
-                        <span className="mb-2 flex items-center gap-2 font-semibold text-slate-700"><Camera className="h-4 w-4" /> Foto da entrega</span>
-                        <input type="file" accept="image/*" capture="environment" multiple onChange={event => setDeliveryFiles((current: any) => ({ ...current, [request.id]: Array.from(event.target.files || []) }))} />
-                        <span className="mt-2 block text-xs text-slate-500">{deliveryFiles[request.id]?.length || 0} arquivo(s)</span>
+                      <label className="block min-w-0 rounded-md border border-dashed border-slate-300 bg-slate-50 p-3 text-sm">
+                        <span className="mb-2 flex items-center gap-2 font-semibold text-slate-700"><Camera className="h-4 w-4 shrink-0" /> Foto da Entrega (Motorista)</span>
+                        <input className="sr-only" type="file" accept="image/*" capture="environment" multiple onChange={event => setDeliveryFiles((current: any) => ({ ...current, [request.id]: Array.from(event.target.files || []) }))} />
+                        <span className="flex h-10 w-full items-center justify-center rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700">Escolher fotos</span>
+                        <span className="mt-2 block break-words text-xs text-slate-500">
+                          {selectedDeliveryFiles.length ? `${selectedDeliveryFiles.length} arquivo(s): ${selectedDeliveryFiles.map(file => file.name).join(', ')}` : '0 arquivo(s)'}
+                        </span>
                       </label>
                       <button className={buttonClass('primary')} onClick={() => onDelivery(request)} type="button" disabled={saving}>
                         <CheckCircle2 className="h-4 w-4" />
@@ -2887,7 +2928,8 @@ function KanbanPanel({
                       </button>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
                 {!rows.length ? (
                   <div className="flex h-32 items-center justify-center rounded-md border border-dashed border-slate-200 bg-white/70 text-center text-xs font-semibold text-slate-400">
                     Nenhuma entrega neste status

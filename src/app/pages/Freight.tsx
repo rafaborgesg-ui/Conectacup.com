@@ -2214,7 +2214,12 @@ function RequestsTable({
                   <th className="px-4 py-3">
                     <DashboardHeaderInfo label="Atendimento" description="Data em que o setor logístico realizou o agendamento do frete" />
                   </th>
-                  <th className="px-4 py-3">SLA Agendamento</th>
+                  <th className="px-4 py-3">
+                    <DashboardHeaderInfo
+                      label="SLA Agendamento"
+                      description={`SLA para agendamento do frete pela logística (status: solicitado -> Agendado). Meta: ${slaLimitDays} dia${slaLimitDays === 1 ? '' : 's'}`}
+                    />
+                  </th>
                   <th className="px-4 py-3">
                     <DashboardHeaderInfo label="Data de entrega" description="Data em que o frete foi concluído" />
                   </th>

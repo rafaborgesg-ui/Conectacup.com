@@ -701,15 +701,17 @@ function DetailDrawer({
   saving: boolean;
   removingPhotoUrl?: string | null;
   onClose: () => void;
-  onSaveObservation: (value: string) => Promise<void>;
+  onSaveObservation: (value: string) => Promise<boolean>;
   onDeliveryUpload: (request: FreightRequest, files: File[]) => Promise<void>;
   onDeliveryRemove: (request: FreightRequest, file: FreightMedia) => Promise<void>;
 }) {
   const [obs, setObs] = useState('');
+  const [observationNotice, setObservationNotice] = useState<string | null>(null);
   const [detailRouteEstimate, setDetailRouteEstimate] = useState<RouteEstimate | null>(null);
 
   useEffect(() => {
     setObs('');
+    setObservationNotice(null);
   }, [request?.id]);
 
   useEffect(() => {
@@ -743,6 +745,13 @@ function DetailDrawer({
   const showMediaSection = request.freightType !== 'internacional' || Boolean(productMedia.length || deliveryMedia.length || otherMedia.length);
   const detailRouteEstimates = detailRouteEstimate ? { [request.id]: detailRouteEstimate } : {};
   const deadlineInfo = freightDeadlineInfo(request);
+  const saveObservation = async () => {
+    setObservationNotice(null);
+    const saved = await onSaveObservation(obs);
+    if (!saved) return;
+    setObs('');
+    setObservationNotice('Observação registrada no histórico.');
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/30" onClick={onClose}>
@@ -828,7 +837,12 @@ function DetailDrawer({
             </div>
             <div className="space-y-3 p-4">
               <textarea className={areaClass()} value={obs} onChange={event => setObs(event.target.value)} placeholder="Digite uma observação para registrar no histórico." />
-              <button className={buttonClass('dark')} onClick={() => onSaveObservation(obs)} type="button">
+              {observationNotice ? (
+                <div className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm font-semibold text-green-800">
+                  {observationNotice}
+                </div>
+              ) : null}
+              <button className={buttonClass('dark')} onClick={saveObservation} type="button">
                 <Save className="h-4 w-4" />
                 Salvar observação
               </button>
@@ -1562,12 +1576,12 @@ function FreightPage({ mode }: { mode: FreightMode }) {
     }
   }
 
-  async function saveDetailObservation(value: string) {
-    if (!selected) return;
+  async function saveDetailObservation(value: string): Promise<boolean> {
+    if (!selected) return false;
     const comment = value.trim();
     if (!comment) {
       setMessage({ type: 'error', text: 'Digite uma observação antes de salvar.' });
-      return;
+      return false;
     }
     try {
       await appendFreightHistory(selected.id, { action: 'Observação logística', comment });
@@ -1577,9 +1591,10 @@ function FreightPage({ mode }: { mode: FreightMode }) {
       const updated = refreshed.find(item => item.id === selected.id) || null;
       setSelected(updated);
       if (updated) setHistory(await getFreightHistory(updated.id));
-      setObs('');
+      return true;
     } catch (error: any) {
       setMessage({ type: 'error', text: error.message || 'Erro ao salvar observação.' });
+      return false;
     }
   }
 
@@ -3056,6 +3071,7 @@ function KanbanPanel({
                   const productMedia = getFreightMedia(request, ['produto']);
                   const deliveryMedia = getFreightMedia(request, ['entrega']);
                   const photoSaving = Boolean(photoSavingByRequest[request.id]);
+                  const requesterObservation = String(request.observacoes || request.observacoesFinais || '').trim();
 
                   return (
                   <div key={request.id} className="min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
@@ -3075,6 +3091,9 @@ function KanbanPanel({
                       <div><strong>Retirada:</strong> {request.enderecoRetirada || '-'}</div>
                       <div><strong>Entrega:</strong> {request.enderecoEntrega || '-'}</div>
                       <div><strong>Item:</strong> {request.itemDescricao || '-'}</div>
+                      {requesterObservation ? (
+                        <div><strong>Observação do solicitante:</strong> {compactText(requesterObservation, 120)}</div>
+                      ) : null}
                     </div>
                     {productMedia.length ? (
                       <div className="mt-4 min-w-0 space-y-3 rounded-md border border-slate-100 bg-slate-50 p-3">

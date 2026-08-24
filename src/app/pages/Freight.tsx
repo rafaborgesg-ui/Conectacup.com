@@ -515,6 +515,37 @@ function freightDeadlineInfo(request: FreightRequest) {
   };
 }
 
+function freightDeliveryDate(request: FreightRequest) {
+  const deliveryAttachmentTimes = (request.attachments || [])
+    .filter(attachment => attachment.category === 'entrega')
+    .map(attachment => new Date(attachment.createdAt || '').getTime())
+    .filter(time => !Number.isNaN(time));
+
+  if (deliveryAttachmentTimes.length) {
+    return new Date(Math.max(...deliveryAttachmentTimes)).toISOString();
+  }
+
+  return request.updatedAt || request.agendamentoAt || request.createdAt;
+}
+
+function freightDateTime(value?: string | null, fallback = Number.MAX_SAFE_INTEGER) {
+  const time = new Date(value || '').getTime();
+  return Number.isNaN(time) ? fallback : time;
+}
+
+function kanbanSortValue(request: FreightRequest, lane: string) {
+  if (lane === 'nao_iniciado') return freightDateTime(request.prazoEntrega || request.prazoDesejado || request.createdAt);
+  if (lane === 'finalizado') return freightDateTime(freightDeliveryDate(request), 0);
+  return freightDateTime(request.agendamentoAt || request.prazoEntrega || request.updatedAt || request.createdAt);
+}
+
+function sortKanbanLane(requests: FreightRequest[], lane: string) {
+  return [...requests].sort((a, b) => {
+    const direction = lane === 'finalizado' ? -1 : 1;
+    return (kanbanSortValue(a, lane) - kanbanSortValue(b, lane)) * direction;
+  });
+}
+
 function DetailDrawer({
   request,
   history,
@@ -2681,7 +2712,10 @@ function KanbanPanel({
   const [dropLane, setDropLane] = useState<string | null>(null);
   const grouped = useMemo(() => {
     return laneOrder.reduce<Record<string, FreightRequest[]>>((acc, lane) => {
-      acc[lane] = requests.filter(request => freightLane(request.status) === lane);
+      acc[lane] = sortKanbanLane(
+        requests.filter(request => freightLane(request.status) === lane),
+        lane
+      );
       return acc;
     }, {});
   }, [requests]);
@@ -2827,11 +2861,12 @@ function FreightKanbanCard({
   const route = [request.veiculo, request.placa].filter(Boolean).join(' · ');
   const project = request.projeto || request.projetoDescricao || '-';
   const isRequestedCard = lane === 'nao_iniciado' || isRequestedFreightStatus(request.status);
+  const isDeliveredCard = lane === 'finalizado';
   const deadlineInfo = freightDeadlineInfo(request);
-  const dateLabel = isRequestedCard ? 'Prazo' : deadlineInfo.label;
-  const dateValue = isRequestedCard
-    ? request.prazoEntrega || request.prazoDesejado
-    : deadlineInfo.value;
+  const dateLabel = isDeliveredCard ? 'Data de entrega' : isRequestedCard ? 'Prazo' : deadlineInfo.label;
+  let dateValue = deadlineInfo.value;
+  if (isRequestedCard) dateValue = request.prazoEntrega || request.prazoDesejado;
+  if (isDeliveredCard) dateValue = freightDeliveryDate(request);
 
   return (
     <article

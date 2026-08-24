@@ -867,6 +867,84 @@ function FreightPage({ mode }: { mode: FreightMode }) {
     return () => window.clearInterval(intervalId);
   }, [activeTab, freightType, isInternational]);
 
+  useEffect(() => {
+    if (isInternational || activeTab !== 'nova') return;
+
+    const mobileQuery = window.matchMedia('(max-width: 639px)');
+    let animationFrame = 0;
+    let touchStartY = 0;
+
+    const previousHtmlOverscroll = document.documentElement.style.overscrollBehaviorY;
+    const previousBodyOverscroll = document.body.style.overscrollBehaviorY;
+
+    document.documentElement.style.overscrollBehaviorY = 'none';
+    document.body.style.overscrollBehaviorY = 'none';
+
+    const getFormMaxScroll = () => {
+      const form = document.querySelector<HTMLElement>('[data-freight-national-form="true"]');
+      if (!form) return null;
+
+      const viewportHeight = window.visualViewport?.height || window.innerHeight;
+      const formBottom = form.getBoundingClientRect().bottom + window.scrollY;
+      return Math.max(0, Math.ceil(formBottom - viewportHeight));
+    };
+
+    const clampScrollToForm = () => {
+      animationFrame = 0;
+      if (!mobileQuery.matches) return;
+
+      const maxScroll = getFormMaxScroll();
+      if (maxScroll === null) return;
+
+      if (window.scrollY > maxScroll + 2) {
+        window.scrollTo({ top: maxScroll, behavior: 'auto' });
+      }
+    };
+
+    const scheduleClamp = () => {
+      if (animationFrame) return;
+      animationFrame = window.requestAnimationFrame(clampScrollToForm);
+    };
+
+    const handleTouchStart = (event: TouchEvent) => {
+      touchStartY = event.touches[0]?.clientY || 0;
+    };
+
+    const handleTouchMove = (event: TouchEvent) => {
+      if (!mobileQuery.matches) return;
+
+      const currentY = event.touches[0]?.clientY || touchStartY;
+      const isScrollingDown = touchStartY - currentY > 0;
+      if (!isScrollingDown) return;
+
+      const maxScroll = getFormMaxScroll();
+      if (maxScroll === null) return;
+
+      if (window.scrollY >= maxScroll - 1) {
+        event.preventDefault();
+        window.scrollTo({ top: maxScroll, behavior: 'auto' });
+      }
+    };
+
+    scheduleClamp();
+    window.addEventListener('scroll', scheduleClamp, { passive: true });
+    window.addEventListener('resize', scheduleClamp);
+    window.addEventListener('touchstart', handleTouchStart, { passive: true });
+    window.addEventListener('touchmove', handleTouchMove, { passive: false });
+    window.visualViewport?.addEventListener('resize', scheduleClamp);
+
+    return () => {
+      if (animationFrame) window.cancelAnimationFrame(animationFrame);
+      document.documentElement.style.overscrollBehaviorY = previousHtmlOverscroll;
+      document.body.style.overscrollBehaviorY = previousBodyOverscroll;
+      window.removeEventListener('scroll', scheduleClamp);
+      window.removeEventListener('resize', scheduleClamp);
+      window.removeEventListener('touchstart', handleTouchStart);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.visualViewport?.removeEventListener('resize', scheduleClamp);
+    };
+  }, [activeTab, isInternational]);
+
   async function loadData(options: { silent?: boolean } = {}) {
     if (!options.silent) {
       setLoading(true);
@@ -1974,7 +2052,11 @@ function NationalForm({
   };
 
   return (
-    <form className="w-full max-w-full rounded-lg border border-slate-200 bg-white shadow-sm" onSubmit={onSubmit}>
+    <form
+      data-freight-national-form="true"
+      className="w-full max-w-full rounded-lg border border-slate-200 bg-white shadow-sm"
+      onSubmit={onSubmit}
+    >
       <div className="border-b border-slate-100 px-4 py-4 pl-20 sm:px-5 sm:pl-5">
         <h2 className="break-words text-base font-bold leading-snug text-slate-950 sm:text-lg">Cadastrar solicitação de frete nacional</h2>
       </div>

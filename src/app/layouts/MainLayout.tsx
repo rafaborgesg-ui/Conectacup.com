@@ -116,7 +116,7 @@ export function MainLayout() {
       {/* Cache Buster - Detecta código desatualizado */}
       <CacheBuster />
       
-      <div className="min-h-screen bg-gray-50 flex tap-highlight-none">
+      <div className={`${isFreightNationalRoute ? 'min-h-0 lg:min-h-screen' : 'min-h-screen'} bg-gray-50 flex tap-highlight-none`}>
         {/* Componente de Prevenção de Zoom */}
         <ZoomPrevention />
         

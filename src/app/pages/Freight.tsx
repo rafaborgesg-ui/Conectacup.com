@@ -573,7 +573,7 @@ function DetailDrawer({
           <div>
             <p className="text-sm font-semibold text-red-600">{formatProtocol(request)}</p>
             <h2 className="text-xl font-bold text-slate-950">{request.freightType === 'internacional' ? 'Frete internacional' : 'Frete nacional'}</h2>
-            <p className="text-sm text-slate-500">{request.setor || request.necessidade || '-'} · {formatFreightDate(request.createdAt)}</p>
+            <p className="text-sm text-slate-500">{request.setor || request.necessidade || '-'}</p>
           </div>
           <button className={buttonClass('secondary')} onClick={onClose} type="button">
             <X className="h-4 w-4" />
@@ -2686,7 +2686,16 @@ function KanbanPanel({
     }, {});
   }, [requests]);
 
-  const driverRows = isDriver ? requests.filter(request => isDriverVisibleStatus(request.status)) : requests;
+  const driverRows = useMemo(() => {
+    if (!isDriver) return requests;
+    return requests
+      .filter(request => isDriverVisibleStatus(request.status))
+      .sort((a, b) => {
+        const dateA = new Date(a.agendamentoAt || a.createdAt).getTime();
+        const dateB = new Date(b.agendamentoAt || b.createdAt).getTime();
+        return (Number.isNaN(dateA) ? Number.MAX_SAFE_INTEGER : dateA) - (Number.isNaN(dateB) ? Number.MAX_SAFE_INTEGER : dateB);
+      });
+  }, [isDriver, requests]);
 
   if (isDriver) {
     return (

@@ -546,6 +546,11 @@ function sortKanbanLane(requests: FreightRequest[], lane: string) {
   });
 }
 
+function isScheduledFreightLate(request: FreightRequest) {
+  const scheduledAt = freightDateTime(request.agendamentoAt, Number.NaN);
+  return !Number.isNaN(scheduledAt) && scheduledAt < Date.now();
+}
+
 function DetailDrawer({
   request,
   history,
@@ -2813,52 +2818,85 @@ function KanbanPanel({
       });
   }, [isDriver, requests]);
 
+  const driverGrouped = useMemo(() => {
+    if (!isDriver) return {};
+    return ['Agendado', 'Em Rota'].reduce<Record<string, FreightRequest[]>>((acc, status) => {
+      acc[status] = driverRows.filter(request => request.status === status);
+      return acc;
+    }, {});
+  }, [driverRows, isDriver]);
+
   if (isDriver) {
     return (
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {driverRows.map(request => (
-          <div key={request.id} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="text-lg font-bold text-slate-950">{formatProtocol(request)}</div>
-                <div className="text-sm font-semibold text-slate-700">{request.setor || '-'} · {request.projeto || '-'}</div>
-                <div className="text-sm text-slate-500">{formatFreightDate(freightDeadlineInfo(request).value)}</div>
+      <div className="grid min-h-[520px] gap-3 lg:grid-cols-2">
+        {(['Agendado', 'Em Rota'] as FreightStatus[]).map(status => {
+          const rows = driverGrouped[status] || [];
+          const accentClass = status === 'Agendado' ? 'border-yellow-400 bg-yellow-50/60' : 'border-blue-500 bg-blue-50/60';
+          const countClass = status === 'Agendado' ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800';
+
+          return (
+            <section key={status} className={`flex min-h-[420px] flex-col rounded-lg border bg-white shadow-sm ${accentClass}`}>
+              <div className="flex items-center justify-between border-b border-slate-100 bg-white px-4 py-3">
+                <h3 className="font-bold text-slate-950">{status}</h3>
+                <span className={`rounded-full px-2 py-1 text-xs font-bold ${countClass}`}>{rows.length}</span>
               </div>
-              <span className={`rounded-full border px-2 py-1 text-xs font-semibold ${statusBadgeClass(request.status)}`}>{request.status}</span>
-            </div>
-            <div className="mt-4 space-y-2 text-sm text-slate-700">
-              <div><strong>Retirada:</strong> {request.enderecoRetirada || '-'}</div>
-              <div><strong>Entrega:</strong> {request.enderecoEntrega || '-'}</div>
-              <div><strong>Item:</strong> {request.itemDescricao || '-'}</div>
-            </div>
-            <div className="mt-4 grid gap-2">
-              <a className={buttonClass('secondary')} href={`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(request.enderecoRetirada || '')}&destination=${encodeURIComponent(request.enderecoEntrega || '')}`} target="_blank" rel="noreferrer">
-                <MapPin className="h-4 w-4" />
-                Abrir rota
-              </a>
-              {request.status === 'Agendado' ? (
-                <button className={buttonClass('dark')} onClick={() => onStatus(request, 'Em Rota')} type="button" disabled={saving}>
-                  <Route className="h-4 w-4" />
-                  Iniciar rota
-                </button>
-              ) : null}
-              <label className="block rounded-md border border-dashed border-slate-300 bg-slate-50 p-3 text-sm">
-                <span className="mb-2 flex items-center gap-2 font-semibold text-slate-700"><Camera className="h-4 w-4" /> Foto da entrega</span>
-                <input type="file" accept="image/*" capture="environment" multiple onChange={event => setDeliveryFiles((current: any) => ({ ...current, [request.id]: Array.from(event.target.files || []) }))} />
-                <span className="mt-2 block text-xs text-slate-500">{deliveryFiles[request.id]?.length || 0} arquivo(s)</span>
-              </label>
-              <button className={buttonClass('primary')} onClick={() => onDelivery(request)} type="button" disabled={saving}>
-                <CheckCircle2 className="h-4 w-4" />
-                Concluir entrega
-              </button>
-              <button className={buttonClass('secondary')} onClick={() => onOpen(request)} type="button">
-                <Eye className="h-4 w-4" />
-                Detalhes
-              </button>
-            </div>
-          </div>
-        ))}
-        {!driverRows.length ? <div className="rounded-lg border border-slate-200 bg-white p-8 text-center text-slate-500">Nenhuma entrega em aberto.</div> : null}
+              <div className="flex-1 space-y-3 p-3">
+                {rows.map(request => (
+                  <div key={request.id} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-lg font-bold text-slate-950">{formatProtocol(request)}</div>
+                        <div className="text-sm font-semibold text-slate-700">{request.setor || '-'} · {request.projeto || '-'}</div>
+                        <div className="text-sm text-slate-500">Agendamento: {formatFreightDate(request.agendamentoAt)}</div>
+                      </div>
+                      <div className="flex flex-col items-end gap-1">
+                        <span className={`rounded-full border px-2 py-1 text-xs font-semibold ${statusBadgeClass(request.status)}`}>{request.status}</span>
+                        {isScheduledFreightLate(request) ? (
+                          <span className="rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-700">Atrasado</span>
+                        ) : null}
+                      </div>
+                    </div>
+                    <div className="mt-4 space-y-2 text-sm text-slate-700">
+                      <div><strong>Retirada:</strong> {request.enderecoRetirada || '-'}</div>
+                      <div><strong>Entrega:</strong> {request.enderecoEntrega || '-'}</div>
+                      <div><strong>Item:</strong> {request.itemDescricao || '-'}</div>
+                    </div>
+                    <div className="mt-4 grid gap-2">
+                      <a className={buttonClass('secondary')} href={`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(request.enderecoRetirada || '')}&destination=${encodeURIComponent(request.enderecoEntrega || '')}`} target="_blank" rel="noreferrer">
+                        <MapPin className="h-4 w-4" />
+                        Abrir rota
+                      </a>
+                      {request.status === 'Agendado' ? (
+                        <button className={buttonClass('dark')} onClick={() => onStatus(request, 'Em Rota')} type="button" disabled={saving}>
+                          <Route className="h-4 w-4" />
+                          Iniciar rota
+                        </button>
+                      ) : null}
+                      <label className="block rounded-md border border-dashed border-slate-300 bg-slate-50 p-3 text-sm">
+                        <span className="mb-2 flex items-center gap-2 font-semibold text-slate-700"><Camera className="h-4 w-4" /> Foto da entrega</span>
+                        <input type="file" accept="image/*" capture="environment" multiple onChange={event => setDeliveryFiles((current: any) => ({ ...current, [request.id]: Array.from(event.target.files || []) }))} />
+                        <span className="mt-2 block text-xs text-slate-500">{deliveryFiles[request.id]?.length || 0} arquivo(s)</span>
+                      </label>
+                      <button className={buttonClass('primary')} onClick={() => onDelivery(request)} type="button" disabled={saving}>
+                        <CheckCircle2 className="h-4 w-4" />
+                        Concluir entrega
+                      </button>
+                      <button className={buttonClass('secondary')} onClick={() => onOpen(request)} type="button">
+                        <Eye className="h-4 w-4" />
+                        Detalhes
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                {!rows.length ? (
+                  <div className="flex h-32 items-center justify-center rounded-md border border-dashed border-slate-200 bg-white/70 text-center text-xs font-semibold text-slate-400">
+                    Nenhuma entrega neste status
+                  </div>
+                ) : null}
+              </div>
+            </section>
+          );
+        })}
       </div>
     );
   }

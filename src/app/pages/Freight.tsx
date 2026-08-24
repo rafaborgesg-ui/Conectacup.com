@@ -3111,6 +3111,16 @@ function KanbanPanel({
                           Iniciar rota
                         </button>
                       ) : null}
+                      {request.status === 'Em Rota' ? (
+                        <button className={buttonClass('primary')} onClick={() => onDelivery(request)} type="button" disabled={saving}>
+                          <CheckCircle2 className="h-4 w-4" />
+                          Concluir entrega
+                        </button>
+                      ) : null}
+                      <button className={buttonClass('secondary')} onClick={() => onOpen(request)} type="button">
+                        <Eye className="h-4 w-4" />
+                        Detalhes
+                      </button>
                       <DeliveryPhotoManager
                         media={deliveryMedia}
                         compact
@@ -3119,14 +3129,6 @@ function KanbanPanel({
                         onUpload={files => onDeliveryUpload(request, files)}
                         onRemove={file => onDeliveryRemove(request, file)}
                       />
-                      <button className={buttonClass('primary')} onClick={() => onDelivery(request)} type="button" disabled={saving}>
-                        <CheckCircle2 className="h-4 w-4" />
-                        Concluir entrega
-                      </button>
-                      <button className={buttonClass('secondary')} onClick={() => onOpen(request)} type="button">
-                        <Eye className="h-4 w-4" />
-                        Detalhes
-                      </button>
                     </div>
                   </div>
                   );

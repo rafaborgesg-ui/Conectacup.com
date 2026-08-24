@@ -2143,6 +2143,17 @@ function FreightKanbanFilters({
   );
 }
 
+function DashboardHeaderInfo({ label, description }: { label: string; description: string }) {
+  return (
+    <span className="group relative inline-flex cursor-help items-center" tabIndex={0} title={description}>
+      {label}
+      <span className="pointer-events-none absolute left-0 top-full z-30 mt-2 w-64 rounded-md border border-slate-800 bg-slate-950 px-3 py-2 text-[11px] font-medium normal-case tracking-normal text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus:opacity-100">
+        {description}
+      </span>
+    </span>
+  );
+}
+
 function RequestsTable({
   requests,
   isInternational,
@@ -2187,12 +2198,22 @@ function RequestsTable({
                   <th className="px-4 py-3">Projeto</th>
                   <th className="px-4 py-3">Solicitante</th>
                   <th className="px-4 py-3">E-mail solicitante</th>
-                  <th className="px-4 py-3">Registro</th>
+                  <th className="px-4 py-3">
+                    <DashboardHeaderInfo label="Registro" description="Data em que a solicitação de frete foi criada." />
+                  </th>
                   <th className="px-4 py-3">Itens</th>
-                  <th className="px-4 py-3">Prazo</th>
-                  <th className="px-4 py-3">Agendamento</th>
-                  <th className="px-4 py-3">Atendimento</th>
-                  <th className="px-4 py-3">Data de entrega</th>
+                  <th className="px-4 py-3">
+                    <DashboardHeaderInfo label="Prazo" description="Prazo final desejado pelo solicitante para conclusão do frete" />
+                  </th>
+                  <th className="px-4 py-3">
+                    <DashboardHeaderInfo label="Agendamento" description="Data em que o setor logística definiu que o frete será iniciado" />
+                  </th>
+                  <th className="px-4 py-3">
+                    <DashboardHeaderInfo label="Atendimento" description="Data em que o setor logístico realizou o agendamento do frete" />
+                  </th>
+                  <th className="px-4 py-3">
+                    <DashboardHeaderInfo label="Data de entrega" description="Data em que o frete foi concluído" />
+                  </th>
                   <th className="px-4 py-3">Veículo</th>
                   <th className="px-4 py-3">Motorista</th>
                 </>

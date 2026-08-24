@@ -146,7 +146,7 @@ export default function App() {
         if (user) {
           console.log('✅ Usuário autenticado:', user.email);
           
-          const profileId = user.profileId || user.role;
+          const profileId = user.profileId || user.user_metadata?.profileId || user.role;
           
           localStorage.setItem('porsche-cup-user', JSON.stringify({
             id: user.id,

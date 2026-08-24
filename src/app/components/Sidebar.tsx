@@ -4,7 +4,7 @@ import { useNavigate, useLocation } from 'react-router';
 import porscheCupLogo from 'figma:asset/3ae08ff326060d9638298673cda23da363101b9f.png';
 import { usePermissions } from '../utils/usePermissions';
 import { PAGES } from '../utils/permissions';
-import { MENU_STRUCTURE, MENU_TO_PAGE_MAP } from '../utils/menuStructure';
+import { MENU_STRUCTURE, MENU_TO_PAGE_MAP, MenuItem } from '../utils/menuStructure';
 import { MENU_ID_TO_ROUTE } from '../routes';
 
 interface SidebarProps {
@@ -12,13 +12,13 @@ interface SidebarProps {
   userRole?: string;
 }
 
-export function Sidebar({ onLogout, userRole = 'operator' }: SidebarProps) {
+export function Sidebar({ onLogout, userRole: _userRole = 'operator' }: SidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
   const [expandedMenus, setExpandedMenus] = useState<string[]>([]); // Todos os menus iniciam recolhidos
   const [hasUserInteracted, setHasUserInteracted] = useState(false); // Flag para controlar interação do usuário
-  const { hasPageAccess, isLoading, profile } = usePermissions();
+  const { hasPageAccess, isLoading, profile, isUserAdmin } = usePermissions();
   const navRef = useRef<HTMLElement>(null); // Ref para o container de navegação
   const menuItemRefs = useRef<{ [key: string]: HTMLElement | null }>({}); // Refs para cada item de menu
   
@@ -37,6 +37,7 @@ export function Sidebar({ onLogout, userRole = 'operator' }: SidebarProps) {
   };
   
   const currentUserName = getUserName();
+  const isAdminProfile = isUserAdmin();
   
   // Log para debug
   useEffect(() => {
@@ -57,40 +58,36 @@ export function Sidebar({ onLogout, userRole = 'operator' }: SidebarProps) {
   }, []);
 
   // Filtra itens do menu baseado em permissões
-  const filterMenuItems = (items: any[]): any[] => {
-    return items.map(item => ({...item})).filter(item => {
-      // Se tem subItems, filtra recursivamente primeiro
+  const canAccessMenuItem = (item: MenuItem): boolean => {
+    const pageKey = menuToPageMap[item.id];
+    if (!pageKey) return false;
+
+    const pageValue = PAGES[pageKey as keyof typeof PAGES];
+    if (!pageValue) return false;
+
+    return hasPageAccess(pageValue);
+  };
+
+  const filterMenuItems = (items: MenuItem[]): MenuItem[] => {
+    return items.reduce<MenuItem[]>((visibleItems, item) => {
+      if (item.adminOnly && !isAdminProfile) {
+        return visibleItems;
+      }
+
       if (item.subItems) {
         const filteredSubItems = filterMenuItems(item.subItems);
-        console.log(`🔍 Filtrando "${item.id}": ${item.subItems.length} subitens → ${filteredSubItems.length} após filtro`);
-        // Se não sobrou nenhum subitem, oculta o item pai
-        if (filteredSubItems.length === 0) return false;
-        item.subItems = filteredSubItems;
-        return true;
+        if (filteredSubItems.length > 0) {
+          visibleItems.push({ ...item, subItems: filteredSubItems });
+        }
+        return visibleItems;
       }
-      
-      // Verifica permissões (inclui links externos e páginas internas)
-      const pageKey = menuToPageMap[item.id];
-      if (pageKey) {
-        const pageValue = PAGES[pageKey];
-        const hasAccess = hasPageAccess(pageValue);
-        
-        // Log para debug
-        console.log(`🔑 "${item.id}" (${item.label}): pageKey="${pageKey}", pageValue="${pageValue}", hasAccess=${hasAccess}`);
-        
-        return hasAccess;
+
+      if (canAccessMenuItem(item)) {
+        visibleItems.push({ ...item });
       }
-      
-      // Se não tem mapeamento, verifica adminOnly
-      if (item.adminOnly && userRole !== 'admin') {
-        console.log(`🚫 "${item.id}" bloqueado (adminOnly e userRole=${userRole})`);
-        return false;
-      }
-      
-      // Se não tem mapeamento e não é adminOnly, mostra
-      console.log(`✅ "${item.id}" permitido (sem mapeamento, sem adminOnly)`);
-      return true;
-    });
+
+      return visibleItems;
+    }, []);
   };
   
   // 🆕 Helper: Converte pathname para menuId
@@ -262,7 +259,7 @@ export function Sidebar({ onLogout, userRole = 'operator' }: SidebarProps) {
   );
 
   // Função recursiva para renderizar itens de menu
-  const renderMenuItem = (item: any, level: number = 0, isFirstInSection: boolean = false) => {
+  const renderMenuItem = (item: MenuItem, level: number = 0, isFirstInSection: boolean = false) => {
     const Icon = item.icon;
     const hasSubItems = item.subItems && item.subItems.length > 0;
     const isExpanded = expandedMenus.includes(item.id);
@@ -270,11 +267,6 @@ export function Sidebar({ onLogout, userRole = 'operator' }: SidebarProps) {
     const isDirectlyActive = currentMenuId === item.id;
     const isExternalLink = item.externalUrl;
     
-    // Esconde itens adminOnly se não for admin
-    if (item.adminOnly && userRole !== 'admin') {
-      return null;
-    }
-
     return (
       <li 
         key={item.id}

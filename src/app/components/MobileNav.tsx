@@ -13,12 +13,12 @@ interface MobileNavProps {
   userRole?: string;
 }
 
-export function MobileNav({ onLogout, userRole = 'operator' }: MobileNavProps) {
+export function MobileNav({ onLogout, userRole: _userRole = 'operator' }: MobileNavProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const [open, setOpen] = useState(false);
   const [expandedMenus, setExpandedMenus] = useState<string[]>([]);
-  const { hasPageAccess } = usePermissions();
+  const { hasPageAccess, isUserAdmin } = usePermissions();
   const menuItemRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
   const navScrollRef = useRef<HTMLElement>(null);
 
@@ -52,6 +52,7 @@ export function MobileNav({ onLogout, userRole = 'operator' }: MobileNavProps) {
   };
   
   const currentUserName = getUserName();
+  const isAdminProfile = isUserAdmin();
 
   // 🔒 BLOQUEIA scroll da página quando menu está aberto
   useEffect(() => {
@@ -123,33 +124,36 @@ export function MobileNav({ onLogout, userRole = 'operator' }: MobileNavProps) {
   }, [currentMenuId]);
 
   // Filtra itens baseado em permissões (recursivo)
+  const canAccessMenuItem = (item: MenuItem): boolean => {
+    const pageKey = MENU_TO_PAGE_MAP[item.id];
+    if (!pageKey) return false;
+
+    const pageValue = PAGES[pageKey as keyof typeof PAGES];
+    if (!pageValue) return false;
+
+    return hasPageAccess(pageValue);
+  };
+
   const filterMenuItems = (items: MenuItem[]): MenuItem[] => {
-    return items.filter(item => {
-      // Links externos sempre visíveis
-      if (item.externalUrl) return true;
-      
-      // Se tem subItems, filtra recursivamente
+    return items.reduce<MenuItem[]>((visibleItems, item) => {
+      if (item.adminOnly && !isAdminProfile) {
+        return visibleItems;
+      }
+
       if (item.subItems) {
         const filteredSubItems = filterMenuItems(item.subItems);
-        // Se não sobrou nenhum subitem, oculta o item pai
-        if (filteredSubItems.length === 0) return false;
-        item.subItems = filteredSubItems;
-        return true;
+        if (filteredSubItems.length > 0) {
+          visibleItems.push({ ...item, subItems: filteredSubItems });
+        }
+        return visibleItems;
       }
-      
-      // Verifica permissão
-      const pageKey = MENU_TO_PAGE_MAP[item.id];
-      if (pageKey) {
-        return hasPageAccess(PAGES[pageKey]);
+
+      if (canAccessMenuItem(item)) {
+        visibleItems.push({ ...item });
       }
-      
-      // Se não tem mapeamento, verifica adminOnly
-      if (item.adminOnly && userRole !== 'admin') {
-        return false;
-      }
-      
-      return true;
-    });
+
+      return visibleItems;
+    }, []);
   };
 
   const toggleSubmenu = (itemId: string) => {

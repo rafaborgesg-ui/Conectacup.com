@@ -267,6 +267,7 @@ app.post("/make-server-02726c7c/auth/ensure-role", async (c) => {
     
     if (currentRole) {
       console.log('✅ Usuário já tem role:', currentRole);
+      const currentProfileId = user.user_metadata?.profileId || currentRole;
       return c.json({
         success: true,
         message: 'Usuário já tem role definida',
@@ -275,6 +276,7 @@ app.post("/make-server-02726c7c/auth/ensure-role", async (c) => {
           email: user.email,
           name: user.user_metadata?.name || user.email?.split('@')[0] || 'Usuário',
           role: currentRole,
+          profileId: currentProfileId,
         }
       });
     }
@@ -293,6 +295,7 @@ app.post("/make-server-02726c7c/auth/ensure-role", async (c) => {
           ...user.user_metadata,
           name: defaultName,
           role: defaultRole,
+          profileId: defaultRole,
         }
       }
     );
@@ -315,6 +318,7 @@ app.post("/make-server-02726c7c/auth/ensure-role", async (c) => {
         email: updatedUser.user.email,
         name: defaultName,
         role: defaultRole,
+        profileId: updatedUser.user.user_metadata?.profileId || defaultRole,
       }
     });
   } catch (error: any) {

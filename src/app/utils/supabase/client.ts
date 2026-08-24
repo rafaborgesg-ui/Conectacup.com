@@ -98,6 +98,7 @@ export async function getCurrentUser() {
       email: user.email,
       name: user.user_metadata?.name || user.email?.split('@')[0] || 'Usuário',
       role: user.user_metadata?.role || 'operator',
+      profileId: user.user_metadata?.profileId || user.user_metadata?.role || 'operator',
       user_metadata: user.user_metadata,
     };
   } catch (error) {

@@ -896,11 +896,14 @@ function FreightPage({ mode }: { mode: FreightMode }) {
   }, [activeTab, freightType, isInternational]);
 
   useEffect(() => {
-    if (isInternational || activeTab !== 'nova') return;
+    if (isInternational || !['nova', 'motorista'].includes(activeTab)) return;
 
     const mobileQuery = window.matchMedia('(max-width: 639px)');
     let animationFrame = 0;
     let touchStartY = 0;
+    const clampTargetSelector = activeTab === 'nova'
+      ? '[data-freight-national-form="true"]'
+      : '[data-freight-driver-panel="true"]';
 
     const previousHtmlOverscroll = document.documentElement.style.overscrollBehaviorY;
     const previousBodyOverscroll = document.body.style.overscrollBehaviorY;
@@ -908,20 +911,20 @@ function FreightPage({ mode }: { mode: FreightMode }) {
     document.documentElement.style.overscrollBehaviorY = 'none';
     document.body.style.overscrollBehaviorY = 'none';
 
-    const getFormMaxScroll = () => {
-      const form = document.querySelector<HTMLElement>('[data-freight-national-form="true"]');
-      if (!form) return null;
+    const getTargetMaxScroll = () => {
+      const target = document.querySelector<HTMLElement>(clampTargetSelector);
+      if (!target) return null;
 
       const viewportHeight = window.visualViewport?.height || window.innerHeight;
-      const formBottom = form.getBoundingClientRect().bottom + window.scrollY;
-      return Math.max(0, Math.ceil(formBottom - viewportHeight));
+      const targetBottom = target.getBoundingClientRect().bottom + window.scrollY;
+      return Math.max(0, Math.ceil(targetBottom - viewportHeight));
     };
 
-    const clampScrollToForm = () => {
+    const clampScrollToTarget = () => {
       animationFrame = 0;
       if (!mobileQuery.matches) return;
 
-      const maxScroll = getFormMaxScroll();
+      const maxScroll = getTargetMaxScroll();
       if (maxScroll === null) return;
 
       if (window.scrollY > maxScroll + 2) {
@@ -931,7 +934,7 @@ function FreightPage({ mode }: { mode: FreightMode }) {
 
     const scheduleClamp = () => {
       if (animationFrame) return;
-      animationFrame = window.requestAnimationFrame(clampScrollToForm);
+      animationFrame = window.requestAnimationFrame(clampScrollToTarget);
     };
 
     const handleTouchStart = (event: TouchEvent) => {
@@ -945,7 +948,7 @@ function FreightPage({ mode }: { mode: FreightMode }) {
       const isScrollingDown = touchStartY - currentY > 0;
       if (!isScrollingDown) return;
 
-      const maxScroll = getFormMaxScroll();
+      const maxScroll = getTargetMaxScroll();
       if (maxScroll === null) return;
 
       if (window.scrollY >= maxScroll - 1) {
@@ -2856,14 +2859,14 @@ function KanbanPanel({
 
   if (isDriver) {
     return (
-      <div className="grid min-h-[520px] min-w-0 max-w-full gap-3 overflow-hidden lg:grid-cols-2">
+      <div data-freight-driver-panel="true" className="grid min-w-0 max-w-full gap-3 overflow-hidden lg:min-h-[520px] lg:grid-cols-2">
         {(['Em Rota', 'Agendado'] as FreightStatus[]).map(status => {
           const rows = driverGrouped[status] || [];
           const accentClass = status === 'Agendado' ? 'border-yellow-400 bg-yellow-50/60' : 'border-blue-500 bg-blue-50/60';
           const countClass = status === 'Agendado' ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800';
 
           return (
-            <section key={status} className={`flex min-h-[420px] min-w-0 flex-col overflow-hidden rounded-lg border bg-white shadow-sm ${accentClass}`}>
+            <section key={status} className={`flex min-w-0 flex-col overflow-hidden rounded-lg border bg-white shadow-sm lg:min-h-[420px] ${accentClass}`}>
               <div className="flex items-center justify-between border-b border-slate-100 bg-white px-4 py-3">
                 <h3 className="font-bold text-slate-950">{status}</h3>
                 <span className={`rounded-full px-2 py-1 text-xs font-bold ${countClass}`}>{rows.length}</span>

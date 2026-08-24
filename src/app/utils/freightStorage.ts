@@ -81,6 +81,7 @@ export interface FreightRequest {
   veiculo?: string;
   placa?: string;
   agendamentoAt?: string;
+  atendimentoAt?: string;
   observacoesLogistica?: string;
   fotoEntregaUrls: string[];
   necessidade?: string;
@@ -136,6 +137,7 @@ export interface FreightLookups {
   tiposFrete: FreightLookupOption[];
   modalidades: FreightLookupOption[];
   embalagens: FreightLookupOption[];
+  sla: FreightLookupOption[];
 }
 
 export interface FreightMasterCategory {
@@ -333,6 +335,13 @@ export const FREIGHT_MASTER_CATEGORIES: FreightMasterCategory[] = [
     description: 'Destinatários copiados nas notificações e no resumo diário de pendências.',
     valueLabel: 'E-mail',
     metadataFields: [{ key: 'funcao', label: 'Função', placeholder: 'Receber solicitações cadastradas' }]
+  },
+  {
+    id: 'sla',
+    label: 'SLA',
+    description: 'Prazos de SLA para acompanhamento operacional do frete.',
+    valueLabel: 'Agendamento da solicitação',
+    metadataFields: [{ key: 'dias', label: 'Dias', placeholder: '1' }]
   },
   {
     id: 'centro_custo',
@@ -620,6 +629,7 @@ function mapLegacyRequest(row: any): FreightRequest {
     veiculo: data.veiculo,
     placa: data.placa,
     agendamentoAt: data.agendamentoAt,
+    atendimentoAt: data.atendimentoAt,
     observacoesLogistica: data.observacoesLogistica,
     fotoEntregaUrls: data.fotoEntregaUrls || attachments.filter((item: FreightAttachment) => item.category === 'entrega').map((item: FreightAttachment) => item.fileUrl),
     necessidade: data.necessidade,
@@ -686,6 +696,7 @@ function mapRequest(row: any): FreightRequest {
     veiculo: row.veiculo || undefined,
     placa: row.placa || undefined,
     agendamentoAt: row.agendamento_at || undefined,
+    atendimentoAt: row.atendimento_at || undefined,
     observacoesLogistica: row.observacoes_logistica || undefined,
     fotoEntregaUrls: row.foto_entrega_urls || [],
     necessidade: row.necessidade || undefined,
@@ -804,6 +815,7 @@ function requestToRow(input: Partial<FreightRequest>) {
     veiculo: nullable(input.veiculo),
     placa: nullable(input.placa),
     agendamento_at: dateOrNull(input.agendamentoAt),
+    atendimento_at: dateOrNull(input.atendimentoAt),
     observacoes_logistica: nullable(input.observacoesLogistica),
     foto_entrega_urls: onlyTruthy(input.fotoEntregaUrls),
     necessidade: nullable(input.necessidade),
@@ -869,6 +881,7 @@ function partialRequestToRow(input: Partial<FreightRequest>) {
   set('veiculo', 'veiculo');
   set('placa', 'placa');
   set('agendamentoAt', 'agendamento_at', dateOrNull);
+  set('atendimentoAt', 'atendimento_at', dateOrNull);
   set('observacoesLogistica', 'observacoes_logistica');
   set('fotoEntregaUrls', 'foto_entrega_urls', value => onlyTruthy(value as string[]));
   set('necessidade', 'necessidade');
@@ -1035,7 +1048,8 @@ export async function getFreightLookups(): Promise<FreightLookups> {
     statusInternacional: normalizeStatusOptions(byCategory('status_internacional'), DEFAULT_STATUS_INTERNACIONAL),
     tiposFrete: byCategory('tipo_frete_internacional').length ? byCategory('tipo_frete_internacional') : DEFAULT_TIPOS_FRETE,
     modalidades: byCategory('modalidade_frete').length ? byCategory('modalidade_frete') : DEFAULT_MODALIDADES,
-    embalagens: byCategory('tipo_embalagem').length ? byCategory('tipo_embalagem') : DEFAULT_EMBALAGENS
+    embalagens: byCategory('tipo_embalagem').length ? byCategory('tipo_embalagem') : DEFAULT_EMBALAGENS,
+    sla: byCategory('sla')
   };
 }
 

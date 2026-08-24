@@ -669,6 +669,27 @@ function formattedFreightDeliveryDate(request: FreightRequest) {
   return request.status === 'Concluído' ? formatFreightDate(freightDeliveryDate(request)) : '-';
 }
 
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+
+function attendanceSlaDays(lookups: { sla?: FreightLookupOption[] }) {
+  const options = lookups.sla || [];
+  const option = options.find(item => `${item.label} ${item.value}`.toLowerCase().includes('agendamento')) || options[0];
+  const metadataDays = Number(option?.metadata?.dias);
+  if (Number.isFinite(metadataDays) && metadataDays >= 0) return metadataDays;
+
+  const textDays = Number(String(option?.value || option?.label || '').match(/\d+/)?.[0]);
+  return Number.isFinite(textDays) && textDays >= 0 ? textDays : 1;
+}
+
+function freightSlaElapsedDays(request: FreightRequest, now = Date.now()) {
+  const startedAt = new Date(request.createdAt || '').getTime();
+  if (Number.isNaN(startedAt)) return 0;
+
+  const finishedAt = request.atendimentoAt ? new Date(request.atendimentoAt).getTime() : now;
+  const reference = Number.isNaN(finishedAt) ? now : finishedAt;
+  return Math.max(0, Math.floor((reference - startedAt) / ONE_DAY_MS));
+}
+
 function freightDateTime(value?: string | null, fallback = Number.MAX_SAFE_INTEGER) {
   const time = new Date(value || '').getTime();
   return Number.isNaN(time) ? fallback : time;
@@ -966,7 +987,8 @@ function FreightPage({ mode }: { mode: FreightMode }) {
     statusInternacional: [] as FreightLookupOption[],
     tiposFrete: [] as FreightLookupOption[],
     modalidades: [] as FreightLookupOption[],
-    embalagens: [] as FreightLookupOption[]
+    embalagens: [] as FreightLookupOption[],
+    sla: [] as FreightLookupOption[]
   });
   const [filters, setFilters] = useState({ search: '', status: 'Todos', motorista: 'TODOS', setor: '', projeto: '', protocolo: '', dateFrom: '', dateTo: '' });
   const [standardFiltersOpen, setStandardFiltersOpen] = useState(false);
@@ -1442,12 +1464,14 @@ function FreightPage({ mode }: { mode: FreightMode }) {
         saveFreightMasterOption('veiculo', scheduleDraft.veiculo, { placa: scheduleDraft.placa }).catch(() => undefined)
       ]);
 
+      const atendimentoAt = new Date().toISOString();
       for (const request of targets) {
         await updateFreightStatus(request, 'Agendado', 'Agendamento logístico salvo.', {
           motorista: scheduleDraft.motorista,
           veiculo: scheduleDraft.veiculo,
           placa: scheduleDraft.placa,
           agendamentoAt: scheduleDraft.agendamentoAt,
+          atendimentoAt,
           observacoesLogistica: scheduleDraft.observacoesLogistica
         });
         await sendFreightNotification(request.id, 'status');
@@ -2145,7 +2169,7 @@ function RequestsTable({
         </div>
       </div>
       <div className="overflow-x-auto">
-        <table className={`${isInternational ? 'min-w-full' : 'min-w-[1540px]'} divide-y divide-slate-100 text-sm`}>
+        <table className={`${isInternational ? 'min-w-full' : 'min-w-[1740px]'} divide-y divide-slate-100 text-sm`}>
           <thead className="bg-slate-50">
             <tr className="text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
               <th className="px-4 py-3">Protocolo</th>
@@ -2163,9 +2187,11 @@ function RequestsTable({
                   <th className="px-4 py-3">Projeto</th>
                   <th className="px-4 py-3">Solicitante</th>
                   <th className="px-4 py-3">E-mail solicitante</th>
+                  <th className="px-4 py-3">Registro</th>
                   <th className="px-4 py-3">Itens</th>
                   <th className="px-4 py-3">Prazo</th>
                   <th className="px-4 py-3">Agendamento</th>
+                  <th className="px-4 py-3">Atendimento</th>
                   <th className="px-4 py-3">Data de entrega</th>
                   <th className="px-4 py-3">Veículo</th>
                   <th className="px-4 py-3">Motorista</th>
@@ -2203,11 +2229,13 @@ function RequestsTable({
                     <td className="px-4 py-3 text-slate-700">{request.projeto || request.projetoDescricao || '-'}</td>
                     <td className="px-4 py-3 font-semibold text-slate-900">{request.solicitanteNome || '-'}</td>
                     <td className="px-4 py-3 text-slate-700">{requesterEmail(request)}</td>
+                    <td className="px-4 py-3 text-slate-700">{formatFreightDate(request.createdAt)}</td>
                     <td className="px-4 py-3">
                       <div className="max-w-sm whitespace-pre-wrap text-slate-700">{request.itemDescricao || '-'}</div>
                     </td>
                     <td className="px-4 py-3 text-slate-700">{formatFreightDate(request.prazoEntrega)}</td>
                     <td className="px-4 py-3 text-slate-700">{formatFreightDate(request.agendamentoAt)}</td>
+                    <td className="px-4 py-3 text-slate-700">{formatFreightDate(request.atendimentoAt)}</td>
                     <td className="px-4 py-3 text-slate-700">{formattedFreightDeliveryDate(request)}</td>
                     <td className="px-4 py-3 text-slate-700">{[request.veiculo, request.placa].filter(Boolean).join(' - ') || '-'}</td>
                     <td className="px-4 py-3 font-semibold text-slate-900">{request.motorista || '-'}</td>
@@ -2244,7 +2272,7 @@ function RequestsTable({
             ))}
             {!requests.length ? (
               <tr>
-                <td className="px-4 py-10 text-center text-slate-500" colSpan={isInternational ? 7 : 13}>Nenhuma solicitação encontrada.</td>
+                <td className="px-4 py-10 text-center text-slate-500" colSpan={isInternational ? 7 : 15}>Nenhuma solicitação encontrada.</td>
               </tr>
             ) : null}
           </tbody>
@@ -2642,7 +2670,7 @@ function AttendancePanel({
   onOpen: (request: FreightRequest) => void;
   onCancel: (targets: FreightRequest[], reason: string) => void;
 }) {
-  const [sortState, setSortState] = useState<{ column: 'protocol' | 'setor' | 'projeto' | 'prazo' | 'solicitante' | 'item'; direction: 'asc' | 'desc' }>({
+  const [sortState, setSortState] = useState<{ column: 'protocol' | 'setor' | 'projeto' | 'registro' | 'prazo' | 'atendimento' | 'sla' | 'solicitante' | 'item'; direction: 'asc' | 'desc' }>({
     column: 'prazo',
     direction: 'asc'
   });
@@ -2661,7 +2689,10 @@ function AttendancePanel({
           if (sortState.column === 'protocol') return request.protocol;
           if (sortState.column === 'setor') return request.setor || '';
           if (sortState.column === 'projeto') return request.projeto || request.projetoDescricao || '';
+          if (sortState.column === 'registro') return freightDateTime(request.createdAt, 0);
           if (sortState.column === 'prazo') return new Date(request.prazoEntrega || request.agendamentoAt || request.createdAt).getTime() || 0;
+          if (sortState.column === 'atendimento') return freightDateTime(request.atendimentoAt, Number.MAX_SAFE_INTEGER);
+          if (sortState.column === 'sla') return freightSlaElapsedDays(request);
           if (sortState.column === 'solicitante') return request.solicitanteNome || '';
           return request.itemDescricao || '';
         };
@@ -2693,6 +2724,7 @@ function AttendancePanel({
     });
     return options;
   }, [lookups.motoristas, selectedDriverValues.join('|')]);
+  const slaLimitDays = attendanceSlaDays(lookups);
 
   useEffect(() => {
     let cancelled = false;
@@ -2790,9 +2822,14 @@ function AttendancePanel({
             <h2 className="text-xl font-bold text-slate-950">Painel de Atendimento de Fretes</h2>
             <p className="text-sm text-slate-500">Filtre, selecione em lote e programe motoristas e veículos para as entregas solicitadas.</p>
           </div>
-          <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-sm font-semibold text-slate-700">
-            Entregas para programar: {filteredRequests.length}
-          </span>
+          <div className="flex flex-wrap gap-2">
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-sm font-semibold text-slate-700">
+              Entregas para programar: {filteredRequests.length}
+            </span>
+            <span className="rounded-full border border-red-100 bg-red-50 px-3 py-1 text-sm font-semibold text-red-700">
+              SLA agendamento: {slaLimitDays} dia{slaLimitDays === 1 ? '' : 's'}
+            </span>
+          </div>
         </div>
 
         <div className="mt-5 flex flex-wrap gap-2">
@@ -2845,14 +2882,20 @@ function AttendancePanel({
                 <th className="w-20 border border-slate-200 p-2">{headerCell('Nº', 'protocol')}</th>
                 <th className="w-36 border border-slate-200 p-2">{headerCell('Setor', 'setor')}</th>
                 <th className="w-40 border border-slate-200 p-2">{headerCell('Projeto', 'projeto')}</th>
+                <th className="w-36 border border-slate-200 p-2">{headerCell('Registro', 'registro')}</th>
                 <th className="w-32 border border-slate-200 p-2">{headerCell('Prazo', 'prazo')}</th>
+                <th className="w-36 border border-slate-200 p-2">{headerCell('Atendimento', 'atendimento')}</th>
+                <th className="w-24 border border-slate-200 p-2">{headerCell('SLA', 'sla')}</th>
                 <th className="w-36 border border-slate-200 p-2">{headerCell('Solicitante', 'solicitante')}</th>
                 <th className="border border-slate-200 p-2">{headerCell('Item', 'item')}</th>
                 <th className="w-16 border border-slate-200 p-2"></th>
               </tr>
             </thead>
             <tbody>
-              {filteredRequests.map(request => (
+              {filteredRequests.map(request => {
+                const slaDays = freightSlaElapsedDays(request);
+                const isSlaLate = slaDays > slaLimitDays;
+                return (
                 <tr key={request.id} className="border border-slate-200 bg-white hover:bg-slate-50">
                   <td className="border border-slate-200 p-2 text-center">
                     <input type="checkbox" checked={selectedIds.includes(request.id)} onChange={() => toggle(request.id)} />
@@ -2860,7 +2903,14 @@ function AttendancePanel({
                   <td className="border border-slate-200 p-2 font-bold text-slate-950">{request.protocol}</td>
                   <td className="border border-slate-200 p-2">{request.setor || '-'}</td>
                   <td className="border border-slate-200 p-2">{request.projeto || request.projetoDescricao || '-'}</td>
+                  <td className="border border-slate-200 p-2">{formatFreightDate(request.createdAt)}</td>
                   <td className="border border-slate-200 p-2">{formatFreightDate(request.prazoEntrega)}</td>
+                  <td className="border border-slate-200 p-2">{formatFreightDate(request.atendimentoAt)}</td>
+                  <td className="border border-slate-200 p-2">
+                    <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${isSlaLate ? 'border-red-200 bg-red-100 text-red-700' : 'border-slate-200 bg-slate-100 text-slate-700'}`}>
+                      {slaDays} dia{slaDays === 1 ? '' : 's'}
+                    </span>
+                  </td>
                   <td className="border border-slate-200 p-2">{request.solicitanteNome || '-'}</td>
                   <td className="border border-slate-200 p-2">{request.itemDescricao || '-'}</td>
                   <td className="border border-slate-200 p-2">
@@ -2874,10 +2924,11 @@ function AttendancePanel({
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
               {!filteredRequests.length ? (
                 <tr>
-                  <td colSpan={8} className="border border-slate-200 bg-white p-8 text-center text-slate-500">Nenhuma solicitação pendente encontrada.</td>
+                  <td colSpan={11} className="border border-slate-200 bg-white p-8 text-center text-slate-500">Nenhuma solicitação pendente encontrada.</td>
                 </tr>
               ) : null}
             </tbody>

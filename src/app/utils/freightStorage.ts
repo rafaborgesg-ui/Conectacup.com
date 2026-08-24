@@ -1636,6 +1636,54 @@ export async function uploadFreightFiles(
   return uploaded;
 }
 
+export async function deleteFreightAttachment(
+  requestId: string,
+  attachment: Pick<FreightAttachment, 'id' | 'fileUrl' | 'category'>
+): Promise<void> {
+  const user = await currentUserMeta();
+  const current = await getFreightRequest(requestId);
+  if (!current) throw new Error('Solicitação de frete não encontrada.');
+
+  const nextAttachments = (current.attachments || []).filter(item => {
+    if (attachment.id && item.id) return item.id !== attachment.id;
+    return item.fileUrl !== attachment.fileUrl;
+  });
+  const nextProductUrls = current.fotosProdutoUrls.filter(url => url !== attachment.fileUrl);
+  const nextDeliveryUrls = current.fotoEntregaUrls.filter(url => url !== attachment.fileUrl);
+
+  if (await getSchemaMode() === 'legacy') {
+    await updateFreightRequest(requestId, {
+      fotosProdutoUrls: nextProductUrls,
+      fotoEntregaUrls: nextDeliveryUrls,
+      attachments: nextAttachments
+    });
+    return;
+  }
+
+  let deleteQuery = supabase
+    .from('freight_attachments')
+    .delete()
+    .eq('freight_request_id', requestId);
+
+  deleteQuery = attachment.id
+    ? deleteQuery.eq('id', attachment.id)
+    : deleteQuery.eq('file_url', attachment.fileUrl).eq('category', attachment.category);
+
+  const { error: deleteError } = await deleteQuery;
+  if (deleteError) throw deleteError;
+
+  const { error } = await supabase
+    .from('freight_requests')
+    .update({
+      fotos_produto_urls: nextProductUrls,
+      foto_entrega_urls: nextDeliveryUrls,
+      updated_by: user.id
+    })
+    .eq('id', requestId);
+
+  if (error) throw error;
+}
+
 export async function sendFreightNotification(requestId: string, eventType: 'created' | 'status') {
   try {
     const response = await fetch('/api/freight/send-notification', {

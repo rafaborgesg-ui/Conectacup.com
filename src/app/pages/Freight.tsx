@@ -29,6 +29,7 @@ import {
 import {
   appendFreightHistory,
   createFreightRequest,
+  deleteFreightAttachment,
   formatFreightDate,
   freightLane,
   getFreightHistory,
@@ -218,6 +219,7 @@ function formatProtocol(request: FreightRequest) {
 }
 
 type FreightMedia = {
+  id?: string;
   fileUrl: string;
   fileName?: string;
   category: FreightAttachmentCategory;
@@ -240,12 +242,13 @@ function getFreightMedia(request: FreightRequest, categories?: FreightAttachment
   const allowed = categories?.length ? new Set<string>(categories) : null;
   const seen = new Set<string>();
   const media: FreightMedia[] = [];
-  const add = (item: { fileUrl?: string; fileName?: string; category?: FreightAttachmentCategory; mimeType?: string }) => {
+  const add = (item: { id?: string; fileUrl?: string; fileName?: string; category?: FreightAttachmentCategory; mimeType?: string }) => {
     const fileUrl = String(item.fileUrl || '').trim();
     const category = item.category || 'produto';
     if (!fileUrl || seen.has(fileUrl) || (allowed && !allowed.has(String(category)))) return;
     seen.add(fileUrl);
     media.push({
+      id: item.id,
       fileUrl,
       fileName: item.fileName,
       category,
@@ -260,7 +263,19 @@ function getFreightMedia(request: FreightRequest, categories?: FreightAttachment
   return media;
 }
 
-function FreightMediaSection({ title, media, compact = false }: { title: string; media: FreightMedia[]; compact?: boolean }) {
+function FreightMediaSection({
+  title,
+  media,
+  compact = false,
+  onRemove,
+  removingUrl
+}: {
+  title: string;
+  media: FreightMedia[];
+  compact?: boolean;
+  onRemove?: (file: FreightMedia) => void;
+  removingUrl?: string | null;
+}) {
   if (!media.length) return null;
 
   const imageMedia = media.filter(file => file.isImage);
@@ -277,6 +292,21 @@ function FreightMediaSection({ title, media, compact = false }: { title: string;
             <a key={`${file.fileUrl}-${index}`} href={file.fileUrl} target="_blank" rel="noreferrer" className="group min-w-0 overflow-hidden rounded-md border border-slate-200 bg-slate-50 hover:border-red-200">
               <div className="relative">
                 <img src={file.fileUrl} alt={`${title} ${index + 1}`} className={`${compact ? 'h-20' : 'h-40'} w-full object-cover transition group-hover:scale-[1.02]`} loading="lazy" />
+                {onRemove ? (
+                  <button
+                    className="absolute right-1 top-1 flex h-7 w-7 items-center justify-center rounded-full bg-white/95 text-red-600 shadow-sm hover:bg-red-50 disabled:opacity-60"
+                    type="button"
+                    disabled={removingUrl === file.fileUrl}
+                    onClick={event => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      onRemove(file);
+                    }}
+                    aria-label={`Remover ${file.fileName || `Foto ${index + 1}`}`}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                ) : null}
                 {compact && hiddenImageCount > 0 && index === visibleImages.length - 1 ? (
                   <span className="absolute inset-0 flex items-center justify-center bg-slate-950/50 text-xs font-bold text-white">+{hiddenImageCount}</span>
                 ) : null}
@@ -294,13 +324,71 @@ function FreightMediaSection({ title, media, compact = false }: { title: string;
       {documentMedia.length ? (
         <div className={`grid min-w-0 gap-2 ${compact ? 'grid-cols-1' : 'sm:grid-cols-2 lg:grid-cols-3'}`}>
           {documentMedia.map((file, index) => (
-            <a key={`${file.fileUrl}-${index}`} href={file.fileUrl} target="_blank" rel="noreferrer" className="min-w-0 rounded-md border border-slate-200 bg-slate-50 p-3 text-xs font-semibold text-slate-700 hover:border-red-200 hover:text-red-700">
-              <FileSpreadsheet className="mb-2 h-4 w-4" />
-              <span className="block truncate">{file.fileName || `Anexo ${index + 1}`}</span>
-            </a>
+            <div key={`${file.fileUrl}-${index}`} className="flex min-w-0 items-start gap-2 rounded-md border border-slate-200 bg-slate-50 p-3">
+              <a href={file.fileUrl} target="_blank" rel="noreferrer" className="min-w-0 flex-1 text-xs font-semibold text-slate-700 hover:text-red-700">
+                <FileSpreadsheet className="mb-2 h-4 w-4" />
+                <span className="block truncate">{file.fileName || `Anexo ${index + 1}`}</span>
+              </a>
+              {onRemove ? (
+                <button
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-red-600 shadow-sm hover:bg-red-50 disabled:opacity-60"
+                  type="button"
+                  disabled={removingUrl === file.fileUrl}
+                  onClick={() => onRemove(file)}
+                  aria-label={`Remover ${file.fileName || `Anexo ${index + 1}`}`}
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              ) : null}
+            </div>
           ))}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function DeliveryPhotoManager({
+  media,
+  compact = false,
+  saving = false,
+  removingUrl,
+  onUpload,
+  onRemove
+}: {
+  media: FreightMedia[];
+  compact?: boolean;
+  saving?: boolean;
+  removingUrl?: string | null;
+  onUpload: (files: File[]) => Promise<void>;
+  onRemove: (file: FreightMedia) => Promise<void>;
+}) {
+  return (
+    <div className="min-w-0 space-y-3">
+      <FreightMediaSection title="Foto da Entrega (Motorista)" media={media} compact={compact} onRemove={file => void onRemove(file)} removingUrl={removingUrl} />
+      <label className={`block min-w-0 rounded-md border border-dashed border-slate-300 bg-slate-50 ${compact ? 'p-3 text-sm' : 'p-4 text-sm'}`}>
+        <span className="mb-2 flex items-center gap-2 font-semibold text-slate-700">
+          <Camera className="h-4 w-4 shrink-0" />
+          Foto da Entrega (Motorista)
+        </span>
+        <input
+          className="sr-only"
+          type="file"
+          accept="image/*"
+          capture="environment"
+          multiple
+          disabled={saving}
+          onChange={event => {
+            const files = Array.from(event.currentTarget.files || []);
+            event.currentTarget.value = '';
+            if (files.length) void onUpload(files);
+          }}
+        />
+        <span className={`flex h-10 w-full items-center justify-center rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 ${saving ? 'opacity-70' : ''}`}>
+          {saving ? 'Enviando...' : 'Escolher fotos'}
+        </span>
+        <span className="mt-2 block break-words text-xs text-slate-500">Ao selecionar, a foto é anexada automaticamente.</span>
+      </label>
     </div>
   );
 }
@@ -600,14 +688,22 @@ function DetailDrawer({
   request,
   history,
   addressOptions,
+  saving,
+  removingPhotoUrl,
   onClose,
-  onSaveObservation
+  onSaveObservation,
+  onDeliveryUpload,
+  onDeliveryRemove
 }: {
   request: FreightRequest | null;
   history: FreightHistory[];
   addressOptions: FreightLookupOption[];
+  saving: boolean;
+  removingPhotoUrl?: string | null;
   onClose: () => void;
   onSaveObservation: (value: string) => Promise<void>;
+  onDeliveryUpload: (request: FreightRequest, files: File[]) => Promise<void>;
+  onDeliveryRemove: (request: FreightRequest, file: FreightMedia) => Promise<void>;
 }) {
   const [obs, setObs] = useState('');
   const [detailRouteEstimate, setDetailRouteEstimate] = useState<RouteEstimate | null>(null);
@@ -644,13 +740,13 @@ function DetailDrawer({
   const productMedia = getFreightMedia(request, ['produto']);
   const deliveryMedia = getFreightMedia(request, ['entrega']);
   const otherMedia = getFreightMedia(request, ['volume', 'itens', 'documento']);
-  const hasMedia = Boolean(productMedia.length || deliveryMedia.length || otherMedia.length);
+  const showMediaSection = request.freightType !== 'internacional' || Boolean(productMedia.length || deliveryMedia.length || otherMedia.length);
   const detailRouteEstimates = detailRouteEstimate ? { [request.id]: detailRouteEstimate } : {};
   const deadlineInfo = freightDeadlineInfo(request);
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/30" onClick={onClose}>
-      <div className="h-full w-full max-w-3xl overflow-y-auto bg-white shadow-2xl" onClick={event => event.stopPropagation()}>
+      <div data-freight-detail-drawer="true" className="h-full w-full max-w-3xl overflow-y-auto overscroll-contain bg-white shadow-2xl" onClick={event => event.stopPropagation()}>
         <div className="sticky top-0 z-10 flex items-start justify-between border-b border-slate-200 bg-white px-6 py-5">
           <div>
             <p className="text-sm font-semibold text-red-600">{formatProtocol(request)}</p>
@@ -739,14 +835,24 @@ function DetailDrawer({
             </div>
           </section>
 
-          {hasMedia ? (
+          {showMediaSection ? (
             <section className="rounded-lg border border-slate-200 bg-white">
               <div className="border-b border-slate-100 px-4 py-3">
                 <h3 className="font-semibold text-slate-950">Anexos e fotos</h3>
               </div>
               <div className="space-y-5 p-4">
                 <FreightMediaSection title="Foto solicitante" media={productMedia} />
-                <FreightMediaSection title="Foto da Entrega (Motorista)" media={deliveryMedia} />
+                {request.freightType !== 'internacional' ? (
+                  <DeliveryPhotoManager
+                    media={deliveryMedia}
+                    saving={saving}
+                    removingUrl={removingPhotoUrl}
+                    onUpload={files => onDeliveryUpload(request, files)}
+                    onRemove={file => onDeliveryRemove(request, file)}
+                  />
+                ) : (
+                  <FreightMediaSection title="Foto da Entrega (Motorista)" media={deliveryMedia} />
+                )}
                 <FreightMediaSection title="Anexos" media={otherMedia} />
               </div>
             </section>
@@ -853,7 +959,8 @@ function FreightPage({ mode }: { mode: FreightMode }) {
   const [nationalEditForm, setNationalEditForm] = useState(emptyNationalEditForm);
   const [editProductFiles, setEditProductFiles] = useState<File[]>([]);
   const [productFiles, setProductFiles] = useState<File[]>([]);
-  const [deliveryFiles, setDeliveryFiles] = useState<Record<string, File[]>>({});
+  const [photoSavingByRequest, setPhotoSavingByRequest] = useState<Record<string, boolean>>({});
+  const [removingPhotoUrl, setRemovingPhotoUrl] = useState<string | null>(null);
   const [scheduleDraft, setScheduleDraft] = useState({ motorista: '', veiculo: '', placa: '', agendamentoAt: '', observacoesLogistica: '' });
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [internationalForm, setInternationalForm] = useState(emptyInternationalForm);
@@ -896,7 +1003,7 @@ function FreightPage({ mode }: { mode: FreightMode }) {
   }, [activeTab, freightType, isInternational]);
 
   useEffect(() => {
-    if (isInternational || !['nova', 'motorista'].includes(activeTab)) return;
+    if (isInternational || selected || editingRequest || !['nova', 'motorista'].includes(activeTab)) return;
 
     const mobileQuery = window.matchMedia('(max-width: 639px)');
     let animationFrame = 0;
@@ -974,7 +1081,7 @@ function FreightPage({ mode }: { mode: FreightMode }) {
       window.removeEventListener('touchmove', handleTouchMove);
       window.visualViewport?.removeEventListener('resize', scheduleClamp);
     };
-  }, [activeTab, isInternational]);
+  }, [activeTab, editingRequest, isInternational, selected]);
 
   async function loadData(options: { silent?: boolean } = {}) {
     if (!options.silent) {
@@ -1378,19 +1485,74 @@ function FreightPage({ mode }: { mode: FreightMode }) {
     }
   }
 
+  async function refreshRequestAfterMediaChange(requestId: string) {
+    const refreshed = await getFreightRequests({ type: freightType });
+    setRequests(refreshed);
+    const updated = refreshed.find(item => item.id === requestId) || null;
+    if (selected?.id === requestId) {
+      setSelected(updated);
+      if (updated) setHistory(await getFreightHistory(updated.id));
+    }
+  }
+
+  async function handleDeliveryPhotoUpload(request: FreightRequest, files: File[]) {
+    const selectedFiles = files.filter(Boolean);
+    if (!selectedFiles.length) return;
+
+    setSaving(true);
+    setPhotoSavingByRequest(current => ({ ...current, [request.id]: true }));
+    setMessage(null);
+    try {
+      await uploadFreightFiles(request.id, selectedFiles, 'entrega');
+      await appendFreightHistory(request.id, {
+        action: 'Foto da entrega',
+        comment: `${selectedFiles.length} foto(s) da entrega anexada(s) pelo motorista.`
+      });
+      setMessage({ type: 'success', text: `${selectedFiles.length} foto(s) anexada(s) em ${formatProtocol(request)}.` });
+      await refreshRequestAfterMediaChange(request.id);
+    } catch (error: any) {
+      setMessage({ type: 'error', text: error.message || 'Erro ao anexar foto da entrega.' });
+    } finally {
+      setPhotoSavingByRequest(current => ({ ...current, [request.id]: false }));
+      setSaving(false);
+    }
+  }
+
+  async function handleDeliveryPhotoRemove(request: FreightRequest, file: FreightMedia) {
+    setSaving(true);
+    setRemovingPhotoUrl(file.fileUrl);
+    setMessage(null);
+    try {
+      await deleteFreightAttachment(request.id, {
+        id: file.id,
+        fileUrl: file.fileUrl,
+        category: file.category
+      });
+      await appendFreightHistory(request.id, {
+        action: 'Foto da entrega removida',
+        comment: `${file.fileName || 'Foto da entrega'} removida pelo motorista.`
+      });
+      setMessage({ type: 'success', text: `Foto removida de ${formatProtocol(request)}.` });
+      await refreshRequestAfterMediaChange(request.id);
+    } catch (error: any) {
+      setMessage({ type: 'error', text: error.message || 'Erro ao remover foto da entrega.' });
+    } finally {
+      setRemovingPhotoUrl(null);
+      setSaving(false);
+    }
+  }
+
   async function handleDeliveryPhoto(request: FreightRequest) {
-    const files = deliveryFiles[request.id] || [];
-    if (!files.length) {
-      setMessage({ type: 'error', text: 'Selecione ao menos uma foto de entrega.' });
+    const deliveryMedia = getFreightMedia(request, ['entrega']);
+    if (!deliveryMedia.length) {
+      setMessage({ type: 'error', text: 'Anexe ao menos uma foto de entrega antes de concluir.' });
       return;
     }
 
     setSaving(true);
     try {
-      await uploadFreightFiles(request.id, files, 'entrega');
       await updateFreightStatus(request, 'Concluído', 'Entrega concluída com foto pelo motorista.');
       await sendFreightNotification(request.id, 'status');
-      setDeliveryFiles(current => ({ ...current, [request.id]: [] }));
       setMessage({ type: 'success', text: `${formatProtocol(request)} concluído com foto.` });
       await loadData();
     } catch (error: any) {
@@ -1628,12 +1790,14 @@ function FreightPage({ mode }: { mode: FreightMode }) {
               <KanbanPanel
                 requests={filteredRequests}
                 isDriver={false}
-                deliveryFiles={deliveryFiles}
-                setDeliveryFiles={setDeliveryFiles}
                 saving={saving}
+                photoSavingByRequest={photoSavingByRequest}
+                removingPhotoUrl={removingPhotoUrl}
                 onOpen={openDetails}
                 onStatus={changeStatus}
                 onDelivery={handleDeliveryPhoto}
+                onDeliveryUpload={handleDeliveryPhotoUpload}
+                onDeliveryRemove={handleDeliveryPhotoRemove}
               />
             )}
 
@@ -1641,12 +1805,14 @@ function FreightPage({ mode }: { mode: FreightMode }) {
               <KanbanPanel
                 requests={filteredRequests}
                 isDriver={true}
-                deliveryFiles={deliveryFiles}
-                setDeliveryFiles={setDeliveryFiles}
                 saving={saving}
+                photoSavingByRequest={photoSavingByRequest}
+                removingPhotoUrl={removingPhotoUrl}
                 onOpen={openDetails}
                 onStatus={changeStatus}
                 onDelivery={handleDeliveryPhoto}
+                onDeliveryUpload={handleDeliveryPhotoUpload}
+                onDeliveryRemove={handleDeliveryPhotoRemove}
               />
             )}
 
@@ -1657,7 +1823,17 @@ function FreightPage({ mode }: { mode: FreightMode }) {
         )}
       </div>
 
-      <DetailDrawer request={selected} history={history} addressOptions={lookups.enderecos} onClose={() => setSelected(null)} onSaveObservation={saveDetailObservation} />
+      <DetailDrawer
+        request={selected}
+        history={history}
+        addressOptions={lookups.enderecos}
+        saving={saving || Boolean(selected && photoSavingByRequest[selected.id])}
+        removingPhotoUrl={removingPhotoUrl}
+        onClose={() => setSelected(null)}
+        onSaveObservation={saveDetailObservation}
+        onDeliveryUpload={handleDeliveryPhotoUpload}
+        onDeliveryRemove={handleDeliveryPhotoRemove}
+      />
       <EditRequestDrawer
         request={editingRequest}
         form={nationalEditForm}
@@ -2810,21 +2986,25 @@ function RouteEstimatePanel({
 function KanbanPanel({
   requests,
   isDriver,
-  deliveryFiles,
-  setDeliveryFiles,
   saving,
+  photoSavingByRequest,
+  removingPhotoUrl,
   onOpen,
   onStatus,
-  onDelivery
+  onDelivery,
+  onDeliveryUpload,
+  onDeliveryRemove
 }: {
   requests: FreightRequest[];
   isDriver: boolean;
-  deliveryFiles: Record<string, File[]>;
-  setDeliveryFiles: (fn: any) => void;
   saving: boolean;
+  photoSavingByRequest: Record<string, boolean>;
+  removingPhotoUrl?: string | null;
   onOpen: (request: FreightRequest) => void;
   onStatus: (request: FreightRequest, status: FreightStatus, comment?: string) => void;
   onDelivery: (request: FreightRequest) => void;
+  onDeliveryUpload: (request: FreightRequest, files: File[]) => Promise<void>;
+  onDeliveryRemove: (request: FreightRequest, file: FreightMedia) => Promise<void>;
 }) {
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropLane, setDropLane] = useState<string | null>(null);
@@ -2875,7 +3055,7 @@ function KanbanPanel({
                 {rows.map(request => {
                   const productMedia = getFreightMedia(request, ['produto']);
                   const deliveryMedia = getFreightMedia(request, ['entrega']);
-                  const selectedDeliveryFiles = deliveryFiles[request.id] || [];
+                  const photoSaving = Boolean(photoSavingByRequest[request.id]);
 
                   return (
                   <div key={request.id} className="min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
@@ -2896,10 +3076,9 @@ function KanbanPanel({
                       <div><strong>Entrega:</strong> {request.enderecoEntrega || '-'}</div>
                       <div><strong>Item:</strong> {request.itemDescricao || '-'}</div>
                     </div>
-                    {productMedia.length || deliveryMedia.length ? (
+                    {productMedia.length ? (
                       <div className="mt-4 min-w-0 space-y-3 rounded-md border border-slate-100 bg-slate-50 p-3">
                         <FreightMediaSection title="Foto solicitante" media={productMedia} compact />
-                        <FreightMediaSection title="Foto da Entrega (Motorista)" media={deliveryMedia} compact />
                       </div>
                     ) : null}
                     <div className="mt-4 grid min-w-0 gap-2">
@@ -2913,14 +3092,14 @@ function KanbanPanel({
                           Iniciar rota
                         </button>
                       ) : null}
-                      <label className="block min-w-0 rounded-md border border-dashed border-slate-300 bg-slate-50 p-3 text-sm">
-                        <span className="mb-2 flex items-center gap-2 font-semibold text-slate-700"><Camera className="h-4 w-4 shrink-0" /> Foto da Entrega (Motorista)</span>
-                        <input className="sr-only" type="file" accept="image/*" capture="environment" multiple onChange={event => setDeliveryFiles((current: any) => ({ ...current, [request.id]: Array.from(event.target.files || []) }))} />
-                        <span className="flex h-10 w-full items-center justify-center rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700">Escolher fotos</span>
-                        <span className="mt-2 block break-words text-xs text-slate-500">
-                          {selectedDeliveryFiles.length ? `${selectedDeliveryFiles.length} arquivo(s): ${selectedDeliveryFiles.map(file => file.name).join(', ')}` : '0 arquivo(s)'}
-                        </span>
-                      </label>
+                      <DeliveryPhotoManager
+                        media={deliveryMedia}
+                        compact
+                        saving={saving || photoSaving}
+                        removingUrl={removingPhotoUrl}
+                        onUpload={files => onDeliveryUpload(request, files)}
+                        onRemove={file => onDeliveryRemove(request, file)}
+                      />
                       <button className={buttonClass('primary')} onClick={() => onDelivery(request)} type="button" disabled={saving}>
                         <CheckCircle2 className="h-4 w-4" />
                         Concluir entrega

@@ -1782,6 +1782,7 @@ function FreightPage({ mode }: { mode: FreightMode }) {
               <RequestsTable
                 requests={filteredRequests}
                 isInternational={isInternational}
+                slaLimitDays={attendanceSlaDays(lookups)}
                 canEdit={canEditFreightRequests}
                 onOpen={openDetails}
                 onEdit={openEditRequest}
@@ -2157,6 +2158,7 @@ function DashboardHeaderInfo({ label, description }: { label: string; descriptio
 function RequestsTable({
   requests,
   isInternational,
+  slaLimitDays,
   canEdit,
   onOpen,
   onEdit,
@@ -2165,6 +2167,7 @@ function RequestsTable({
 }: {
   requests: FreightRequest[];
   isInternational: boolean;
+  slaLimitDays: number;
   canEdit: boolean;
   onOpen: (request: FreightRequest) => void;
   onEdit: (request: FreightRequest) => void;
@@ -2180,7 +2183,7 @@ function RequestsTable({
         </div>
       </div>
       <div className="overflow-x-auto">
-        <table className={`${isInternational ? 'min-w-full' : 'min-w-[1740px]'} divide-y divide-slate-100 text-sm`}>
+        <table className={`${isInternational ? 'min-w-full' : 'min-w-[1840px]'} divide-y divide-slate-100 text-sm`}>
           <thead className="bg-slate-50">
             <tr className="text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
               <th className="px-4 py-3">Protocolo</th>
@@ -2211,6 +2214,7 @@ function RequestsTable({
                   <th className="px-4 py-3">
                     <DashboardHeaderInfo label="Atendimento" description="Data em que o setor logístico realizou o agendamento do frete" />
                   </th>
+                  <th className="px-4 py-3">SLA Agendamento</th>
                   <th className="px-4 py-3">
                     <DashboardHeaderInfo label="Data de entrega" description="Data em que o frete foi concluído" />
                   </th>
@@ -2222,7 +2226,10 @@ function RequestsTable({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {requests.map(request => (
+            {requests.map(request => {
+              const slaDays = freightSlaElapsedDays(request);
+              const isSlaLate = slaDays > slaLimitDays;
+              return (
               <tr key={request.id} className="hover:bg-slate-50">
                 <td className="px-4 py-3 font-bold text-slate-950">{formatProtocol(request)}</td>
                 <td className="px-4 py-3">
@@ -2257,6 +2264,11 @@ function RequestsTable({
                     <td className="px-4 py-3 text-slate-700">{formatFreightDate(request.prazoEntrega)}</td>
                     <td className="px-4 py-3 text-slate-700">{formatFreightDate(request.agendamentoAt)}</td>
                     <td className="px-4 py-3 text-slate-700">{formatFreightDate(request.atendimentoAt)}</td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${isSlaLate ? 'border-red-200 bg-red-100 text-red-700' : 'border-emerald-200 bg-emerald-100 text-emerald-700'}`}>
+                        {slaDays} dia{slaDays === 1 ? '' : 's'}
+                      </span>
+                    </td>
                     <td className="px-4 py-3 text-slate-700">{formattedFreightDeliveryDate(request)}</td>
                     <td className="px-4 py-3 text-slate-700">{[request.veiculo, request.placa].filter(Boolean).join(' - ') || '-'}</td>
                     <td className="px-4 py-3 font-semibold text-slate-900">{request.motorista || '-'}</td>
@@ -2290,10 +2302,11 @@ function RequestsTable({
                   </div>
                 </td>
               </tr>
-            ))}
+              );
+            })}
             {!requests.length ? (
               <tr>
-                <td className="px-4 py-10 text-center text-slate-500" colSpan={isInternational ? 7 : 15}>Nenhuma solicitação encontrada.</td>
+                <td className="px-4 py-10 text-center text-slate-500" colSpan={isInternational ? 7 : 16}>Nenhuma solicitação encontrada.</td>
               </tr>
             ) : null}
           </tbody>

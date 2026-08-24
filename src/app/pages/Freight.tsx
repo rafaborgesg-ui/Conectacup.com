@@ -661,6 +661,14 @@ function freightDeliveryDate(request: FreightRequest) {
   return request.updatedAt || request.agendamentoAt || request.createdAt;
 }
 
+function requesterEmail(request: FreightRequest) {
+  return request.createdByEmail || request.emailSolicitante || '-';
+}
+
+function formattedFreightDeliveryDate(request: FreightRequest) {
+  return request.status === 'Concluído' ? formatFreightDate(freightDeliveryDate(request)) : '-';
+}
+
 function freightDateTime(value?: string | null, fallback = Number.MAX_SAFE_INTEGER) {
   const time = new Date(value || '').getTime();
   return Number.isNaN(time) ? fallback : time;
@@ -1148,6 +1156,8 @@ function FreightPage({ mode }: { mode: FreightMode }) {
         request.setor,
         request.projeto,
         request.solicitanteNome,
+        request.createdByEmail,
+        request.emailSolicitante,
         request.itemDescricao,
         request.motorista,
         request.veiculo,
@@ -2135,7 +2145,7 @@ function RequestsTable({
         </div>
       </div>
       <div className="overflow-x-auto">
-        <table className={`${isInternational ? 'min-w-full' : 'min-w-[1280px]'} divide-y divide-slate-100 text-sm`}>
+        <table className={`${isInternational ? 'min-w-full' : 'min-w-[1540px]'} divide-y divide-slate-100 text-sm`}>
           <thead className="bg-slate-50">
             <tr className="text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
               <th className="px-4 py-3">Protocolo</th>
@@ -2152,9 +2162,11 @@ function RequestsTable({
                   <th className="px-4 py-3">Setor</th>
                   <th className="px-4 py-3">Projeto</th>
                   <th className="px-4 py-3">Solicitante</th>
+                  <th className="px-4 py-3">E-mail solicitante</th>
                   <th className="px-4 py-3">Itens</th>
                   <th className="px-4 py-3">Prazo</th>
                   <th className="px-4 py-3">Agendamento</th>
+                  <th className="px-4 py-3">Data de entrega</th>
                   <th className="px-4 py-3">Veículo</th>
                   <th className="px-4 py-3">Motorista</th>
                 </>
@@ -2190,11 +2202,13 @@ function RequestsTable({
                     <td className="px-4 py-3 font-semibold text-slate-900">{request.setor || '-'}</td>
                     <td className="px-4 py-3 text-slate-700">{request.projeto || request.projetoDescricao || '-'}</td>
                     <td className="px-4 py-3 font-semibold text-slate-900">{request.solicitanteNome || '-'}</td>
+                    <td className="px-4 py-3 text-slate-700">{requesterEmail(request)}</td>
                     <td className="px-4 py-3">
                       <div className="max-w-sm whitespace-pre-wrap text-slate-700">{request.itemDescricao || '-'}</div>
                     </td>
                     <td className="px-4 py-3 text-slate-700">{formatFreightDate(request.prazoEntrega)}</td>
                     <td className="px-4 py-3 text-slate-700">{formatFreightDate(request.agendamentoAt)}</td>
+                    <td className="px-4 py-3 text-slate-700">{formattedFreightDeliveryDate(request)}</td>
                     <td className="px-4 py-3 text-slate-700">{[request.veiculo, request.placa].filter(Boolean).join(' - ') || '-'}</td>
                     <td className="px-4 py-3 font-semibold text-slate-900">{request.motorista || '-'}</td>
                   </>
@@ -2230,7 +2244,7 @@ function RequestsTable({
             ))}
             {!requests.length ? (
               <tr>
-                <td className="px-4 py-10 text-center text-slate-500" colSpan={isInternational ? 7 : 11}>Nenhuma solicitação encontrada.</td>
+                <td className="px-4 py-10 text-center text-slate-500" colSpan={isInternational ? 7 : 13}>Nenhuma solicitação encontrada.</td>
               </tr>
             ) : null}
           </tbody>

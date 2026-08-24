@@ -340,7 +340,7 @@ export const FREIGHT_MASTER_CATEGORIES: FreightMasterCategory[] = [
     id: 'sla',
     label: 'SLA',
     description: 'Prazos de SLA para acompanhamento operacional do frete.',
-    valueLabel: 'Agendamento da solicitação',
+    valueLabel: 'Nome do SLA',
     metadataFields: [{ key: 'dias', label: 'Dias', placeholder: '1' }]
   },
   {

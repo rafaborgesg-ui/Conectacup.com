@@ -671,14 +671,41 @@ function formattedFreightDeliveryDate(request: FreightRequest) {
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
-function attendanceSlaDays(lookups: { sla?: FreightLookupOption[] }) {
-  const options = lookups.sla || [];
-  const option = options.find(item => `${item.label} ${item.value}`.toLowerCase().includes('agendamento')) || options[0];
+function slaDaysFromOption(option?: FreightLookupOption) {
   const metadataDays = Number(option?.metadata?.dias);
   if (Number.isFinite(metadataDays) && metadataDays >= 0) return metadataDays;
 
   const textDays = Number(String(option?.value || option?.label || '').match(/\d+/)?.[0]);
   return Number.isFinite(textDays) && textDays >= 0 ? textDays : 1;
+}
+
+function attendanceSlaDays(lookups: { sla?: FreightLookupOption[] }) {
+  const options = lookups.sla || [];
+  const option = options.find(item => String(item.metadata?.tipo || '') === 'agendamento_logistica')
+    || options.find(item => `${item.label} ${item.value}`.toLowerCase().includes('agendamento'))
+    || options[0];
+  return slaDaysFromOption(option);
+}
+
+function requesterSlaDays(lookups: { sla?: FreightLookupOption[] }) {
+  const options = lookups.sla || [];
+  const option = options.find(item => String(item.metadata?.tipo || '') === 'solicitante_frete_nacional')
+    || options.find(item => `${item.label} ${item.value}`.toLowerCase().includes('solicitante'))
+    || options[0];
+  return slaDaysFromOption(option);
+}
+
+function formatSlaDaysLabel(days: number) {
+  return `${days} dia${days === 1 ? '' : 's'}`;
+}
+
+function requesterMinimumDeadline(days: number, now = new Date()) {
+  const minimum = new Date(now.getTime() + days * ONE_DAY_MS);
+  if (minimum.getSeconds() || minimum.getMilliseconds()) {
+    minimum.setMinutes(minimum.getMinutes() + 1);
+  }
+  minimum.setSeconds(0, 0);
+  return minimum;
 }
 
 function freightSlaElapsedDays(request: FreightRequest, now = Date.now()) {
@@ -1357,8 +1384,21 @@ function FreightPage({ mode }: { mode: FreightMode }) {
 
   async function handleCreateNational(event: React.FormEvent) {
     event.preventDefault();
-    setSaving(true);
     setMessage(null);
+
+    const requesterSla = requesterSlaDays(lookups);
+    const minimumDeadline = requesterMinimumDeadline(requesterSla);
+    const requestedDeadline = new Date(nationalForm.prazoEntrega);
+
+    if (!nationalForm.prazoEntrega || Number.isNaN(requestedDeadline.getTime()) || requestedDeadline.getTime() < minimumDeadline.getTime()) {
+      setMessage({
+        type: 'error',
+        text: `O prazo de entrega precisa respeitar o mínimo de ${formatSlaDaysLabel(requesterSla)} de antecedência. Selecione ${formatFreightDate(minimumDeadline.toISOString())} ou depois.`
+      });
+      return;
+    }
+
+    setSaving(true);
     try {
       const created = await createFreightRequest({
         freightType: 'nacional',
@@ -1385,7 +1425,10 @@ function FreightPage({ mode }: { mode: FreightMode }) {
       setNationalForm(emptyNationalForm);
       setProductFiles([]);
       setTab(forcedTab || 'dashboard');
-      setMessage({ type: 'success', text: `Solicitação ${formatProtocol(created)} cadastrada.` });
+      setMessage({
+        type: 'success',
+        text: `Protocolo ${formatProtocol(created)} cadastrado com sucesso. Você receberá uma cópia por e-mail com os dados da solicitação. O acompanhamento da solicitação também será enviado por e-mail a cada atualização: agendado, em rota e concluído.`
+      });
       await loadData();
     } catch (error: any) {
       setMessage({ type: 'error', text: error.message || 'Erro ao cadastrar solicitação.' });
@@ -1661,6 +1704,8 @@ function FreightPage({ mode }: { mode: FreightMode }) {
       : { title: 'Frete Nacional', subtitle: '', icon: Truck };
   const HeaderIcon = header.icon;
   const showPageHeader = !isSingleTabView && (isInternational || activeTab === 'dashboard');
+  const nationalRequesterSlaDays = requesterSlaDays(lookups);
+  const nationalMinimumDeadlineInput = toDateTimeLocalInput(requesterMinimumDeadline(nationalRequesterSlaDays).toISOString());
 
   return (
     <div className="overflow-x-hidden bg-slate-50 px-3 pb-0 pt-3 sm:min-h-screen sm:p-4 md:p-6">
@@ -1797,6 +1842,8 @@ function FreightPage({ mode }: { mode: FreightMode }) {
                 files={productFiles}
                 lookups={lookups}
                 saving={saving}
+                requesterSlaDays={nationalRequesterSlaDays}
+                minimumDeadline={nationalMinimumDeadlineInput}
                 onChange={updateNationalField}
                 onFiles={files => setProductFiles(files)}
                 onSubmit={handleCreateNational}
@@ -2326,6 +2373,8 @@ function NationalForm({
   files,
   lookups,
   saving,
+  requesterSlaDays,
+  minimumDeadline,
   onChange,
   onFiles,
   onSubmit
@@ -2334,6 +2383,8 @@ function NationalForm({
   files: File[];
   lookups: any;
   saving: boolean;
+  requesterSlaDays: number;
+  minimumDeadline: string;
   onChange: (field: keyof typeof emptyNationalForm, value: string) => void;
   onFiles: (files: File[]) => void;
   onSubmit: (event: FormEvent) => void;
@@ -2359,6 +2410,9 @@ function NationalForm({
     >
       <div className="border-b border-slate-100 px-4 py-4 pl-20 sm:px-5 sm:pl-5">
         <h2 className="break-words text-base font-bold leading-snug text-slate-950 sm:text-lg">Cadastrar solicitação de frete nacional</h2>
+        <p className="mt-1 text-xs font-medium leading-5 text-slate-500">
+          Com no mínimo {formatSlaDaysLabel(requesterSlaDays)} de antecedência em relação ao prazo solicitado.
+        </p>
       </div>
       <div className="grid min-w-0 gap-4 p-4 sm:p-5 md:grid-cols-2 xl:grid-cols-3">
         <Field label="Setor">
@@ -2368,7 +2422,7 @@ function NationalForm({
           </select>
         </Field>
         <Field label="Prazo de entrega">
-          <input className={fieldClass()} type="datetime-local" value={form.prazoEntrega} onChange={event => onChange('prazoEntrega', event.target.value)} required />
+          <input className={fieldClass()} type="datetime-local" min={minimumDeadline} value={form.prazoEntrega} onChange={event => onChange('prazoEntrega', event.target.value)} required />
         </Field>
         <Field label="Projeto">
           <select className={fieldClass()} value={form.projeto} onChange={event => onChange('projeto', event.target.value)} required>

@@ -1806,13 +1806,9 @@ function FreightPage({ mode }: { mode: FreightMode }) {
                 requests={filteredRequests}
                 isDriver={false}
                 saving={saving}
-                photoSavingByRequest={photoSavingByRequest}
-                removingPhotoUrl={removingPhotoUrl}
                 onOpen={openDetails}
                 onStatus={changeStatus}
                 onDelivery={handleDeliveryPhoto}
-                onDeliveryUpload={handleDeliveryPhotoUpload}
-                onDeliveryRemove={handleDeliveryPhotoRemove}
               />
             )}
 
@@ -1821,13 +1817,9 @@ function FreightPage({ mode }: { mode: FreightMode }) {
                 requests={filteredRequests}
                 isDriver={true}
                 saving={saving}
-                photoSavingByRequest={photoSavingByRequest}
-                removingPhotoUrl={removingPhotoUrl}
                 onOpen={openDetails}
                 onStatus={changeStatus}
                 onDelivery={handleDeliveryPhoto}
-                onDeliveryUpload={handleDeliveryPhotoUpload}
-                onDeliveryRemove={handleDeliveryPhotoRemove}
               />
             )}
 
@@ -3002,24 +2994,16 @@ function KanbanPanel({
   requests,
   isDriver,
   saving,
-  photoSavingByRequest,
-  removingPhotoUrl,
   onOpen,
   onStatus,
-  onDelivery,
-  onDeliveryUpload,
-  onDeliveryRemove
+  onDelivery
 }: {
   requests: FreightRequest[];
   isDriver: boolean;
   saving: boolean;
-  photoSavingByRequest: Record<string, boolean>;
-  removingPhotoUrl?: string | null;
   onOpen: (request: FreightRequest) => void;
   onStatus: (request: FreightRequest, status: FreightStatus, comment?: string) => void;
   onDelivery: (request: FreightRequest) => void;
-  onDeliveryUpload: (request: FreightRequest, files: File[]) => Promise<void>;
-  onDeliveryRemove: (request: FreightRequest, file: FreightMedia) => Promise<void>;
 }) {
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropLane, setDropLane] = useState<string | null>(null);
@@ -3070,7 +3054,6 @@ function KanbanPanel({
                 {rows.map(request => {
                   const productMedia = getFreightMedia(request, ['produto']);
                   const deliveryMedia = getFreightMedia(request, ['entrega']);
-                  const photoSaving = Boolean(photoSavingByRequest[request.id]);
                   const requesterObservation = String(request.observacoes || request.observacoesFinais || '').trim();
 
                   return (
@@ -3121,14 +3104,11 @@ function KanbanPanel({
                         <Eye className="h-4 w-4" />
                         Detalhes
                       </button>
-                      <DeliveryPhotoManager
-                        media={deliveryMedia}
-                        compact
-                        saving={saving || photoSaving}
-                        removingUrl={removingPhotoUrl}
-                        onUpload={files => onDeliveryUpload(request, files)}
-                        onRemove={file => onDeliveryRemove(request, file)}
-                      />
+                      {deliveryMedia.length ? (
+                        <div className="min-w-0 rounded-md border border-slate-100 bg-slate-50 p-3">
+                          <FreightMediaSection title="Foto da Entrega (Motorista)" media={deliveryMedia} compact />
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                   );

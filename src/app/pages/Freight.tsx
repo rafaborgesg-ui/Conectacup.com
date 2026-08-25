@@ -186,7 +186,7 @@ function isDriverVisibleStatus(status?: string | null) {
 }
 
 function fieldClass() {
-  return 'h-10 w-full min-w-0 max-w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-100 disabled:bg-slate-50 disabled:text-slate-400';
+  return 'box-border block h-12 w-full min-w-0 max-w-full rounded-md border border-slate-200 bg-white px-4 text-base leading-normal text-slate-900 outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-100 disabled:bg-slate-50 disabled:text-slate-400 sm:h-10 sm:px-3 sm:text-sm';
 }
 
 function areaClass() {
@@ -2589,40 +2589,48 @@ function RecurringAddressField({
           Endereços recorrentes
         </button>
         {open ? (
-          <div className="mb-2 overflow-hidden rounded-md border border-slate-200 bg-white py-1 text-sm shadow-lg sm:absolute sm:left-auto sm:right-0 sm:top-full sm:z-30 sm:mb-0 sm:mt-1 sm:w-64">
-            <div className="max-h-72 overflow-y-auto">
-              {options.length ? options.map(option => {
-                const shortcut = recurringAddressShortcutLabel(option);
-                const fullAddress = recurringAddressFullValue(option);
-                return (
-                  <button
-                    key={option.id || option.value || option.label}
-                    className="block w-full px-3 py-2 text-left text-slate-700 hover:bg-slate-50"
-                    type="button"
-                    title={fullAddress}
-                    onClick={() => {
-                      onChange(fullAddress);
-                      onClose();
-                    }}
-                  >
-                    {shortcut || fullAddress}
-                  </button>
-                );
-              }) : (
-                <div className="px-3 py-2 text-slate-500">Nenhum endereço cadastrado.</div>
-              )}
-            </div>
+          <>
             <button
-              className="block w-full border-t border-slate-100 px-3 py-2 text-left text-slate-700 hover:bg-slate-50"
+              className="fixed inset-0 z-40 bg-transparent sm:hidden"
               type="button"
-              onClick={() => {
-                onChange('');
-                onClose();
-              }}
-            >
-              Limpar
-            </button>
-          </div>
+              aria-label="Fechar endereços recorrentes"
+              onClick={onClose}
+            />
+            <div className="fixed left-4 right-4 top-1/2 z-50 max-h-[70dvh] -translate-y-1/2 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 text-sm shadow-2xl sm:absolute sm:left-auto sm:right-0 sm:top-full sm:z-30 sm:mt-1 sm:max-h-none sm:w-64 sm:translate-y-0 sm:rounded-md sm:shadow-lg">
+              <div className="max-h-72 overflow-y-auto">
+                {options.length ? options.map(option => {
+                  const shortcut = recurringAddressShortcutLabel(option);
+                  const fullAddress = recurringAddressFullValue(option);
+                  return (
+                    <button
+                      key={option.id || option.value || option.label}
+                      className="block w-full px-3 py-2 text-left text-slate-700 hover:bg-slate-50"
+                      type="button"
+                      title={fullAddress}
+                      onClick={() => {
+                        onChange(fullAddress);
+                        onClose();
+                      }}
+                    >
+                      {shortcut || fullAddress}
+                    </button>
+                  );
+                }) : (
+                  <div className="px-3 py-2 text-slate-500">Nenhum endereço cadastrado.</div>
+                )}
+              </div>
+              <button
+                className="block w-full border-t border-slate-100 px-3 py-2 text-left text-slate-700 hover:bg-slate-50"
+                type="button"
+                onClick={() => {
+                  onChange('');
+                  onClose();
+                }}
+              >
+                Limpar
+              </button>
+            </div>
+          </>
         ) : null}
         <input className={`${fieldClass()} pr-3 sm:pr-48`} value={value} onChange={event => onChange(event.target.value)} />
       </div>

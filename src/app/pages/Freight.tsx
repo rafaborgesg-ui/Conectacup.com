@@ -1247,6 +1247,23 @@ function FreightPage({ mode }: { mode: FreightMode }) {
   }
 
   function updateNationalField(field: keyof typeof emptyNationalForm, value: string) {
+    if (field === 'prazoEntrega') {
+      const requesterSla = requesterSlaDays(lookups);
+      const minimumDeadline = requesterMinimumDeadline(requesterSla);
+      const minimumValue = toDateTimeLocalInput(minimumDeadline.toISOString());
+
+      if (value && value < minimumValue) {
+        setNationalForm(current => ({ ...current, prazoEntrega: minimumValue }));
+        setMessage({
+          type: 'error',
+          text: `O prazo de entrega precisa respeitar o mínimo de ${formatSlaDaysLabel(requesterSla)} de antecedência. Selecione ${formatFreightDate(minimumDeadline.toISOString())} ou depois.`
+        });
+        return;
+      }
+
+      setMessage(current => current?.type === 'error' && current.text.startsWith('O prazo de entrega precisa') ? null : current);
+    }
+
     if (field === 'setor') {
       const option = lookups.setores.find(item => item.value === value);
       const setorId = option?.source === 'setor' ? option.id || '' : '';
@@ -2450,7 +2467,7 @@ function NationalForm({
           </select>
         </Field>
         <Field label="Prazo de entrega">
-          <input className={fieldClass()} type="datetime-local" min={minimumDeadline} value={form.prazoEntrega} onChange={event => onChange('prazoEntrega', event.target.value)} required />
+          <input className={fieldClass()} type="datetime-local" min={minimumDeadline} step={60} value={form.prazoEntrega} onChange={event => onChange('prazoEntrega', event.target.value)} required />
         </Field>
         <Field label="Projeto">
           <select className={fieldClass()} value={form.projeto} onChange={event => onChange('projeto', event.target.value)} required>

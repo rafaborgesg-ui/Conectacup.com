@@ -717,6 +717,14 @@ function freightSlaElapsedDays(request: FreightRequest, now = Date.now()) {
   return Math.max(0, Math.floor((reference - startedAt) / ONE_DAY_MS));
 }
 
+function freightRequesterSlaElapsedDays(request: FreightRequest) {
+  const startedAt = new Date(request.createdAt || '').getTime();
+  const requestedDeadline = new Date(request.prazoEntrega || request.prazoDesejado || '').getTime();
+  if (Number.isNaN(startedAt) || Number.isNaN(requestedDeadline)) return null;
+
+  return Math.max(0, Math.floor((requestedDeadline - startedAt) / ONE_DAY_MS));
+}
+
 function freightDateTime(value?: string | null, fallback = Number.MAX_SAFE_INTEGER) {
   const time = new Date(value || '').getTime();
   return Number.isNaN(time) ? fallback : time;
@@ -1828,6 +1836,7 @@ function FreightPage({ mode }: { mode: FreightMode }) {
                 requests={filteredRequests}
                 isInternational={isInternational}
                 slaLimitDays={attendanceSlaDays(lookups)}
+                requesterSlaLimitDays={nationalRequesterSlaDays}
                 canEdit={canEditFreightRequests}
                 onOpen={openDetails}
                 onEdit={openEditRequest}
@@ -2206,6 +2215,7 @@ function RequestsTable({
   requests,
   isInternational,
   slaLimitDays,
+  requesterSlaLimitDays,
   canEdit,
   onOpen,
   onEdit,
@@ -2215,6 +2225,7 @@ function RequestsTable({
   requests: FreightRequest[];
   isInternational: boolean;
   slaLimitDays: number;
+  requesterSlaLimitDays: number;
   canEdit: boolean;
   onOpen: (request: FreightRequest) => void;
   onEdit: (request: FreightRequest) => void;
@@ -2230,7 +2241,7 @@ function RequestsTable({
         </div>
       </div>
       <div className="overflow-x-auto">
-        <table className={`${isInternational ? 'min-w-full' : 'min-w-[1840px]'} divide-y divide-slate-100 text-sm`}>
+        <table className={`${isInternational ? 'min-w-full' : 'min-w-[1960px]'} divide-y divide-slate-100 text-sm`}>
           <thead className="bg-slate-50">
             <tr className="text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
               <th className="px-4 py-3">Protocolo</th>
@@ -2263,6 +2274,12 @@ function RequestsTable({
                   </th>
                   <th className="px-4 py-3">
                     <DashboardHeaderInfo
+                      label="SLA Solicitante"
+                      description={`SLA do solicitante de fretes nacionais: antecedência mínima entre o registro da solicitação e o prazo solicitado. Meta: ${formatSlaDaysLabel(requesterSlaLimitDays)}`}
+                    />
+                  </th>
+                  <th className="px-4 py-3">
+                    <DashboardHeaderInfo
                       label="SLA Agendamento"
                       description={`SLA para agendamento do frete pela logística (status: solicitado -> Agendado). Meta: ${slaLimitDays} dia${slaLimitDays === 1 ? '' : 's'}`}
                     />
@@ -2281,6 +2298,8 @@ function RequestsTable({
             {requests.map(request => {
               const slaDays = freightSlaElapsedDays(request);
               const isSlaLate = slaDays > slaLimitDays;
+              const requesterSlaDays = freightRequesterSlaElapsedDays(request);
+              const isRequesterSlaLate = requesterSlaDays === null || requesterSlaDays < requesterSlaLimitDays;
               return (
               <tr key={request.id} className="hover:bg-slate-50">
                 <td className="px-4 py-3 font-bold text-slate-950">{formatProtocol(request)}</td>
@@ -2316,6 +2335,15 @@ function RequestsTable({
                     <td className="px-4 py-3 text-slate-700">{formatFreightDate(request.prazoEntrega)}</td>
                     <td className="px-4 py-3 text-slate-700">{formatFreightDate(request.agendamentoAt)}</td>
                     <td className="px-4 py-3 text-slate-700">{formatFreightDate(request.atendimentoAt)}</td>
+                    <td className="px-4 py-3">
+                      {requesterSlaDays === null ? (
+                        <span className="text-slate-400">-</span>
+                      ) : (
+                        <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${isRequesterSlaLate ? 'border-red-200 bg-red-100 text-red-700' : 'border-emerald-200 bg-emerald-100 text-emerald-700'}`}>
+                          {formatSlaDaysLabel(requesterSlaDays)}
+                        </span>
+                      )}
+                    </td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${isSlaLate ? 'border-red-200 bg-red-100 text-red-700' : 'border-emerald-200 bg-emerald-100 text-emerald-700'}`}>
                         {slaDays} dia{slaDays === 1 ? '' : 's'}
@@ -2358,7 +2386,7 @@ function RequestsTable({
             })}
             {!requests.length ? (
               <tr>
-                <td className="px-4 py-10 text-center text-slate-500" colSpan={isInternational ? 7 : 16}>Nenhuma solicitação encontrada.</td>
+                <td className="px-4 py-10 text-center text-slate-500" colSpan={isInternational ? 7 : 17}>Nenhuma solicitação encontrada.</td>
               </tr>
             ) : null}
           </tbody>

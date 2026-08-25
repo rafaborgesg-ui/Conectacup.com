@@ -1731,6 +1731,12 @@ function FreightPage({ mode }: { mode: FreightMode }) {
   const showPageHeader = !isSingleTabView && (isInternational || activeTab === 'dashboard');
   const nationalRequesterSlaDays = requesterSlaDays(lookups);
   const nationalMinimumDeadlineInput = toDateTimeLocalInput(requesterMinimumDeadline(nationalRequesterSlaDays).toISOString());
+  const nationalDeadlineMessage = activeTab === 'nova'
+    && !isInternational
+    && message?.type === 'error'
+    && message.text.startsWith('O prazo de entrega precisa')
+    ? message.text
+    : null;
 
   return (
     <div className="overflow-x-hidden bg-slate-50 px-3 pb-0 pt-3 sm:min-h-screen sm:p-4 md:p-6">
@@ -1767,7 +1773,7 @@ function FreightPage({ mode }: { mode: FreightMode }) {
           </div>
         ) : null}
 
-        {message ? (
+        {message && !nationalDeadlineMessage ? (
           <div className={`rounded-lg border px-4 py-3 text-sm font-medium ${message.type === 'error' ? 'border-red-200 bg-red-50 text-red-700' : message.type === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-blue-200 bg-blue-50 text-blue-700'}`}>
             {message.text}
           </div>
@@ -1870,6 +1876,7 @@ function FreightPage({ mode }: { mode: FreightMode }) {
                 saving={saving}
                 requesterSlaDays={nationalRequesterSlaDays}
                 minimumDeadline={nationalMinimumDeadlineInput}
+                deadlineMessage={nationalDeadlineMessage}
                 onChange={updateNationalField}
                 onFiles={files => setProductFiles(files)}
                 onSubmit={handleCreateNational}
@@ -2420,6 +2427,7 @@ function NationalForm({
   saving,
   requesterSlaDays,
   minimumDeadline,
+  deadlineMessage,
   onChange,
   onFiles,
   onSubmit
@@ -2430,6 +2438,7 @@ function NationalForm({
   saving: boolean;
   requesterSlaDays: number;
   minimumDeadline: string;
+  deadlineMessage?: string | null;
   onChange: (field: keyof typeof emptyNationalForm, value: string) => void;
   onFiles: (files: File[]) => void;
   onSubmit: (event: FormEvent) => void;
@@ -2455,9 +2464,11 @@ function NationalForm({
     >
       <div className="border-b border-slate-100 px-4 py-4 pl-20 sm:px-5 sm:pl-5">
         <h2 className="break-words text-base font-bold leading-snug text-slate-950 sm:text-lg">Cadastrar solicitação de frete nacional</h2>
-        <p className="mt-1 text-xs font-medium leading-5 text-slate-500">
-          Prazo mínimo para atendimento: {formatSlaDaysLabel(requesterSlaDays)}.
-        </p>
+        {deadlineMessage ? (
+          <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold leading-5 text-red-700">
+            {deadlineMessage}
+          </div>
+        ) : null}
       </div>
       <div className="grid min-w-0 gap-4 p-4 sm:p-5 md:grid-cols-2 xl:grid-cols-3">
         <Field label="Setor">
@@ -2468,6 +2479,7 @@ function NationalForm({
         </Field>
         <Field label="Prazo de entrega">
           <input className={fieldClass()} type="datetime-local" min={minimumDeadline} step={60} value={form.prazoEntrega} onChange={event => onChange('prazoEntrega', event.target.value)} required />
+          <p className="mt-1 text-xs font-medium leading-5 text-slate-500">Prazo mínimo: {formatSlaDaysLabel(requesterSlaDays)}.</p>
         </Field>
         <Field label="Projeto">
           <select className={fieldClass()} value={form.projeto} onChange={event => onChange('projeto', event.target.value)} required>
@@ -2501,7 +2513,7 @@ function NationalForm({
         />
         <div className="md:col-span-2 xl:col-span-3">
           <Field label="Descreva as quantidades e itens a serem transportados">
-            <textarea className={`${areaClass()} text-[13px] leading-5 placeholder:text-[13px] sm:text-sm sm:placeholder:text-sm`} value={form.itemDescricao} onChange={event => onChange('itemDescricao', event.target.value)} placeholder={'Exemplo:\n1x Parachoque traseiro\n2x Molde de alumínio'} required />
+            <textarea className={`${areaClass()} min-h-28 text-[12px] leading-4 placeholder:text-[12px] sm:text-sm sm:leading-5 sm:placeholder:text-sm`} value={form.itemDescricao} onChange={event => onChange('itemDescricao', event.target.value)} placeholder={'Exemplo:\n1x Parachoque traseiro\n2x Molde de alumínio'} required />
           </Field>
         </div>
         <div className="md:col-span-2 xl:col-span-3">
@@ -2581,12 +2593,12 @@ function RecurringAddressField({
       <span className={labelClass()}>{label}</span>
       <div className="relative min-w-0">
         <button
-          className="mb-2 inline-flex h-9 w-full items-center justify-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-white sm:absolute sm:right-1 sm:top-1/2 sm:mb-0 sm:h-8 sm:w-auto sm:-translate-y-1/2"
+          className="absolute right-1 top-1/2 z-10 inline-flex h-10 -translate-y-1/2 items-center justify-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-3 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-white sm:h-8"
           type="button"
           onClick={onToggle}
         >
           <MapPin className="h-3.5 w-3.5 text-pink-500" />
-          Endereços recorrentes
+          Endereços
         </button>
         {open ? (
           <>
@@ -2632,7 +2644,7 @@ function RecurringAddressField({
             </div>
           </>
         ) : null}
-        <input className={`${fieldClass()} pr-3 sm:pr-48`} value={value} onChange={event => onChange(event.target.value)} />
+        <input className={`${fieldClass()} pr-32`} value={value} onChange={event => onChange(event.target.value)} />
       </div>
     </div>
   );

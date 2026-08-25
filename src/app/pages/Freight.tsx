@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
 import {
   AlertTriangle,
@@ -2588,6 +2589,59 @@ function RecurringAddressField({
   onClose: () => void;
   onChange: (value: string) => void;
 }) {
+  const renderMenuContent = () => (
+    <>
+      <div className="max-h-72 overflow-y-auto">
+        {options.length ? options.map(option => {
+          const shortcut = recurringAddressShortcutLabel(option);
+          const fullAddress = recurringAddressFullValue(option);
+          return (
+            <button
+              key={option.id || option.value || option.label}
+              className="block w-full px-3 py-2 text-left text-slate-700 hover:bg-slate-50"
+              type="button"
+              title={fullAddress}
+              onClick={() => {
+                onChange(fullAddress);
+                onClose();
+              }}
+            >
+              {shortcut || fullAddress}
+            </button>
+          );
+        }) : (
+          <div className="px-3 py-2 text-slate-500">Nenhum endereço cadastrado.</div>
+        )}
+      </div>
+      <button
+        className="block w-full border-t border-slate-100 px-3 py-2 text-left text-slate-700 hover:bg-slate-50"
+        type="button"
+        onClick={() => {
+          onChange('');
+          onClose();
+        }}
+      >
+        Limpar
+      </button>
+    </>
+  );
+  const mobileMenu = open && typeof document !== 'undefined'
+    ? createPortal(
+      <>
+        <button
+          className="fixed inset-0 z-[9998] bg-transparent sm:hidden"
+          type="button"
+          aria-label="Fechar endereços"
+          onClick={onClose}
+        />
+        <div className="fixed left-4 right-4 top-1/2 z-[9999] max-h-[70dvh] -translate-y-1/2 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 text-sm shadow-2xl sm:hidden">
+          {renderMenuContent()}
+        </div>
+      </>,
+      document.body
+    )
+    : null;
+
   return (
     <div className="block min-w-0">
       <span className={labelClass()}>{label}</span>
@@ -2602,45 +2656,9 @@ function RecurringAddressField({
         </button>
         {open ? (
           <>
-            <button
-              className="fixed inset-0 z-40 bg-transparent sm:hidden"
-              type="button"
-              aria-label="Fechar endereços recorrentes"
-              onClick={onClose}
-            />
-            <div className="fixed left-4 right-4 top-1/2 z-50 max-h-[70dvh] -translate-y-1/2 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 text-sm shadow-2xl sm:absolute sm:left-auto sm:right-0 sm:top-full sm:z-30 sm:mt-1 sm:max-h-none sm:w-64 sm:translate-y-0 sm:rounded-md sm:shadow-lg">
-              <div className="max-h-72 overflow-y-auto">
-                {options.length ? options.map(option => {
-                  const shortcut = recurringAddressShortcutLabel(option);
-                  const fullAddress = recurringAddressFullValue(option);
-                  return (
-                    <button
-                      key={option.id || option.value || option.label}
-                      className="block w-full px-3 py-2 text-left text-slate-700 hover:bg-slate-50"
-                      type="button"
-                      title={fullAddress}
-                      onClick={() => {
-                        onChange(fullAddress);
-                        onClose();
-                      }}
-                    >
-                      {shortcut || fullAddress}
-                    </button>
-                  );
-                }) : (
-                  <div className="px-3 py-2 text-slate-500">Nenhum endereço cadastrado.</div>
-                )}
-              </div>
-              <button
-                className="block w-full border-t border-slate-100 px-3 py-2 text-left text-slate-700 hover:bg-slate-50"
-                type="button"
-                onClick={() => {
-                  onChange('');
-                  onClose();
-                }}
-              >
-                Limpar
-              </button>
+            {mobileMenu}
+            <div className="absolute right-0 top-full z-30 mt-1 hidden w-64 overflow-hidden rounded-md border border-slate-200 bg-white py-1 text-sm shadow-lg sm:block">
+              {renderMenuContent()}
             </div>
           </>
         ) : null}

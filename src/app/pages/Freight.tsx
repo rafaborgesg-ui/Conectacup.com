@@ -2411,7 +2411,7 @@ function NationalForm({
       <div className="border-b border-slate-100 px-4 py-4 pl-20 sm:px-5 sm:pl-5">
         <h2 className="break-words text-base font-bold leading-snug text-slate-950 sm:text-lg">Cadastrar solicitação de frete nacional</h2>
         <p className="mt-1 text-xs font-medium leading-5 text-slate-500">
-          Com no mínimo {formatSlaDaysLabel(requesterSlaDays)} de antecedência em relação ao prazo solicitado.
+          Prazo mínimo para atendimento: {formatSlaDaysLabel(requesterSlaDays)}.
         </p>
       </div>
       <div className="grid min-w-0 gap-4 p-4 sm:p-5 md:grid-cols-2 xl:grid-cols-3">

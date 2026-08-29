@@ -2846,13 +2846,14 @@ function AttendancePanel({
   onOpen: (request: FreightRequest) => void;
   onCancel: (targets: FreightRequest[], reason: string) => void;
 }) {
-  const [sortState, setSortState] = useState<{ column: 'protocol' | 'setor' | 'projeto' | 'registro' | 'prazo' | 'atendimento' | 'sla' | 'solicitante' | 'item'; direction: 'asc' | 'desc' }>({
+  const [sortState, setSortState] = useState<{ column: 'protocol' | 'setor' | 'projeto' | 'registro' | 'prazo' | 'sla' | 'solicitante' | 'item' | 'observacoes'; direction: 'asc' | 'desc' }>({
     column: 'prazo',
     direction: 'asc'
   });
   const [routeEstimates, setRouteEstimates] = useState<Record<string, RouteEstimate>>({});
   const [cancelPanelOpen, setCancelPanelOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
+  const [previewMedia, setPreviewMedia] = useState<FreightMedia | null>(null);
   const toggle = (id: string) => {
     setSelectedIds(selectedIds.includes(id) ? selectedIds.filter(item => item !== id) : [...selectedIds, id]);
   };
@@ -2867,9 +2868,9 @@ function AttendancePanel({
           if (sortState.column === 'projeto') return request.projeto || request.projetoDescricao || '';
           if (sortState.column === 'registro') return freightDateTime(request.createdAt, 0);
           if (sortState.column === 'prazo') return new Date(request.prazoEntrega || request.agendamentoAt || request.createdAt).getTime() || 0;
-          if (sortState.column === 'atendimento') return freightDateTime(request.atendimentoAt, Number.MAX_SAFE_INTEGER);
           if (sortState.column === 'sla') return freightSlaElapsedDays(request);
           if (sortState.column === 'solicitante') return request.solicitanteNome || '';
+          if (sortState.column === 'observacoes') return request.observacoes || request.observacoesFinais || '';
           return request.itemDescricao || '';
         };
         const valueA = getValue(a);
@@ -2966,7 +2967,7 @@ function AttendancePanel({
       })
       .filter(Boolean)
       .join(', ');
-    setDraft((current: any) => ({ ...current, veiculo, placa: placas || current.placa }));
+    setDraft((current: any) => ({ ...current, veiculo, placa: placas }));
   };
 
   const headerCell = (label: string, column: typeof sortState.column) => (
@@ -3060,10 +3061,11 @@ function AttendancePanel({
                 <th className="w-36 border border-slate-200 p-2">{headerCell('Setor', 'setor')}</th>
                 <th className="w-40 border border-slate-200 p-2">{headerCell('Projeto', 'projeto')}</th>
                 <th className="w-36 border border-slate-200 p-2">{headerCell('Registro', 'registro')}</th>
-                <th className="w-32 border border-slate-200 p-2">{headerCell('Prazo', 'prazo')}</th>
-                <th className="w-36 border border-slate-200 p-2">{headerCell('Atendimento', 'atendimento')}</th>
+                <th className="w-32 border border-slate-200 p-2">{headerCell('Prazo solicitado', 'prazo')}</th>
                 <th className="w-36 border border-slate-200 p-2">{headerCell('Solicitante', 'solicitante')}</th>
                 <th className="border border-slate-200 p-2">{headerCell('Item', 'item')}</th>
+                <th className="w-28 border border-slate-200 p-2">Fotos</th>
+                <th className="border border-slate-200 p-2">{headerCell('Observações', 'observacoes')}</th>
                 <th className="w-16 border border-slate-200 p-2"></th>
               </tr>
             </thead>
@@ -3071,6 +3073,7 @@ function AttendancePanel({
               {filteredRequests.map(request => {
                 const slaDays = freightSlaElapsedDays(request);
                 const isSlaLate = slaDays > slaLimitDays;
+                const productImages = getFreightMedia(request, ['produto']).filter(file => file.isImage);
                 return (
                 <tr key={request.id} className="border border-slate-200 bg-white hover:bg-slate-50">
                   <td className="border border-slate-200 p-2">
@@ -3086,9 +3089,31 @@ function AttendancePanel({
                   <td className="border border-slate-200 p-2">{request.projeto || request.projetoDescricao || '-'}</td>
                   <td className="border border-slate-200 p-2">{formatFreightDate(request.createdAt)}</td>
                   <td className="border border-slate-200 p-2">{formatFreightDate(request.prazoEntrega)}</td>
-                  <td className="border border-slate-200 p-2">{formatFreightDate(request.atendimentoAt)}</td>
                   <td className="border border-slate-200 p-2">{request.solicitanteNome || '-'}</td>
                   <td className="border border-slate-200 p-2">{request.itemDescricao || '-'}</td>
+                  <td className="border border-slate-200 p-2">
+                    {productImages.length ? (
+                      <div className="flex items-center gap-1">
+                        {productImages.slice(0, 3).map((file, index) => (
+                          <button
+                            key={`${file.fileUrl}-${index}`}
+                            className="h-9 w-9 overflow-hidden rounded-md border border-slate-200 bg-slate-50 hover:border-red-300"
+                            type="button"
+                            onClick={() => setPreviewMedia(file)}
+                            title={file.fileName || `Foto ${index + 1}`}
+                          >
+                            <img src={file.fileUrl} alt={file.fileName || `Foto ${index + 1}`} className="h-full w-full object-cover" loading="lazy" />
+                          </button>
+                        ))}
+                        {productImages.length > 3 ? (
+                          <span className="inline-flex h-9 min-w-[2.25rem] items-center justify-center rounded-md bg-slate-100 px-2 text-xs font-bold text-slate-600">
+                            +{productImages.length - 3}
+                          </span>
+                        ) : null}
+                      </div>
+                    ) : '-'}
+                  </td>
+                  <td className="border border-slate-200 p-2">{request.observacoes || request.observacoesFinais || '-'}</td>
                   <td className="border border-slate-200 p-2">
                     <div className="flex items-center justify-center gap-1">
                       <button className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 hover:text-red-600" type="button" onClick={() => onOpen(request)} title="Abrir detalhes">
@@ -3104,7 +3129,7 @@ function AttendancePanel({
               })}
               {!filteredRequests.length ? (
                 <tr>
-                  <td colSpan={11} className="border border-slate-200 bg-white p-8 text-center text-slate-500">Nenhuma solicitação pendente encontrada.</td>
+                  <td colSpan={12} className="border border-slate-200 bg-white p-8 text-center text-slate-500">Nenhuma solicitação pendente encontrada.</td>
                 </tr>
               ) : null}
             </tbody>
@@ -3128,9 +3153,6 @@ function AttendancePanel({
             selectedValues={selectedVehicleValues}
             onChange={updateVehicles}
           />
-          <Field label="Placa(s)">
-            <input className={fieldClass()} value={draft.placa} onChange={event => setDraft((current: any) => ({ ...current, placa: event.target.value.toUpperCase() }))} />
-          </Field>
           <Field label="Data e horário de coleta/entrega*">
             <input className={fieldClass()} type="datetime-local" value={draft.agendamentoAt} onChange={event => setDraft((current: any) => ({ ...current, agendamentoAt: event.target.value }))} />
           </Field>
@@ -3151,6 +3173,21 @@ function AttendancePanel({
           </div>
         </div>
       </div>
+      {previewMedia ? (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/80 p-4" onClick={() => setPreviewMedia(null)}>
+          <div className="relative max-h-full max-w-5xl" onClick={event => event.stopPropagation()}>
+            <button
+              className="absolute right-2 top-2 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/95 text-slate-700 shadow-sm hover:bg-red-50 hover:text-red-600"
+              type="button"
+              onClick={() => setPreviewMedia(null)}
+              aria-label="Fechar foto"
+            >
+              <X className="h-4 w-4" />
+            </button>
+            <img src={previewMedia.fileUrl} alt={previewMedia.fileName || 'Foto do solicitante'} className="max-h-[86vh] max-w-full rounded-lg bg-white object-contain shadow-2xl" />
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

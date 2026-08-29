@@ -872,22 +872,23 @@ function DetailDrawer({
                 <DriverDetailField label="Setor" value={request.setor || '-'} />
                 <DriverDetailField label="Data e Hora agendada" value={formatFreightDate(request.agendamentoAt)} wide />
                 <DriverDetailTextArea label="Descrição do item" value={request.itemDescricao || request.necessidade || '-'} />
+                {productMedia.length ? (
+                  <div className="sm:col-span-2">
+                    <FreightMediaSection title="Foto solicitante" media={productMedia} />
+                  </div>
+                ) : null}
                 <DriverDetailTextArea label="Observações do solicitante" value={request.observacoes || request.observacoesFinais || '-'} />
                 <DriverDetailAddress label="Endereço de retirada" value={request.enderecoRetirada || request.enderecoOrigem} options={addressOptions} />
                 <DriverDetailAddress label="Endereço de entrega" value={request.enderecoEntrega || request.enderecoDestino} options={addressOptions} />
+                <DriverRouteMetricFields estimate={detailRouteEstimate} />
               </div>
             </details>
-
-            <RouteEstimatePanel selectedRequests={[request]} estimates={detailRouteEstimates} showProtocol={false} />
 
             <details open className="rounded-lg border border-slate-200 bg-white">
               <summary className="cursor-pointer px-4 py-3 text-sm font-bold text-slate-950">
                 Responsável pelo preenchimento: {request.motorista || 'Motorista'}
               </summary>
               <div className="space-y-5 border-t border-slate-100 p-4">
-                {productMedia.length ? (
-                  <FreightMediaSection title="Foto solicitante" media={productMedia} />
-                ) : null}
                 <DeliveryPhotoManager
                   media={deliveryMedia}
                   saving={saving}
@@ -1105,11 +1106,15 @@ function DetailDrawer({
   );
 }
 
+function driverReadonlyFieldClass() {
+  return 'box-border block min-h-12 w-full min-w-0 max-w-full rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-base leading-normal text-slate-900 outline-none sm:min-h-10 sm:px-3 sm:py-2 sm:text-sm';
+}
+
 function DriverDetailField({ label, value, wide = false }: { label: string; value: string; wide?: boolean }) {
   return (
     <div className={wide ? 'sm:col-span-2' : undefined}>
       <label className={labelClass()}>{label}</label>
-      <input className={`${fieldClass()} bg-slate-50 font-semibold`} value={value} readOnly />
+      <input className={`${driverReadonlyFieldClass()} font-semibold`} value={value} readOnly />
     </div>
   );
 }
@@ -1118,7 +1123,7 @@ function DriverDetailTextArea({ label, value }: { label: string; value: string }
   return (
     <div className="sm:col-span-2">
       <label className={labelClass()}>{label}</label>
-      <textarea className={`${areaClass()} min-h-20 bg-slate-50`} value={value} readOnly />
+      <textarea className={`${driverReadonlyFieldClass()} min-h-24 resize-none`} value={value} readOnly />
     </div>
   );
 }
@@ -1142,6 +1147,23 @@ function DriverDetailAddress({ label, value, options }: { label: string; value?:
             Waze
           </a>
         </div>
+      ) : null}
+    </div>
+  );
+}
+
+function DriverRouteMetricFields({ estimate }: { estimate: RouteEstimate | null }) {
+  const isLoading = !estimate || estimate.status === 'loading';
+  const hasError = estimate?.status === 'ERROR' || estimate?.status === 'MISSING_FIELDS';
+  const distance = isLoading ? 'calculando...' : estimate?.distanceText || '—';
+  const duration = isLoading ? 'calculando...' : estimate?.trafficText || estimate?.durationText || '—';
+
+  return (
+    <div className="grid gap-3 sm:col-span-2 sm:grid-cols-2">
+      <DriverDetailField label="Distância" value={distance} />
+      <DriverDetailField label="Tempo (trânsito)" value={duration} />
+      {hasError && estimate?.message ? (
+        <p className="sm:col-span-2 text-xs font-semibold text-red-700">{estimate.message}</p>
       ) : null}
     </div>
   );

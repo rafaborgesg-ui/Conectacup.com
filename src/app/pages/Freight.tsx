@@ -7,6 +7,7 @@ import {
   CalendarClock,
   Camera,
   CheckCircle2,
+  Clock3,
   ClipboardList,
   Columns3,
   Download,
@@ -749,26 +750,48 @@ function isScheduledFreightLate(request: FreightRequest) {
   return !Number.isNaN(scheduledAt) && scheduledAt < Date.now();
 }
 
+function scheduledFreightDelayLabel(request: FreightRequest) {
+  const scheduledAt = freightDateTime(request.agendamentoAt, Number.NaN);
+  if (Number.isNaN(scheduledAt)) return 'Atrasado';
+
+  const delayMs = Date.now() - scheduledAt;
+  if (delayMs <= 0) return 'Atrasado';
+
+  const hours = Math.max(1, Math.floor(delayMs / (60 * 60 * 1000)));
+  if (hours < 24) {
+    return `${hours} hora${hours === 1 ? '' : 's'} atrasado`;
+  }
+
+  const days = Math.max(1, Math.floor(hours / 24));
+  return `${days} dia${days === 1 ? ' de atraso' : 's de atraso'}`;
+}
+
 function DetailDrawer({
   request,
   history,
   addressOptions,
   saving,
   removingPhotoUrl,
+  driverLayout = false,
   onClose,
   onSaveObservation,
   onDeliveryUpload,
-  onDeliveryRemove
+  onDeliveryRemove,
+  onStatus,
+  onDelivery
 }: {
   request: FreightRequest | null;
   history: FreightHistory[];
   addressOptions: FreightLookupOption[];
   saving: boolean;
   removingPhotoUrl?: string | null;
+  driverLayout?: boolean;
   onClose: () => void;
   onSaveObservation: (value: string) => Promise<boolean>;
   onDeliveryUpload: (request: FreightRequest, files: File[]) => Promise<void>;
   onDeliveryRemove: (request: FreightRequest, file: FreightMedia) => Promise<void>;
+  onStatus?: (request: FreightRequest, status: FreightStatus, comment?: string) => void | Promise<void>;
+  onDelivery?: (request: FreightRequest) => void | Promise<void>;
 }) {
   const [obs, setObs] = useState('');
   const [observationNotice, setObservationNotice] = useState<string | null>(null);
@@ -817,6 +840,129 @@ function DetailDrawer({
     setObs('');
     setObservationNotice('Observação registrada no histórico.');
   };
+
+  if (driverLayout && request.freightType !== 'internacional') {
+    const canStartRoute = request.status === 'Agendado';
+    const canCompleteDelivery = request.status === 'Em Rota' && deliveryMedia.length > 0;
+
+    return (
+      <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/30" onClick={onClose}>
+        <div data-freight-detail-drawer="true" className="h-full w-full max-w-4xl overflow-y-auto overscroll-contain bg-white shadow-2xl" onClick={event => event.stopPropagation()}>
+          <div className="sticky top-0 z-10 flex items-start justify-between border-b border-slate-200 bg-white px-4 py-4 sm:px-6">
+            <div className="min-w-0 pr-4">
+              <p className="text-sm font-bold text-red-600">{formatProtocol(request)}</p>
+              <h2 className="text-xl font-bold text-slate-950">Frete nacional</h2>
+              <p className="text-sm text-slate-500">{request.setor || '-'}</p>
+            </div>
+            <button className={buttonClass('secondary')} onClick={onClose} type="button">
+              <X className="h-4 w-4" />
+              Fechar
+            </button>
+          </div>
+
+          <div className="space-y-4 p-4 sm:p-6">
+            <details open className="rounded-lg border border-slate-200 bg-white">
+              <summary className="cursor-pointer px-4 py-3 text-sm font-bold text-slate-950">Dados</summary>
+              <div className="grid gap-3 border-t border-slate-100 p-4 sm:grid-cols-2">
+                <DriverDetailField label="Protocolo" value={formatProtocol(request)} />
+                <DriverDetailField label="Status" value={request.status || '-'} />
+                <DriverDetailField label="Motorista" value={request.motorista || '-'} />
+                <DriverDetailField label="Veículo" value={request.veiculo || '-'} />
+                <DriverDetailField label="Placa" value={request.placa || '-'} />
+                <DriverDetailField label="Setor" value={request.setor || '-'} />
+                <DriverDetailField label="Data e Hora agendada" value={formatFreightDate(request.agendamentoAt)} wide />
+                <DriverDetailTextArea label="Descrição do item" value={request.itemDescricao || request.necessidade || '-'} />
+                <DriverDetailTextArea label="Observações do solicitante" value={request.observacoes || request.observacoesFinais || '-'} />
+                <DriverDetailAddress label="Endereço de retirada" value={request.enderecoRetirada || request.enderecoOrigem} options={addressOptions} />
+                <DriverDetailAddress label="Endereço de entrega" value={request.enderecoEntrega || request.enderecoDestino} options={addressOptions} />
+              </div>
+            </details>
+
+            <RouteEstimatePanel selectedRequests={[request]} estimates={detailRouteEstimates} showProtocol={false} />
+
+            <details open className="rounded-lg border border-slate-200 bg-white">
+              <summary className="cursor-pointer px-4 py-3 text-sm font-bold text-slate-950">
+                Responsável pelo preenchimento: {request.motorista || 'Motorista'}
+              </summary>
+              <div className="space-y-5 border-t border-slate-100 p-4">
+                {productMedia.length ? (
+                  <FreightMediaSection title="Foto solicitante" media={productMedia} />
+                ) : null}
+                <DeliveryPhotoManager
+                  media={deliveryMedia}
+                  saving={saving}
+                  removingUrl={removingPhotoUrl}
+                  onUpload={files => onDeliveryUpload(request, files)}
+                  onRemove={file => onDeliveryRemove(request, file)}
+                />
+                <FreightMediaSection title="Anexos" media={otherMedia} />
+              </div>
+            </details>
+
+            <details open className="rounded-lg border border-slate-200 bg-white">
+              <summary className="cursor-pointer px-4 py-3 text-sm font-bold text-slate-950">Registrar Progresso</summary>
+              <div className="space-y-3 border-t border-slate-100 p-4">
+                <p className="text-sm text-slate-500">Clique para avançar o status da entrega.</p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <button
+                    className={buttonClass('secondary')}
+                    onClick={() => onStatus?.(request, 'Em Rota')}
+                    type="button"
+                    disabled={saving || !canStartRoute}
+                  >
+                    <Route className="h-4 w-4" />
+                    Iniciar Rota
+                  </button>
+                  <button
+                    className={buttonClass('primary')}
+                    onClick={() => onDelivery?.(request)}
+                    type="button"
+                    disabled={saving || !canCompleteDelivery}
+                  >
+                    <CheckCircle2 className="h-4 w-4" />
+                    Finalizar Entrega
+                  </button>
+                </div>
+                {request.status === 'Em Rota' && !deliveryMedia.length ? (
+                  <p className="text-sm font-semibold text-red-700">Para finalizar, é necessário primeiro registrar uma foto da entrega.</p>
+                ) : null}
+              </div>
+            </details>
+
+            <details open className="rounded-lg border border-slate-200 bg-white">
+              <summary className="cursor-pointer px-4 py-3 text-sm font-bold text-slate-950">Log e Observações</summary>
+              <div className="space-y-4 border-t border-slate-100 p-4">
+                <div>
+                  <label className={labelClass()}>Observações logística</label>
+                  <textarea className={areaClass()} value={obs} onChange={event => setObs(event.target.value)} placeholder="Digite uma observação para registrar no histórico." />
+                </div>
+                {observationNotice ? (
+                  <div className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm font-semibold text-green-800">
+                    {observationNotice}
+                  </div>
+                ) : null}
+                <button className={buttonClass('dark')} onClick={saveObservation} type="button" disabled={saving}>
+                  <Save className="h-4 w-4" />
+                  Salvar observação
+                </button>
+                <div className="rounded-md border border-slate-200 bg-slate-50">
+                  {history.length ? history.map(item => (
+                    <div key={item.id} className="border-b border-slate-100 px-4 py-3 text-sm last:border-b-0">
+                      <div className="font-semibold text-slate-900">{item.newStatus || item.action}</div>
+                      <div className="text-slate-500">{formatFreightDate(item.changedAt)} · {item.changedByEmail || '-'}</div>
+                      {item.comment ? <div className="mt-1 whitespace-pre-wrap text-slate-700">{item.comment}</div> : null}
+                    </div>
+                  )) : (
+                    <p className="p-4 text-sm text-slate-500">Sem histórico registrado.</p>
+                  )}
+                </div>
+              </div>
+            </details>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/30" onClick={onClose}>
@@ -955,6 +1101,48 @@ function DetailDrawer({
           </section>
         </div>
       </div>
+    </div>
+  );
+}
+
+function DriverDetailField({ label, value, wide = false }: { label: string; value: string; wide?: boolean }) {
+  return (
+    <div className={wide ? 'sm:col-span-2' : undefined}>
+      <label className={labelClass()}>{label}</label>
+      <input className={`${fieldClass()} bg-slate-50 font-semibold`} value={value} readOnly />
+    </div>
+  );
+}
+
+function DriverDetailTextArea({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="sm:col-span-2">
+      <label className={labelClass()}>{label}</label>
+      <textarea className={`${areaClass()} min-h-20 bg-slate-50`} value={value} readOnly />
+    </div>
+  );
+}
+
+function DriverDetailAddress({ label, value, options }: { label: string; value?: string; options?: FreightLookupOption[] }) {
+  const resolved = resolveAddressDisplay(value, options);
+  const hasLink = Boolean(resolved.linkTarget);
+
+  return (
+    <div className="sm:col-span-2">
+      <label className={labelClass()}>{label}</label>
+      <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900">
+        {resolved.display}
+      </div>
+      {hasLink ? (
+        <div className="mt-2 flex flex-wrap gap-2">
+          <a className="inline-flex h-8 items-center justify-center rounded-md border border-slate-200 bg-white px-3 text-xs font-semibold text-blue-700 hover:bg-slate-50" href={googleMapsAddressUrl(resolved.linkTarget)} target="_blank" rel="noreferrer">
+            Google Maps
+          </a>
+          <a className="inline-flex h-8 items-center justify-center rounded-md border border-slate-200 bg-white px-3 text-xs font-semibold text-blue-700 hover:bg-slate-50" href={wazeAddressUrl(resolved.linkTarget)} target="_blank" rel="noreferrer">
+            Waze
+          </a>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -1563,7 +1751,11 @@ function FreightPage({ mode }: { mode: FreightMode }) {
       await updateFreightStatus(request, newStatus, comment || `Status alterado para ${newStatus}.`);
       await sendFreightNotification(request.id, 'status');
       setMessage({ type: 'success', text: `${formatProtocol(request)} atualizado para ${newStatus}.` });
-      await loadData();
+      if (selected?.id === request.id) {
+        await refreshRequestAfterMediaChange(request.id);
+      } else {
+        await loadData();
+      }
     } catch (error: any) {
       setMessage({ type: 'error', text: error.message || 'Erro ao atualizar status.' });
     } finally {
@@ -1671,7 +1863,11 @@ function FreightPage({ mode }: { mode: FreightMode }) {
       await updateFreightStatus(request, 'Concluído', 'Entrega concluída com foto pelo motorista.');
       await sendFreightNotification(request.id, 'status');
       setMessage({ type: 'success', text: `${formatProtocol(request)} concluído com foto.` });
-      await loadData();
+      if (selected?.id === request.id) {
+        await refreshRequestAfterMediaChange(request.id);
+      } else {
+        await loadData();
+      }
     } catch (error: any) {
       setMessage({ type: 'error', text: error.message || 'Erro ao concluir entrega.' });
     } finally {
@@ -1952,10 +2148,13 @@ function FreightPage({ mode }: { mode: FreightMode }) {
         addressOptions={lookups.enderecos}
         saving={saving || Boolean(selected && photoSavingByRequest[selected.id])}
         removingPhotoUrl={removingPhotoUrl}
+        driverLayout={activeTab === 'motorista' && !isInternational}
         onClose={() => setSelected(null)}
         onSaveObservation={saveDetailObservation}
         onDeliveryUpload={handleDeliveryPhotoUpload}
         onDeliveryRemove={handleDeliveryPhotoRemove}
+        onStatus={changeStatus}
+        onDelivery={handleDeliveryPhoto}
       />
       <EditRequestDrawer
         request={editingRequest}
@@ -3344,7 +3543,10 @@ function KanbanPanel({
                       </div>
                       <div className="shrink-0">
                         {isScheduledFreightLate(request) ? (
-                          <span className="rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-bold text-red-700">Atrasado</span>
+                          <span className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-bold text-red-700">
+                            <Clock3 className="h-3 w-3" />
+                            {scheduledFreightDelayLabel(request)}
+                          </span>
                         ) : null}
                       </div>
                     </div>

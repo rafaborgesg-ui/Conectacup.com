@@ -377,7 +377,6 @@ function DeliveryPhotoManager({
           className="sr-only"
           type="file"
           accept="image/*"
-          capture="environment"
           multiple
           disabled={saving}
           onChange={event => {
@@ -389,7 +388,7 @@ function DeliveryPhotoManager({
         <span className={`flex h-10 w-full items-center justify-center rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 ${saving ? 'opacity-70' : ''}`}>
           {saving ? 'Enviando...' : 'Escolher fotos'}
         </span>
-        <span className="mt-2 block break-words text-xs text-slate-500">Ao selecionar, a foto é anexada automaticamente.</span>
+        <span className="mt-2 block break-words text-xs text-slate-500">Ao selecionar, a foto é anexada automaticamente. Você pode usar a câmera ou escolher da galeria.</span>
       </label>
     </div>
   );
@@ -746,16 +745,19 @@ function sortKanbanLane(requests: FreightRequest[], lane: string) {
 }
 
 function isScheduledFreightLate(request: FreightRequest) {
-  const scheduledAt = freightDateTime(request.agendamentoAt, Number.NaN);
-  return !Number.isNaN(scheduledAt) && scheduledAt < Date.now();
+  return Boolean(freightDelayLabelFromDate(request.agendamentoAt));
 }
 
 function scheduledFreightDelayLabel(request: FreightRequest) {
-  const scheduledAt = freightDateTime(request.agendamentoAt, Number.NaN);
-  if (Number.isNaN(scheduledAt)) return 'Atrasado';
+  return freightDelayLabelFromDate(request.agendamentoAt) || 'Atrasado';
+}
 
-  const delayMs = Date.now() - scheduledAt;
-  if (delayMs <= 0) return 'Atrasado';
+function freightDelayLabelFromDate(value?: string | null) {
+  const referenceAt = freightDateTime(value, Number.NaN);
+  if (Number.isNaN(referenceAt)) return null;
+
+  const delayMs = Date.now() - referenceAt;
+  if (delayMs <= 0) return null;
 
   const hours = Math.max(1, Math.floor(delayMs / (60 * 60 * 1000)));
   if (hours < 24) {
@@ -764,6 +766,14 @@ function scheduledFreightDelayLabel(request: FreightRequest) {
 
   const days = Math.max(1, Math.floor(hours / 24));
   return `${days} dia${days === 1 ? ' de atraso' : 's de atraso'}`;
+}
+
+function kanbanDelayLabel(request: FreightRequest, lane: string) {
+  if (lane === 'finalizado') return null;
+  const referenceDate = lane === 'nao_iniciado'
+    ? request.prazoEntrega || request.prazoDesejado
+    : request.agendamentoAt;
+  return freightDelayLabelFromDate(referenceDate);
 }
 
 function DetailDrawer({
@@ -1244,6 +1254,7 @@ function FreightPage({ mode }: { mode: FreightMode }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
+  const [successDialog, setSuccessDialog] = useState<{ title: string; text: string } | null>(null);
   const [nationalForm, setNationalForm] = useState(emptyNationalForm);
   const [editingRequest, setEditingRequest] = useState<FreightRequest | null>(null);
   const [nationalEditForm, setNationalEditForm] = useState(emptyNationalEditForm);
@@ -1304,6 +1315,7 @@ function FreightPage({ mode }: { mode: FreightMode }) {
 
     const previousHtmlOverscroll = document.documentElement.style.overscrollBehaviorY;
     const previousBodyOverscroll = document.body.style.overscrollBehaviorY;
+    const pendingTimeouts = new Set<number>();
 
     document.documentElement.style.overscrollBehaviorY = 'none';
     document.body.style.overscrollBehaviorY = 'none';
@@ -1313,7 +1325,7 @@ function FreightPage({ mode }: { mode: FreightMode }) {
       if (!target) return null;
 
       const viewportHeight = window.visualViewport?.height || window.innerHeight;
-      const targetBottom = target.getBoundingClientRect().bottom + window.scrollY;
+      const targetBottom = target.offsetTop + target.offsetHeight;
       return Math.max(0, Math.ceil(targetBottom - viewportHeight));
     };
 
@@ -1332,6 +1344,17 @@ function FreightPage({ mode }: { mode: FreightMode }) {
     const scheduleClamp = () => {
       if (animationFrame) return;
       animationFrame = window.requestAnimationFrame(clampScrollToTarget);
+    };
+
+    const scheduleClampSequence = () => {
+      scheduleClamp();
+      [80, 180, 360, 700].forEach(delay => {
+        const timeoutId = window.setTimeout(() => {
+          pendingTimeouts.delete(timeoutId);
+          scheduleClamp();
+        }, delay);
+        pendingTimeouts.add(timeoutId);
+      });
     };
 
     const handleTouchStart = (event: TouchEvent) => {
@@ -1359,17 +1382,24 @@ function FreightPage({ mode }: { mode: FreightMode }) {
     window.addEventListener('resize', scheduleClamp);
     window.addEventListener('touchstart', handleTouchStart, { passive: true });
     window.addEventListener('touchmove', handleTouchMove, { passive: false });
-    window.visualViewport?.addEventListener('resize', scheduleClamp);
+    window.addEventListener('focusin', scheduleClampSequence, true);
+    window.addEventListener('focusout', scheduleClampSequence, true);
+    window.visualViewport?.addEventListener('resize', scheduleClampSequence);
+    window.visualViewport?.addEventListener('scroll', scheduleClampSequence);
 
     return () => {
       if (animationFrame) window.cancelAnimationFrame(animationFrame);
+      pendingTimeouts.forEach(timeoutId => window.clearTimeout(timeoutId));
       document.documentElement.style.overscrollBehaviorY = previousHtmlOverscroll;
       document.body.style.overscrollBehaviorY = previousBodyOverscroll;
       window.removeEventListener('scroll', scheduleClamp);
       window.removeEventListener('resize', scheduleClamp);
       window.removeEventListener('touchstart', handleTouchStart);
       window.removeEventListener('touchmove', handleTouchMove);
-      window.visualViewport?.removeEventListener('resize', scheduleClamp);
+      window.removeEventListener('focusin', scheduleClampSequence, true);
+      window.removeEventListener('focusout', scheduleClampSequence, true);
+      window.visualViewport?.removeEventListener('resize', scheduleClampSequence);
+      window.visualViewport?.removeEventListener('scroll', scheduleClampSequence);
     };
   }, [activeTab, editingRequest, isInternational, selected]);
 
@@ -1661,11 +1691,11 @@ function FreightPage({ mode }: { mode: FreightMode }) {
       setNationalForm(emptyNationalForm);
       setProductFiles([]);
       setTab(forcedTab || 'dashboard');
-      setMessage({
-        type: 'success',
-        text: `Protocolo ${formatProtocol(created)} cadastrado com sucesso. Você receberá uma cópia por e-mail com os dados da solicitação. O acompanhamento da solicitação também será enviado por e-mail a cada atualização: agendado, em rota e concluído.`
+      setSuccessDialog({
+        title: `Protocolo ${formatProtocol(created)} cadastrado com sucesso`,
+        text: 'Você receberá uma cópia por e-mail com os dados da solicitação. O acompanhamento também será enviado por e-mail a cada atualização: agendado, em rota e concluído.'
       });
-      await loadData();
+      await loadData({ silent: true });
     } catch (error: any) {
       setMessage({ type: 'error', text: error.message || 'Erro ao cadastrar solicitação.' });
     } finally {
@@ -2189,6 +2219,35 @@ function FreightPage({ mode }: { mode: FreightMode }) {
         onClose={closeEditRequest}
         onSubmit={handleSaveNationalEdit}
       />
+      <SuccessDialog
+        dialog={successDialog}
+        onClose={() => setSuccessDialog(null)}
+      />
+    </div>
+  );
+}
+
+function SuccessDialog({
+  dialog,
+  onClose
+}: {
+  dialog: { title: string; text: string } | null;
+  onClose: () => void;
+}) {
+  if (!dialog) return null;
+
+  return (
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-950/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-md rounded-lg border border-emerald-200 bg-white p-5 shadow-2xl" onClick={event => event.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="freight-success-title">
+        <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+          <CheckCircle2 className="h-6 w-6" />
+        </div>
+        <h2 id="freight-success-title" className="text-lg font-bold text-slate-950">{dialog.title}</h2>
+        <p className="mt-2 text-sm leading-6 text-slate-600">{dialog.text}</p>
+        <button className={`${buttonClass('primary')} mt-5 w-full`} type="button" onClick={onClose}>
+          Entendi
+        </button>
+      </div>
     </div>
   );
 }
@@ -2783,10 +2842,19 @@ function NationalForm({
           </div>
         </div>
       </div>
-      <div className="flex justify-end border-t border-slate-100 px-5 py-4">
-        <button className={buttonClass('primary')} type="submit" disabled={saving}>
-          <Save className="h-4 w-4" />
-          {saving ? 'Salvando...' : 'Cadastrar solicitação'}
+      <div className="flex justify-center border-t border-slate-100 px-4 py-4 sm:justify-end sm:px-5">
+        <button key={saving ? 'saving-national-submit' : 'ready-national-submit'} className={`${buttonClass('primary')} w-full sm:w-auto`} type="submit" disabled={saving} aria-busy={saving}>
+          {saving ? (
+            <>
+              <RefreshCw className="h-4 w-4 animate-spin" />
+              Salvando...
+            </>
+          ) : (
+            <>
+              <Save className="h-4 w-4" />
+              Cadastrar solicitação
+            </>
+          )}
         </button>
       </div>
     </form>
@@ -3711,6 +3779,7 @@ function FreightKanbanCard({
   const isDeliveredCard = lane === 'finalizado';
   const deadlineInfo = freightDeadlineInfo(request);
   const dateLabel = isDeliveredCard ? 'Data de entrega' : isRequestedCard ? 'Prazo' : deadlineInfo.label;
+  const delayLabel = kanbanDelayLabel(request, lane);
   let dateValue = deadlineInfo.value;
   if (isRequestedCard) dateValue = request.prazoEntrega || request.prazoDesejado;
   if (isDeliveredCard) dateValue = freightDeliveryDate(request);
@@ -3746,6 +3815,12 @@ function FreightKanbanCard({
               {request.status === 'Em Rota' ? <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-700">Em Rota</span> : null}
             </div>
             <p className="mt-1 text-xs text-slate-500">Projeto: {compactText(project, 30)}</p>
+            {delayLabel ? (
+              <span className="mt-2 inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-bold text-red-700">
+                <Clock3 className="h-3 w-3" />
+                {delayLabel}
+              </span>
+            ) : null}
           </div>
           <button
             className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 hover:border-red-200 hover:text-red-600"

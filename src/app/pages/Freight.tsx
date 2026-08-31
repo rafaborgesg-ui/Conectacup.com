@@ -1312,21 +1312,68 @@ function FreightPage({ mode }: { mode: FreightMode }) {
     const clampTargetSelector = activeTab === 'nova'
       ? '[data-freight-national-form="true"]'
       : '[data-freight-driver-panel="true"]';
+    const scrollAreaSelector = activeTab === 'nova'
+      ? '[data-freight-mobile-scroll-area="true"]'
+      : null;
 
     const previousHtmlOverscroll = document.documentElement.style.overscrollBehaviorY;
     const previousBodyOverscroll = document.body.style.overscrollBehaviorY;
+    const previousHtmlOverflow = document.documentElement.style.overflowY;
+    const previousBodyOverflow = document.body.style.overflowY;
+    const previousHtmlHeight = document.documentElement.style.height;
+    const previousBodyHeight = document.body.style.height;
+    const previousVisualHeight = document.documentElement.style.getPropertyValue('--freight-visual-height');
     const pendingTimeouts = new Set<number>();
+    const shouldLockPageScroll = activeTab === 'nova' && mobileQuery.matches;
+
+    const updateVisualHeight = () => {
+      if (!shouldLockPageScroll) return;
+      const height = Math.round(window.visualViewport?.height || window.innerHeight);
+      document.documentElement.style.setProperty('--freight-visual-height', `${height}px`);
+    };
 
     document.documentElement.style.overscrollBehaviorY = 'none';
     document.body.style.overscrollBehaviorY = 'none';
+    if (shouldLockPageScroll) {
+      updateVisualHeight();
+      document.documentElement.style.overflowY = 'hidden';
+      document.body.style.overflowY = 'hidden';
+      document.documentElement.style.height = 'var(--freight-visual-height)';
+      document.body.style.height = 'var(--freight-visual-height)';
+      window.scrollTo({ top: 0, behavior: 'auto' });
+    }
+
+    const getScrollArea = () => {
+      if (!scrollAreaSelector) return null;
+      return document.querySelector<HTMLElement>(scrollAreaSelector);
+    };
 
     const getTargetMaxScroll = () => {
+      const scrollArea = getScrollArea();
+      if (scrollArea) {
+        return Math.max(0, Math.ceil(scrollArea.scrollHeight - scrollArea.clientHeight));
+      }
+
       const target = document.querySelector<HTMLElement>(clampTargetSelector);
       if (!target) return null;
 
       const viewportHeight = window.visualViewport?.height || window.innerHeight;
       const targetBottom = target.offsetTop + target.offsetHeight;
       return Math.max(0, Math.ceil(targetBottom - viewportHeight));
+    };
+
+    const getCurrentScroll = () => {
+      const scrollArea = getScrollArea();
+      return scrollArea ? scrollArea.scrollTop : window.scrollY;
+    };
+
+    const setCurrentScroll = (top: number) => {
+      const scrollArea = getScrollArea();
+      if (scrollArea) {
+        scrollArea.scrollTop = top;
+        return;
+      }
+      window.scrollTo({ top, behavior: 'auto' });
     };
 
     const clampScrollToTarget = () => {
@@ -1336,8 +1383,8 @@ function FreightPage({ mode }: { mode: FreightMode }) {
       const maxScroll = getTargetMaxScroll();
       if (maxScroll === null) return;
 
-      if (window.scrollY > maxScroll + 2) {
-        window.scrollTo({ top: maxScroll, behavior: 'auto' });
+      if (getCurrentScroll() > maxScroll + 2) {
+        setCurrentScroll(maxScroll);
       }
     };
 
@@ -1357,6 +1404,11 @@ function FreightPage({ mode }: { mode: FreightMode }) {
       });
     };
 
+    const handleViewportChange = () => {
+      updateVisualHeight();
+      scheduleClampSequence();
+    };
+
     const handleTouchStart = (event: TouchEvent) => {
       touchStartY = event.touches[0]?.clientY || 0;
     };
@@ -1371,35 +1423,47 @@ function FreightPage({ mode }: { mode: FreightMode }) {
       const maxScroll = getTargetMaxScroll();
       if (maxScroll === null) return;
 
-      if (window.scrollY >= maxScroll - 1) {
+      if (getCurrentScroll() >= maxScroll - 1) {
         event.preventDefault();
-        window.scrollTo({ top: maxScroll, behavior: 'auto' });
+        setCurrentScroll(maxScroll);
       }
     };
 
+    const scrollArea = getScrollArea();
     scheduleClamp();
+    scrollArea?.addEventListener('scroll', scheduleClamp, { passive: true });
     window.addEventListener('scroll', scheduleClamp, { passive: true });
-    window.addEventListener('resize', scheduleClamp);
+    window.addEventListener('resize', handleViewportChange);
     window.addEventListener('touchstart', handleTouchStart, { passive: true });
     window.addEventListener('touchmove', handleTouchMove, { passive: false });
     window.addEventListener('focusin', scheduleClampSequence, true);
     window.addEventListener('focusout', scheduleClampSequence, true);
-    window.visualViewport?.addEventListener('resize', scheduleClampSequence);
-    window.visualViewport?.addEventListener('scroll', scheduleClampSequence);
+    window.visualViewport?.addEventListener('resize', handleViewportChange);
+    window.visualViewport?.addEventListener('scroll', handleViewportChange);
 
     return () => {
       if (animationFrame) window.cancelAnimationFrame(animationFrame);
       pendingTimeouts.forEach(timeoutId => window.clearTimeout(timeoutId));
       document.documentElement.style.overscrollBehaviorY = previousHtmlOverscroll;
       document.body.style.overscrollBehaviorY = previousBodyOverscroll;
+      document.documentElement.style.overflowY = previousHtmlOverflow;
+      document.body.style.overflowY = previousBodyOverflow;
+      document.documentElement.style.height = previousHtmlHeight;
+      document.body.style.height = previousBodyHeight;
+      if (previousVisualHeight) {
+        document.documentElement.style.setProperty('--freight-visual-height', previousVisualHeight);
+      } else {
+        document.documentElement.style.removeProperty('--freight-visual-height');
+      }
+      scrollArea?.removeEventListener('scroll', scheduleClamp);
       window.removeEventListener('scroll', scheduleClamp);
-      window.removeEventListener('resize', scheduleClamp);
+      window.removeEventListener('resize', handleViewportChange);
       window.removeEventListener('touchstart', handleTouchStart);
       window.removeEventListener('touchmove', handleTouchMove);
       window.removeEventListener('focusin', scheduleClampSequence, true);
       window.removeEventListener('focusout', scheduleClampSequence, true);
-      window.visualViewport?.removeEventListener('resize', scheduleClampSequence);
-      window.visualViewport?.removeEventListener('scroll', scheduleClampSequence);
+      window.visualViewport?.removeEventListener('resize', handleViewportChange);
+      window.visualViewport?.removeEventListener('scroll', handleViewportChange);
     };
   }, [activeTab, editingRequest, isInternational, selected]);
 
@@ -1986,10 +2050,11 @@ function FreightPage({ mode }: { mode: FreightMode }) {
     && message.text.startsWith('O prazo de entrega precisa')
     ? message.text
     : null;
+  const isNationalNewRequestTab = activeTab === 'nova' && !isInternational;
 
   return (
-    <div className="overflow-x-hidden bg-slate-50 px-3 pb-0 pt-3 sm:min-h-screen sm:p-4 md:p-6">
-      <div className="mx-auto w-full min-w-0 max-w-7xl space-y-5">
+    <div className={`bg-slate-50 px-3 pb-0 pt-3 sm:min-h-screen sm:p-4 md:p-6 ${isNationalNewRequestTab ? 'h-[var(--freight-visual-height,100dvh)] overflow-hidden sm:h-auto sm:overflow-x-hidden sm:overflow-y-visible' : 'overflow-x-hidden'}`}>
+      <div className={`mx-auto w-full min-w-0 max-w-7xl ${isNationalNewRequestTab ? 'flex h-full min-h-0 flex-col gap-5 sm:block sm:h-auto sm:space-y-5' : 'space-y-5'}`}>
         {showPageHeader ? (
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="flex min-w-0 items-start gap-3">
@@ -2118,18 +2183,20 @@ function FreightPage({ mode }: { mode: FreightMode }) {
             )}
 
             {activeTab === 'nova' && !isInternational && (
-              <NationalForm
-                form={nationalForm}
-                files={productFiles}
-                lookups={lookups}
-                saving={saving}
-                requesterSlaDays={nationalRequesterSlaDays}
-                minimumDeadline={nationalMinimumDeadlineInput}
-                deadlineMessage={nationalDeadlineMessage}
-                onChange={updateNationalField}
-                onFiles={files => setProductFiles(files)}
-                onSubmit={handleCreateNational}
-              />
+              <div data-freight-mobile-scroll-area="true" className="-mx-3 min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-0 sm:mx-0 sm:block sm:overflow-visible sm:px-0" style={{ WebkitOverflowScrolling: 'touch' }}>
+                <NationalForm
+                  form={nationalForm}
+                  files={productFiles}
+                  lookups={lookups}
+                  saving={saving}
+                  requesterSlaDays={nationalRequesterSlaDays}
+                  minimumDeadline={nationalMinimumDeadlineInput}
+                  deadlineMessage={nationalDeadlineMessage}
+                  onChange={updateNationalField}
+                  onFiles={files => setProductFiles(files)}
+                  onSubmit={handleCreateNational}
+                />
+              </div>
             )}
 
             {activeTab === 'nova' && isInternational && (

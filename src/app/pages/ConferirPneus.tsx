@@ -274,6 +274,45 @@ function decodeRFID(epcHex: string): { barcode: string; cai: string } | null {
   }
 }
 
+function compactTireSearchCode(code: string): string {
+  return normalizeScannerCode(code || '').replace(/[^0-9A-Z]/g, '');
+}
+
+function getTireSearchCandidates(search: string): string[] {
+  const normalizedSearch = compactTireSearchCode(search);
+  if (!normalizedSearch) return [];
+
+  const candidates = new Set<string>([normalizedSearch]);
+
+  if (/^[0-9A-F]{24}$/.test(normalizedSearch)) {
+    const decoded = decodeRFID(normalizedSearch);
+    if (decoded?.barcode) candidates.add(compactTireSearchCode(decoded.barcode));
+    if (decoded?.cai) candidates.add(compactTireSearchCode(decoded.cai));
+  }
+
+  return Array.from(candidates).filter(Boolean);
+}
+
+function tireMatchesSearch(tireCode: string, candidates: string[]): boolean {
+  const normalizedTireCode = compactTireSearchCode(tireCode);
+  if (!normalizedTireCode || normalizedTireCode === '-') return false;
+
+  return candidates.some(candidate =>
+    normalizedTireCode === candidate ||
+    (candidate.length >= 4 && normalizedTireCode.includes(candidate)) ||
+    (normalizedTireCode.length >= 4 && candidate.includes(normalizedTireCode))
+  );
+}
+
+function getChassisCategory(chassisData: ExcelChassisData): string {
+  const match = chassisData.sheetName.match(/\(([^)]+)\)$/);
+  return match ? match[1] : 'SEM CATEGORIA';
+}
+
+function getExpectedTiresCount(chassisData: ExcelChassisData, tireSets?: TireSet[]): number {
+  return Math.max(getRequiredTiresCount(chassisData), (tireSets?.length || 0) * 4);
+}
+
 // 🆕 Função para salvar divergência em tempo real no Supabase
 async function saveTireDivergenceRealtime(
   sessionId: string,
@@ -423,6 +462,18 @@ interface TireSet {
   tires: TireData[];
 }
 
+interface TireSearchMatch {
+  chassisIndex: number;
+  chassis: string;
+  piloto: string;
+  category: string;
+  jogo: number;
+  posicao: string;
+  codigo: string;
+  registeredAt?: string;
+  registeredBy?: string;
+}
+
 interface QueuedTireScan {
   code: string;
   epc?: string;
@@ -536,6 +587,7 @@ export function ConferirPneus() {
   const [isLoadingStages, setIsLoadingStages] = useState(false);
   const [etapaId, setEtapaId] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [globalTireSearchTerm, setGlobalTireSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null); // Nova state para categoria selecionada
   const [selectedChassisIndex, setSelectedChassisIndex] = useState<number | null>(null);
   const [useCollectorMode, setUseCollectorMode] = useState(false); // Modo coletor (níveis ao invés de modal)
@@ -4128,6 +4180,62 @@ export function ConferirPneus() {
     _originalIndex: index
   });
 
+  const createEmptyTireSet = (jogoNumber: number): TireSet => ({
+    jogo: jogoNumber,
+    label: `Jogo ${jogoNumber}`,
+    montadoNoCarro: false,
+    tires: Array(4).fill(null).map((_, idx) => createEmptyTire(idx))
+  });
+
+  const handleAddTireSet = async () => {
+    if (!isEditMode || selectedChassisIndex === null) return;
+
+    const currentSets = tireSetsRef.current.length > 0 ? tireSetsRef.current : tireSets;
+    const nextJogo = currentSets.reduce((max, set) => Math.max(max, set.jogo || 0), 0) + 1;
+    const nextSets = [...currentSets, createEmptyTireSet(nextJogo)];
+    const sourceData = extractedDataRef.current.length > 0 ? extractedDataRef.current : extractedData;
+    const newData = ensureCorrectIndexes([...sourceData]);
+
+    if (newData[selectedChassisIndex]) {
+      newData[selectedChassisIndex] = {
+        ...newData[selectedChassisIndex],
+        tiresChecked: countCheckedTires(nextSets)
+      };
+    }
+
+    setTireSets(nextSets);
+    setSavedTireSets(prev => ({
+      ...prev,
+      [selectedChassisIndex]: nextSets
+    }));
+    extractedDataRef.current = newData;
+    setExtractedData(newData);
+    setActiveJogo(nextJogo);
+    setActivePneuPosition(0);
+    setFocusedInput({ jogo: nextJogo, position: 0 });
+
+    try {
+      await updateActiveSessionInRealTime(newData, nextSets, selectedChassisIndex);
+      toast.success(`Jogo ${nextJogo} adicionado`, {
+        description: 'Quatro novas posições foram liberadas para bipagem'
+      });
+    } catch (error) {
+      console.error('Erro ao salvar novo jogo na sessão ativa:', error);
+      toast.error('Jogo adicionado localmente', {
+        description: 'Não foi possível atualizar a sessão ativa agora'
+      });
+    }
+
+    setTimeout(() => {
+      const input = document.querySelector(`input[data-jogo="${nextJogo}"][data-position="0"]`) as HTMLInputElement | null;
+      if (input) {
+        input.focus();
+      } else {
+        tireInputRef.current?.focus();
+      }
+    }, 100);
+  };
+
   // 🧹 Atualiza sessão DIRETAMENTE para limpeza (SEM MERGE!)
   const updateActiveSessionDirectClear = async (
     updatedExtractedData: ExcelChassisData[],
@@ -5618,7 +5726,9 @@ export function ConferirPneus() {
       }
       
       const isTrophy = chassisData.sheetName?.toUpperCase().includes('TROPHY');
-      const numberOfJogos = isTrophy ? 3 : 4;
+      const defaultNumberOfJogos = isTrophy ? 3 : 4;
+      const maxJogoFromHistory = history.reduce((max, record) => Math.max(max, Number(record.jogo) || 0), 0);
+      const numberOfJogos = Math.max(defaultNumberOfJogos, maxJogoFromHistory);
       
       // Inicializa tireSets vazio
       const tireSets: TireSet[] = Array.from({ length: numberOfJogos }, (_, i) => ({
@@ -6119,9 +6229,10 @@ export function ConferirPneus() {
         const tiresInCurrentSet = newSets.find(s => s.jogo === targetJogo)?.tires.filter(t => t.codigo !== '-').length || 0;
         
         if (tiresInCurrentSet === 4) {
+          const maxJogo = Math.max(...newSets.map(s => s.jogo));
           // Jogo completo! Avança automaticamente para o próximo jogo
           toast.success(`Jogo ${targetJogo} completo!`, {
-            description: targetJogo < 4 ? `Avançando para Jogo ${targetJogo + 1}` : 'Todos os jogos completos!'
+            description: targetJogo < maxJogo ? `Avançando para Jogo ${targetJogo + 1}` : 'Todos os jogos completos!'
           });
           
           // 🔥 Se o jogo montado no carro foi completado, marca flag para mover ao fechar modal
@@ -6138,7 +6249,7 @@ export function ConferirPneus() {
           }
           
           if (shouldManageFocusAfterSave) {
-            if (targetJogo < 4) {
+            if (targetJogo < maxJogo) {
               setActiveJogo(targetJogo + 1);
               setActivePneuPosition(0);
             } else {
@@ -6188,7 +6299,7 @@ export function ConferirPneus() {
           
           // 🔥 AUTO-SAVE: Verifica se todos os pneus obrigatórios foram lidos e finaliza automaticamente
           const chassisData = ensuredData[targetChassisIndex];
-          const requiredTotalTires = getRequiredTiresCount(chassisData);
+          const requiredTotalTires = getExpectedTiresCount(chassisData, newSets);
           
           if (totalChecked >= requiredTotalTires && !completedChassis[targetChassisIndex]) {
             // Todos os pneus obrigatórios foram lidos! Finaliza automaticamente
@@ -6448,9 +6559,10 @@ export function ConferirPneus() {
       const tiresInCurrentSet = newSets.find(s => s.jogo === targetJogo)?.tires.filter(t => t.codigo !== '-').length || 0;
       
       if (tiresInCurrentSet === 4) {
+        const maxJogo = Math.max(...newSets.map(s => s.jogo));
         // Jogo completo! Avança automaticamente para o próximo jogo
         toast.success(`Jogo ${targetJogo} completo!`, {
-          description: targetJogo < 4 ? `Avançando para Jogo ${targetJogo + 1}` : 'Todos os jogos completos!'
+          description: targetJogo < maxJogo ? `Avançando para Jogo ${targetJogo + 1}` : 'Todos os jogos completos!'
         });
         
         // 🔥 Se o jogo montado no carro foi completado, marca flag para mover ao fechar modal
@@ -6467,7 +6579,7 @@ export function ConferirPneus() {
         }
         
         if (shouldManageFocusAfterSave) {
-          if (targetJogo < 4) {
+          if (targetJogo < maxJogo) {
             setActiveJogo(targetJogo + 1);
             setActivePneuPosition(0);
           } else {
@@ -6518,7 +6630,7 @@ export function ConferirPneus() {
         
         // 🔥 AUTO-SAVE: Verifica se todos os pneus obrigatórios foram lidos e finaliza automaticamente
         const chassisData = ensuredData[targetChassisIndex];
-        const requiredTotalTires = getRequiredTiresCount(chassisData);
+        const requiredTotalTires = getExpectedTiresCount(chassisData, newSets);
         
         if (totalChecked >= requiredTotalTires && !completedChassis[targetChassisIndex]) {
           // Todos os pneus obrigatórios foram lidos! Finaliza automaticamente
@@ -6611,7 +6723,7 @@ export function ConferirPneus() {
       
       // 🔥 Remove flag de completado se não tem mais pneus suficientes
       const chassisData = newData[selectedChassisIndex];
-      const requiredTotalTires = getRequiredTiresCount(chassisData);
+      const requiredTotalTires = getExpectedTiresCount(chassisData, newSets);
       
       if (totalChecked < requiredTotalTires && completedChassis[selectedChassisIndex]) {
         setCompletedChassis(prev => ({
@@ -6649,18 +6761,17 @@ export function ConferirPneus() {
     // Calcula total esperado baseado na categoria
     const chassisData = extractedData[selectedChassisIndex];
     const corridaStatus = chassisData.corrida?.trim().toUpperCase() || '';
-    const isTrophy = chassisData.sheetName.toUpperCase().includes('TROPHY');
     const isConfirmado = corridaStatus === 'SIM';
-    const requiredTotalTires = getRequiredTiresCount(chassisData);
+    const requiredTotalTires = getExpectedTiresCount(chassisData, tireSets);
     
     // Verifica se todos os pneus obrigatórios foram conferidos
     const totalChecked = countCheckedTires(tireSets);
     
     if (totalChecked < requiredTotalTires) {
       const statusExplanation = isConfirmado 
-        ? `\\n\\n🔴 PILOTO VAI CORRER (corrida = SIM)\\nTodos os ${isTrophy ? '3 jogos (12 pneus)' : '4 jogos (16 pneus)'} são obrigatórios.`
+        ? `\\n\\n🔴 PILOTO VAI CORRER (corrida = SIM)\\nTodos os ${requiredTotalTires} pneus configurados nesta conferência são obrigatórios.`
         : `\\n\\n🟡 PILOTO NÃO CORRE\\nApenas 1 jogo (4 pneus) é obrigatório.`;
-      alert(`⚠️ Conferência incompleta!\n\nVocê conferiu apenas ${totalChecked} de ${requiredTotalTires} pneus obrigatórios${isTrophy ? ' (Trophy - 3 jogos)' : ' (4 jogos)'}.\\nPara finalizar, é necessário conferir os ${requiredTotalTires} pneus obrigatórios.${statusExplanation}`);
+      alert(`⚠️ Conferência incompleta!\n\nVocê conferiu apenas ${totalChecked} de ${requiredTotalTires} pneus obrigatórios.\\nPara finalizar, é necessário conferir os ${requiredTotalTires} pneus obrigatórios.${statusExplanation}`);
       return;
     }
     
@@ -6996,20 +7107,32 @@ export function ConferirPneus() {
         [],
         ['RESUMO'],
         ['Total de Chassis:', extractedData.length],
-        ['Chassis Completos:', extractedData.filter(c => isChassisComplete(c)).length],
-        ['Chassis Incompletos:', extractedData.filter(c => !isChassisComplete(c)).length],
-        ['Total de Pneus Conferidos:', extractedData.reduce((acc, c) => acc + c.tiresChecked, 0)],
+        ['Chassis Completos:', extractedData.filter((c, index) => {
+          const savedSets = savedTireSets[index];
+          const tiresChecked = savedSets?.length ? countCheckedTires(savedSets) : c.tiresChecked;
+          return tiresChecked >= getExpectedTiresCount(c, savedSets);
+        }).length],
+        ['Chassis Incompletos:', extractedData.filter((c, index) => {
+          const savedSets = savedTireSets[index];
+          const tiresChecked = savedSets?.length ? countCheckedTires(savedSets) : c.tiresChecked;
+          return tiresChecked < getExpectedTiresCount(c, savedSets);
+        }).length],
+        ['Total de Pneus Conferidos:', extractedData.reduce((acc, c, index) => {
+          const savedSets = savedTireSets[index];
+          return acc + (savedSets?.length ? countCheckedTires(savedSets) : c.tiresChecked);
+        }, 0)],
       ];
       const wsResumo = XLSX.utils.aoa_to_sheet(resumoData);
       XLSX.utils.book_append_sheet(wb, wsResumo, 'Resumo');
 
       // Sheet 2: Lista de Chassis
       const chassisHeaders = ['Chassis', 'Piloto', 'Número', 'Categoria', 'Corrida', 'Pneus Conferidos', 'Status'];
-      const chassisRows = extractedData.map(c => {
-        const match = c.sheetName.match(/\(([^)]+)\)$/);
-        const category = match ? match[1] : 'SEM CATEGORIA';
-        const requiredTires = getRequiredTiresCount(c);
-        const status = isChassisComplete(c) ? 'COMPLETO' : `${c.tiresChecked}/${requiredTires}`;
+      const chassisRows = extractedData.map((c, index) => {
+        const savedSets = savedTireSets[index];
+        const category = getChassisCategory(c);
+        const tiresChecked = savedSets?.length ? countCheckedTires(savedSets) : c.tiresChecked;
+        const requiredTires = getExpectedTiresCount(c, savedSets);
+        const status = tiresChecked >= requiredTires ? 'COMPLETO' : `${tiresChecked}/${requiredTires}`;
         
         return [
           c.chassis,
@@ -7017,7 +7140,7 @@ export function ConferirPneus() {
           c.numero || '-',
           category,
           c.corrida,
-          c.tiresChecked,
+          tiresChecked,
           status
         ];
       });
@@ -7080,15 +7203,79 @@ export function ConferirPneus() {
   console.log('🔍 [RENDER] extractedData.length:', extractedData.length);
   console.log('🔍 [RENDER] selectedCategory:', selectedCategory);
   console.log('🔍 [RENDER] selectedChassisIndex:', selectedChassisIndex);
-  
-  const filteredChassis = extractedData.filter(item => {
-    if (!searchTerm) return true;
-    const search = searchTerm.toLowerCase();
-    return (
+
+  const resolveChassisIndex = (item: ExcelChassisData): number => {
+    return item._originalIndex !== undefined
+      ? item._originalIndex
+      : extractedData.findIndex(c => c.chassis === item.chassis && c.piloto === item.piloto);
+  };
+
+  const getTireMatchesForChassis = (chassisIndex: number, search: string): TireSearchMatch[] => {
+    const candidates = getTireSearchCandidates(search);
+    if (candidates.length === 0 || chassisIndex < 0) return [];
+
+    const chassisData = extractedData[chassisIndex];
+    const chassisTireSets = savedTireSets[chassisIndex] || [];
+    if (!chassisData || chassisTireSets.length === 0) return [];
+
+    const matches: TireSearchMatch[] = [];
+    chassisTireSets.forEach(set => {
+      set.tires.forEach(tire => {
+        if (!tireMatchesSearch(tire.codigo, candidates)) return;
+
+        matches.push({
+          chassisIndex,
+          chassis: chassisData.chassis,
+          piloto: chassisData.piloto,
+          category: getChassisCategory(chassisData),
+          jogo: set.jogo,
+          posicao: tire.posicao,
+          codigo: tire.codigo,
+          registeredAt: tire.registeredAt,
+          registeredBy: tire.registeredBy
+        });
+      });
+    });
+
+    return matches.sort((a, b) => {
+      const aTime = a.registeredAt ? new Date(a.registeredAt).getTime() : 0;
+      const bTime = b.registeredAt ? new Date(b.registeredAt).getTime() : 0;
+      return bTime - aTime;
+    });
+  };
+
+  const getTireSearchMatches = (search: string): TireSearchMatch[] => {
+    return extractedData
+      .flatMap((item, index) => {
+        const resolvedIndex = resolveChassisIndex(item);
+        return getTireMatchesForChassis(resolvedIndex >= 0 ? resolvedIndex : index, search);
+      })
+      .sort((a, b) => {
+        const aTime = a.registeredAt ? new Date(a.registeredAt).getTime() : 0;
+        const bTime = b.registeredAt ? new Date(b.registeredAt).getTime() : 0;
+        return bTime - aTime;
+      });
+  };
+
+  const chassisMatchesSearch = (item: ExcelChassisData, searchTermValue: string): boolean => {
+    if (!searchTermValue) return true;
+
+    const search = searchTermValue.toLowerCase();
+    if (
       item.chassis.toLowerCase().includes(search) ||
       item.piloto.toLowerCase().includes(search)
-    );
+    ) {
+      return true;
+    }
+
+    const chassisIndex = resolveChassisIndex(item);
+    return getTireMatchesForChassis(chassisIndex, searchTermValue).length > 0;
+  };
+  
+  const filteredChassis = extractedData.filter(item => {
+    return chassisMatchesSearch(item, searchTerm);
   });
+  const globalTireSearchResults = getTireSearchMatches(globalTireSearchTerm);
 
   // Agrupa chassis por categoria
   const groupByCategory = () => {
@@ -7096,8 +7283,7 @@ export function ConferirPneus() {
     
     extractedData.forEach(item => {
       // Extrai categoria do sheetName (formato: "Nome (CATEGORIA)")
-      const match = item.sheetName.match(/\(([^)]+)\)$/);
-      const category = match ? match[1] : 'SEM CATEGORIA';
+      const category = getChassisCategory(item);
       
       if (!groups[category]) {
         groups[category] = [];
@@ -7114,12 +7300,7 @@ export function ConferirPneus() {
   // Filtra chassis da categoria selecionada e ordena: pendentes primeiro, completos depois
   const chassisInSelectedCategory = selectedCategory 
     ? (categoryGroups[selectedCategory] || []).filter(item => {
-        if (!searchTerm) return true;
-        const search = searchTerm.toLowerCase();
-        return (
-          item.chassis.toLowerCase().includes(search) ||
-          item.piloto.toLowerCase().includes(search)
-        );
+        return chassisMatchesSearch(item, searchTerm);
       }).sort((a, b) => {
         const aComplete = isChassisComplete(a);
         const bComplete = isChassisComplete(b);
@@ -7151,9 +7332,8 @@ export function ConferirPneus() {
         ? chassis._originalIndex
         : extractedData.findIndex(c => c.chassis === chassis.chassis && c.piloto === chassis.piloto);
 
-      totalTires += getRequiredTiresCount(chassis);
-
       const savedSets = savedTireSets[globalIndex];
+      totalTires += getExpectedTiresCount(chassis, savedSets);
       if (savedSets && savedSets.length > 0) {
         tiresChecked += countCheckedTires(savedSets);
       } else {
@@ -7165,8 +7345,11 @@ export function ConferirPneus() {
   };
 
   const getAllTiresStats = () => {
-    const totalScanned = extractedData.reduce((sum, chassis) => sum + chassis.tiresChecked, 0);
-    const totalExpected = extractedData.reduce((sum, chassis) => sum + getRequiredTiresCount(chassis), 0);
+    const totalScanned = extractedData.reduce((sum, chassis, index) => {
+      const sets = savedTireSets[index];
+      return sum + (sets && sets.length > 0 ? countCheckedTires(sets) : chassis.tiresChecked);
+    }, 0);
+    const totalExpected = extractedData.reduce((sum, chassis, index) => sum + getExpectedTiresCount(chassis, savedTireSets[index]), 0);
     const percentage = totalExpected > 0 ? Math.round((totalScanned / totalExpected) * 100) : 0;
     const remaining = Math.max(0, totalExpected - totalScanned);
     return { totalScanned, totalExpected, percentage, remaining };
@@ -7203,7 +7386,7 @@ export function ConferirPneus() {
       const savedSets = savedTireSets[globalIndex];
       if (savedSets && savedSets.length > 0) {
         const tiresChecked = countCheckedTires(savedSets);
-        const requiredTires = getRequiredTiresCount(c);
+        const requiredTires = getExpectedTiresCount(c, savedSets);
         return tiresChecked >= requiredTires;
       }
       return isChassisComplete(c);
@@ -7212,10 +7395,9 @@ export function ConferirPneus() {
 
   const selectedChassis = selectedChassisIndex !== null ? extractedData[selectedChassisIndex] : null;
   
-  // Calcula o total de pneus baseado na categoria (Trophy = 12 pneus, outros = 16 pneus)
-  const isTrophyCategory = selectedChassis?.sheetName.toUpperCase().includes('TROPHY') || false;
-  const totalTires = isTrophyCategory ? 12 : 16;
-  const checkedTires = selectedChassis?.tiresChecked || 0;
+  const totalTires = selectedChassis ? getExpectedTiresCount(selectedChassis, tireSets) : 0;
+  const checkedTires = tireSets.length > 0 ? countCheckedTires(tireSets) : (selectedChassis?.tiresChecked || 0);
+  const checkedTiresPercentage = totalTires > 0 ? Math.round((checkedTires / totalTires) * 100) : 0;
 
   return (
     <div style={{ background: '#F9FAFB', minHeight: '100vh' }}>
@@ -7608,6 +7790,58 @@ export function ConferirPneus() {
                 </div>
               </div>
 
+              <div
+                className="mb-4 rounded-xl border p-4 shadow-sm collector-adapt-card"
+                style={{ background: '#FFFFFF', borderColor: '#E5E7EB' }}
+              >
+                <div className="mb-3">
+                  <h3 className="text-sm font-bold text-gray-900">Rastrear pneu conferido</h3>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Busque por código de barras ou RFID para localizar o último chassi/piloto registrado na conferência.
+                  </p>
+                </div>
+                <div className="relative">
+                  <Search size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 collector-adapt-icon-small" />
+                  <input
+                    type="text"
+                    placeholder="Buscar código de barras ou RFID..."
+                    value={globalTireSearchTerm}
+                    onChange={(e) => setGlobalTireSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-3 py-2.5 rounded-lg border outline-none collector-adapt-input collector-adapt-search text-sm"
+                    style={{ borderColor: '#E5E7EB', background: '#FFFFFF' }}
+                  />
+                </div>
+                {globalTireSearchTerm.trim() && globalTireSearchResults.length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    {globalTireSearchResults.slice(0, 8).map((match, idx) => (
+                      <button
+                        key={`${match.chassisIndex}-${match.jogo}-${match.posicao}-${idx}`}
+                        type="button"
+                        onClick={() => openChassisModal(match.chassisIndex)}
+                        className="w-full rounded-lg border px-3 py-2 text-left hover:shadow-sm transition-all"
+                        style={{ borderColor: '#BFDBFE', background: '#EFF6FF' }}
+                      >
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <div className="font-semibold text-gray-900">
+                            Chassis {match.chassis} • {match.piloto}
+                          </div>
+                          <span className="text-xs font-semibold" style={{ color: '#1D4ED8' }}>
+                            {match.category}
+                          </span>
+                        </div>
+                        <div className="mt-1 text-xs text-gray-600">
+                          Código {match.codigo} • Jogo {match.jogo} • {match.posicao}
+                          {match.registeredAt
+                            ? ` • ${new Date(match.registeredAt).toLocaleDateString('pt-BR')} ${new Date(match.registeredAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
+                            : ''}
+                          {match.registeredBy ? ` • ${match.registeredBy}` : ''}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               {/* Grade de Categorias - Simplificada */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3 collector-adapt-chassis-grid">
 
@@ -7629,7 +7863,7 @@ export function ConferirPneus() {
                     if (savedSets && savedSets.length > 0) {
                       // Conta pneus conferidos nos sets salvos
                       const tiresChecked = countCheckedTires(savedSets);
-                      const requiredTires = getRequiredTiresCount(chassisItem);
+                      const requiredTires = getExpectedTiresCount(chassisItem, savedSets);
                       return tiresChecked >= requiredTires;
                     }
                     
@@ -7722,7 +7956,7 @@ export function ConferirPneus() {
                     <Search size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 collector-adapt-icon-small" />
                     <input
                       type="text"
-                      placeholder="Filtrar por chassis ou piloto..."
+                      placeholder="Filtrar por chassis, piloto, código de barras ou RFID..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                       className="w-full pl-10 pr-3 py-2.5 rounded-lg border outline-none collector-adapt-input collector-adapt-search text-sm"
@@ -7782,7 +8016,8 @@ export function ConferirPneus() {
                   const renderChassisCard = (item: any) => {
                     // 🔥 FIX CRÍTICO: Usa originalIndex que foi adicionado antes de filter/sort
                     const globalIndex = item.originalIndex;
-                    const totalTiresForItem = getRequiredTiresCount(item);
+                    const savedSetsForItem = savedTireSets[globalIndex];
+                    const totalTiresForItem = getExpectedTiresCount(item, savedSetsForItem);
 
                     // 🔥🔥🔥 VALIDAÇÃO CRÍTICA: Verifica se o globalIndex aponta para o chassis correto
                     const chassisNoIndice = extractedData[globalIndex];
@@ -7796,15 +8031,16 @@ export function ConferirPneus() {
                     }
 
                     // 🔥 CORREÇÃO: Usa savedTireSets para contagem em tempo real
-                    const hasSavedSets = !!savedTireSets[globalIndex];
-                    const tiresCheckedRealtime = savedTireSets[globalIndex]
-                      ? countCheckedTires(savedTireSets[globalIndex])
+                    const hasSavedSets = !!savedSetsForItem;
+                    const tiresCheckedRealtime = savedSetsForItem
+                      ? countCheckedTires(savedSetsForItem)
                       : item.tiresChecked;
                     const isCompleted = tiresCheckedRealtime >= totalTiresForItem;
                     const chassisLock = chassisLocks[globalIndex];
                     const isLockedByOther = chassisLock && chassisLock.userId && chassisLock.userName && chassisLock.userName.trim() !== '' && chassisLock.userId !== currentUserId;
-                    const jogoMontado = savedTireSets[globalIndex]?.find(set => set.montadoNoCarro);
+                    const jogoMontado = savedSetsForItem?.find(set => set.montadoNoCarro);
                     const jogoMontadoComplete = jogoMontado?.tires.every(tire => tire.codigo !== '-') || false;
+                    const tireSearchMatches = getTireMatchesForChassis(globalIndex, searchTerm);
                     
                     return (
                       <div
@@ -7854,6 +8090,14 @@ export function ConferirPneus() {
                                 style={{ background: '#DBEAFE', color: '#1E40AF', fontSize: '10px' }}
                               >
                                 🚗 Carro Lido
+                              </span>
+                            )}
+                            {tireSearchMatches.length > 0 && (
+                              <span
+                                className="px-1.5 py-0.5 rounded font-semibold collector-adapt-badge"
+                                style={{ background: '#E0F2FE', color: '#075985', fontSize: '10px' }}
+                              >
+                                Pneu {tireSearchMatches[0].codigo} • Jogo {tireSearchMatches[0].jogo}
                               </span>
                             )}
                             {recentlyUpdatedChassis[globalIndex] && (
@@ -8480,12 +8724,13 @@ onKeyDown={(e) => {
                                         ).length || 0;
                                         
                                         if (tiresInCurrentSet === 4) {
+                                          const maxJogo = tireSets.reduce((max, tireSet) => Math.max(max, tireSet.jogo || 0), 0);
                                           // Jogo completo! Avança para o próximo jogo
                                           toast.success(`Jogo ${set.jogo} completo!`, {
-                                            description: set.jogo < 4 ? `Avançando para Jogo ${set.jogo + 1}` : 'Todos os jogos completos!'
+                                            description: set.jogo < maxJogo ? `Avançando para Jogo ${set.jogo + 1}` : 'Todos os jogos completos!'
                                           });
                                           
-                                          if (set.jogo < 4) {
+                                          if (set.jogo < maxJogo) {
                                             setActiveJogo(set.jogo + 1);
                                             setActivePneuPosition(0);
                                           } else {
@@ -8697,6 +8942,16 @@ onKeyDown={(e) => {
                     </div>
                   </div>
                 ))}
+                {isEditMode && (
+                  <button
+                    type="button"
+                    onClick={handleAddTireSet}
+                    className="w-full rounded-lg border-2 border-dashed px-4 py-3 text-sm font-semibold transition-all hover:shadow-sm"
+                    style={{ borderColor: '#D50000', color: '#B00000', background: '#FFF1F2' }}
+                  >
+                    + Add jogo
+                  </button>
+                )}
               </div>
             </div>
 
@@ -8815,11 +9070,11 @@ onKeyDown={(e) => {
                 <div className="flex-1 bg-white/20 rounded-full h-2">
                   <div 
                     className="bg-white h-full rounded-full transition-all duration-500"
-                    style={{ width: `${Math.round((checkedTires / totalTires) * 100)}%` }}
+                    style={{ width: `${checkedTiresPercentage}%` }}
                   />
                 </div>
                 <span className="text-sm font-bold whitespace-nowrap">
-                  {Math.round((checkedTires / totalTires) * 100)}%
+                  {checkedTiresPercentage}%
                 </span>
               </div>
             </div>
@@ -9328,6 +9583,16 @@ onKeyDown={(e) => {
                   </div>
                 );
               })}
+              {isEditMode && (
+                <button
+                  type="button"
+                  onClick={handleAddTireSet}
+                  className="w-full rounded-lg border-2 border-dashed px-3 py-2 text-sm font-semibold"
+                  style={{ borderColor: '#D50000', color: '#B00000', background: '#FFF1F2' }}
+                >
+                  + Add jogo
+                </button>
+              )}
             </div>
           </div>
           </div>

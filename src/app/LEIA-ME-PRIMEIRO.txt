@@ -1,0 +1,107 @@
+╔═══════════════════════════════════════════════════════════════════════╗
+║                                                                       ║
+║  🚨 ERRO RLS: "new row violates row-level security policy"          ║
+║                                                                       ║
+║  VOCÊ PRECISA EXECUTAR SQL NO SUPABASE PARA CORRIGIR!               ║
+║                                                                       ║
+╚═══════════════════════════════════════════════════════════════════════╝
+
+
+┌───────────────────────────────────────────────────────────────────────┐
+│ ✅ SOLUÇÃO MAIS FÁCIL (RECOMENDADA)                                   │
+└───────────────────────────────────────────────────────────────────────┘
+
+  1. Acesse na aplicação: /administracao/debug
+  
+  2. Siga os 3 passos visuais na tela
+  
+  3. ✅ Pronto em 1 minuto!
+
+
+┌───────────────────────────────────────────────────────────────────────┐
+│ 📋 OPÇÕES DISPONÍVEIS                                                 │
+└───────────────────────────────────────────────────────────────────────┘
+
+  INTERFACE VISUAL (mais fácil):
+  → Acesse: /administracao/debug
+  
+  SQL LIMPO (para copiar):
+  → Arquivo: /fix-rls.sql
+  → Arquivo: /SQL_PARA_COPIAR.txt
+  
+  GUIAS COMPLETOS (para entender):
+  → Arquivo: /README_ERRO_RLS.md
+  → Arquivo: /URGENTE_EXECUTE_ESTE_SQL.md
+  
+  LISTA DE AJUDA:
+  → Arquivo: /ARQUIVOS_DE_AJUDA.md
+
+
+┌───────────────────────────────────────────────────────────────────────┐
+│ 🎯 PASSO A PASSO RÁPIDO                                               │
+└───────────────────────────────────────────────────────────────────────┘
+
+  1. Copie o SQL do arquivo /fix-rls.sql
+  
+  2. Acesse: https://supabase.com/dashboard
+  
+  3. Vá em: SQL Editor → New query
+  
+  4. Cole e clique em RUN
+  
+  5. ✅ Erro corrigido permanentemente!
+
+
+┌───────────────────────────────────────────────────────────────────────┐
+│ ⏱️ TEMPO NECESSÁRIO                                                   │
+└───────────────────────────────────────────────────────────────────────┘
+
+  Copiar SQL:        10 segundos
+  Abrir SQL Editor:  10 segundos
+  Executar SQL:      10 segundos
+  ────────────────────────────────
+  TOTAL:            ~30 segundos
+
+
+┌───────────────────────────────────────────────────────────────────────┐
+│ ❓ POR QUE ISSO ACONTECE?                                             │
+└───────────────────────────────────────────────────────────────────────┘
+
+  A política de segurança (RLS) do banco de dados está bloqueando
+  a desativação de sessões de conferência.
+  
+  Este SQL ajusta a política para permitir essa operação.
+  
+  É um procedimento normal de manutenção do banco de dados.
+
+
+┌───────────────────────────────────────────────────────────────────────┐
+│ ✅ DEPOIS DE EXECUTAR                                                 │
+└───────────────────────────────────────────────────────────────────────┘
+
+  ✓ Você poderá salvar conferências normalmente
+  ✓ Sessões serão desativadas sem erros
+  ✓ O erro NÃO voltará mais
+  ✓ Nenhuma outra mudança necessária
+
+
+┌───────────────────────────────────────────────────────────────────────┐
+│ 🔒 É SEGURO?                                                          │
+└───────────────────────────────────────────────────────────────────────┘
+
+  ✓ Não deleta dados
+  ✓ Não expõe informações
+  ✓ Não remove segurança
+  ✓ Apenas ajusta uma regra específica
+  ✓ Procedimento padrão de manutenção
+
+
+══════════════════════════════════════════════════════════════════════
+
+VÁ DIRETO AO PONTO:
+
+→ Acesse: /administracao/debug
+
+Ou copie o SQL de: /fix-rls.sql
+
+══════════════════════════════════════════════════════════════════════

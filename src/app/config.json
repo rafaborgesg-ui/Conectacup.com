@@ -1,0 +1,10 @@
+{
+  "edge_functions": {
+    "enabled": false,
+    "auto_deploy": false,
+    "functions": []
+  },
+  "project_id": "1gXPOBwAysRvWk6EAkqkpQ",
+  "skip_edge_functions_deploy": true,
+  "_comment": "Edge Functions desabilitadas - causam erro 403. App funciona sem elas."
+}

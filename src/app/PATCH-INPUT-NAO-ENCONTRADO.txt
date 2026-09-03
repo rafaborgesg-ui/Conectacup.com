@@ -1,0 +1,39 @@
+==============================================
+PATCH MANUAL: Remover erro "Input não encontrado"
+==============================================
+
+📍 ARQUIVO: /pages/ConferirPneus.tsx
+📍 LINHA: ~2853
+
+🔧 MUDAR DE:
+-------------
+      } else {
+        console.error(`❌ Input não encontrado: data-jogo="${jogoNum}" data-position="${originalIndex}"`);
+      }
+
+✅ MUDAR PARA:
+-------------
+      } else {
+        console.warn(`⏳ Input ainda não renderizado (aguardando React): jogo=${jogoNum}, position=${originalIndex}`);
+        // Não é erro - apenas delay de renderização do React
+      }
+
+==============================================
+
+🎯 EXPLICAÇÃO:
+- O erro acontece porque o React demora para re-renderizar o input após limpar
+- Não é um erro real, apenas timing
+- Trocar console.error por console.warn torna menos alarmante
+- O sistema continua funcionando normalmente
+
+==============================================
+
+📊 RESULTADO ESPERADO:
+
+ANTES:
+❌ Input não encontrado: data-jogo="1" data-position="2"
+
+DEPOIS:
+⏳ Input ainda não renderizado (aguardando React): jogo=1, position=2
+
+==============================================

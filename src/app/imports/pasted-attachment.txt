@@ -1,0 +1,62 @@
+O problema descrito anteriormente continua acontecendo, mesmo após várias tentativas de ajuste. A interface ainda apresenta piscadas, re-renderizações e comportamento instável quando códigos de barras são escaneados em sequência.
+
+Isso indica que o problema não está em pequenos ajustes, mas sim na forma como a lógica foi estruturada.
+
+Portanto, não tente corrigir apenas partes do código atual.
+É necessário refatorar completamente a lógica de processamento e atualização da interface, utilizando uma abordagem mais robusta e com padrão enterprise.
+
+Problema atual
+
+Quando um código é escaneado:
+
+a tela pisca
+
+o código aparece
+
+depois desaparece
+
+alguns segundos depois reaparece
+
+surge o pop-up de confirmação
+
+Esse comportamento cria uma experiência extremamente ruim, especialmente quando vários códigos são escaneados rapidamente. A interface fica instável, a sequência de eventos se mistura e há risco de registros incorretos.
+
+Esse comportamento precisa ser eliminado completamente.
+
+Objetivo da refatoração
+
+Reestruturar toda a lógica de leitura e registro de códigos para um padrão robusto, estável e escalável, adequado para uso operacional com leituras rápidas e consecutivas de códigos de barras.
+
+Requisitos obrigatórios
+
+eliminar completamente a piscada da tela
+
+eliminar o comportamento onde o código desaparece e reaparece
+
+evitar re-renderização completa da tabela ou da página
+
+garantir que todos os códigos sejam registrados corretamente
+
+manter o foco no campo de leitura automaticamente
+
+permitir escaneamento contínuo sem bloqueios
+
+manter todas as funcionalidades atuais
+
+garantir integridade do registro no banco de dados
+
+Diretrizes para a nova implementação
+
+A lógica deve seguir um padrão mais enterprise, incluindo:
+
+controle claro de estado da interface
+
+processamento organizado de eventos de leitura
+
+atualização incremental da interface, sem recarregar toda a tabela
+
+prevenção de conflitos entre múltiplos eventos de leitura
+
+estrutura de código mais limpa, previsível e escalável
+
+O comportamento esperado é que o operador consiga escanear vários códigos de barras em sequência, de forma rápida e contínua, sem qualquer piscada, atraso ou instabilidade visual na interface.

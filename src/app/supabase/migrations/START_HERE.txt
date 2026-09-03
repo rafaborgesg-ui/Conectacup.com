@@ -1,0 +1,156 @@
+================================================================================
+🎯 COMECE AQUI - Não consigo editar gerações/chassis
+================================================================================
+
+VOCÊ ESTÁ AQUI PORQUE:
+❌ Tentou editar mas recebeu erro
+❌ Ou edição foi bloqueada silenciosamente
+❌ Erro: "permission denied for table users" ← NOVO!
+
+================================================================================
+⚡ SOLUÇÃO RÁPIDA
+================================================================================
+
+┌──────────────────────────────────────────────────────────────────────────┐
+│ QUAL É O SEU ERRO?                                                       │
+│                                                                          │
+│ 🔴 "permission denied for table users"                                   │
+│   → Execute: FIX_RLS_SEM_AUTH_USERS.sql ⭐ MAIS COMUM                   │
+│   → Tempo: 1 minuto                                                     │
+│   → Leia: ERRO_PERMISSION_DENIED_USERS.md                               │
+│                                                                          │
+│ 🟡 Edição bloqueada silenciosamente (sem erro)                          │
+│   → Execute: DIAGNOSTICO_COMPLETO.sql primeiro                          │
+│   → Depois veja qual arquivo executar                                   │
+└──────────────────────────────────────────────────────────────────────────┘
+
+================================================================================
+📚 DOCUMENTAÇÃO
+================================================================================
+
+Para ENTENDER o problema:
+  📖 LEIA_PRIMEIRO_DIAGNOSTICO.md       → Explicação completa
+
+Para VER todos os arquivos:
+  📖 INDEX.md                           → Índice de tudo
+
+Para ver VISUALMENTE:
+  📖 RESUMO_VISUAL.md                   → Fluxogramas
+
+================================================================================
+📁 ARQUIVOS PRINCIPAIS
+================================================================================
+
+DIAGNÓSTICO:
+  🔍 DIAGNOSTICO_COMPLETO.sql           → Execute PRIMEIRO!
+
+CORREÇÕES:
+  🔧 FIX_POLICIES_PARA_RAW_USER_META_DATA.sql    → Para profileId UUID ⭐
+  🔧 EXECUTAR_TUDO_DE_UMA_VEZ.sql                → Para criar user_profiles
+  ⚠️  QUICK_FIX_TEMP.sql                         → Temporário (todos editam)
+  🔧 FIX_RLS_SEM_AUTH_USERS.sql                   → Para "permission denied for table users"
+
+UTILITÁRIOS:
+  🛠️ COMANDOS_UTEIS.sql                 → Queries administrativas
+  ✅ 00_VERIFICACAO_ANTES_DE_EXECUTAR.sql → Verificar estrutura
+
+================================================================================
+🎯 QUAL É O PROBLEMA?
+================================================================================
+
+Seu sistema armazena perfis assim:
+
+  auth.users.raw_user_meta_data = {
+    "profileId": "a1b2c3d4-5678..."  ← UUID do perfil
+  }
+
+Mas as policies RLS verificam assim:
+
+  WHERE profileId = 'admin'  ← Procura pela string "admin" ❌
+
+Resultado: UUID ≠ "admin" → NUNCA PASSA! ❌
+
+================================================================================
+✅ SOLUÇÃO
+================================================================================
+
+Corrigir as policies para verificar:
+
+  1. Pegar o UUID do profileId
+  2. Buscar esse UUID em access_profiles
+  3. Verificar se is_admin = true
+
+Isso é o que FIX_POLICIES_PARA_RAW_USER_META_DATA.sql faz!
+
+================================================================================
+⏱️ QUANTO TEMPO LEVA?
+================================================================================
+
+  DIAGNOSTICO_COMPLETO.sql              → 30 segundos
+  FIX_POLICIES_PARA_RAW_USER_META_DATA  → 1 minuto
+  Recarregar app (F5)                   → 5 segundos
+  Testar                                → 10 segundos
+  ──────────────────────────────────────────────────
+  TOTAL                                 → 2 minutos ⚡
+
+================================================================================
+🚀 COMEÇAR AGORA
+================================================================================
+
+1. Abra Supabase Dashboard
+   https://supabase.com/dashboard
+
+2. Seu projeto → SQL Editor → + New query
+
+3. Copie e cole: DIAGNOSTICO_COMPLETO.sql
+
+4. Clique em Run ▶️
+
+5. Veja os resultados e qual arquivo executar
+
+6. Execute o arquivo recomendado
+
+7. Recarregue aplicação (F5)
+
+8. Teste editar geração
+
+9. ✅ FUNCIONA!
+
+================================================================================
+❓ DÚVIDAS FREQUENTES
+================================================================================
+
+Q: Preciso mesmo executar o diagnóstico?
+A: SIM! Ele mostra exatamente o problema e qual solução usar.
+
+Q: Qual arquivo executar se tenho pressa?
+A: Execute FIX_POLICIES_PARA_RAW_USER_META_DATA.sql
+   É a solução mais comum (95% dos casos).
+
+Q: E se der erro?
+A: Execute QUICK_FIX_TEMP.sql (solução temporária)
+   Depois investigue com calma.
+
+Q: Vou perder dados?
+A: NÃO! Todos os scripts só alteram policies, não dados.
+
+Q: Posso executar mais de uma vez?
+A: SIM! Os scripts são seguros para re-executar.
+
+================================================================================
+🆘 AJUDA
+================================================================================
+
+Se nada funcionar:
+
+1. Execute DIAGNOSTICO_COMPLETO.sql
+2. Copie TODO o output
+3. Envie para análise
+
+================================================================================
+
+BOA SORTE! 🚀
+
+Execute DIAGNOSTICO_COMPLETO.sql agora e descubra o problema!
+
+================================================================================

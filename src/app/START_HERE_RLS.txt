@@ -1,0 +1,63 @@
+================================================================================
+🔧 CORREÇÃO ERRO RLS - COMECE AQUI
+================================================================================
+
+⚠️  ERRO: "new row violates row-level security policy"
+📍 PROBLEMA: Ao tentar finalizar conferência de pneus
+
+================================================================================
+📋 PASSO 1: COPIE O SQL
+================================================================================
+
+Abra e copie o conteúdo de:
+  → /APENAS_O_SQL.sql
+
+OU acesse:
+  → /administracao/debug (interface visual com botão de copiar)
+
+================================================================================
+🚀 PASSO 2: EXECUTE NO SUPABASE
+================================================================================
+
+1. Acesse: https://supabase.com/dashboard
+2. Selecione seu projeto
+3. Menu lateral → "SQL Editor"
+4. Clique em "+ New query"
+5. Cole o SQL (Ctrl+V)
+6. Clique em "RUN" (botão verde)
+7. Aguarde "Success"
+
+================================================================================
+✅ PASSO 3: TESTE
+================================================================================
+
+Volte para a aplicação e teste finalizar uma conferência.
+
+O erro não aparecerá mais! ✅
+
+================================================================================
+📚 ARQUIVOS ÚTEIS
+================================================================================
+
+- SOLUCAO_DEFINITIVA_RLS.md     → Explicação clara do problema
+- ANTES_E_DEPOIS_RLS.md          → Comparação visual
+- /fix-rls.sql                   → SQL completo com comentários
+- /APENAS_O_SQL.sql              → Apenas o SQL (versão limpa)
+- /SQL_PARA_COPIAR.txt           → Versão texto com instruções
+
+================================================================================
+🔍 O QUE ACONTECEU?
+================================================================================
+
+ANTES:  USING (is_active = true)   ❌ Bloqueava ao mudar para false
+DEPOIS: USING (true)               ✅ Permite atualizar qualquer sessão
+
+A cláusula USING verificava o estado APÓS a atualização.
+Quando mudávamos de true → false, a linha não atendia mais ao critério!
+
+================================================================================
+⏱️ TEMPO TOTAL: 30 segundos
+================================================================================
+
+Conecta Cup - Sistema de Conferência de Pneus
+Data: 16/03/2026

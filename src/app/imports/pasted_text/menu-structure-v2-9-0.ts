@@ -1,0 +1,704 @@
+[vite] connecting...
+[vite] connected.
+[vite] hot updated: /index.css
+🔥 menuStructure.ts CARREGADO - Versão com Notificações (v2.9.0 - 10/02/2026)
+💡 Para atualizar o perfil admin, execute: window.updateAdminProfile()
+🧹 Limpeza inicial: contador resetado
+
+============================================================
+🔍 [1x] useEffect EXECUTADO
+🔍 authChangeCount.current: 0
+🔍 loopDetected.current: false
+🔍 authInitialized: true
+============================================================
+📍 URL Check:
+  Full URL: https://4b24a3ac-e0e5-450c-95e1-d8bb28916edf-v2-figmaiframepreview.figma.site/pneus/conferencia/historico
+  Hash: (vazio)
+  Search: (vazio)
+  É OAuth callback? false
+ℹ️ NÃO é OAuth callback - verificando sessão normal...
+⚠️ Service Worker DESABILITADO temporariamente (debug OAuth)
+Install prompt desabilitado em ambiente de preview
+ℹ️ SIGNED_IN ignorado - usuário já autenticado e não está em página de auth
+🔑 "gestao-carga" (Gestão de Carga): pageKey="GESTAO_CARGA", pageValue="gestao_carga", hasAccess=false
+🔑 "manutencao-predial" (Manutenção predial): pageKey="MANUTENCAO_PREDIAL", pageValue="manutencao_predial", hasAccess=false
+🔑 "frete-smartphone" (Smartphone): pageKey="FRETE_SMARTPHONE", pageValue="frete_smartphone", hasAccess=false
+🔑 "frete-web" (Web): pageKey="FRETE_WEB", pageValue="frete_web", hasAccess=false
+🔍 Filtrando "frete-nacional": 2 subitens → 0 após filtro
+🔑 "frete-internacional" (Internacional): pageKey="FRETE_INTERNACIONAL", pageValue="frete_internacional", hasAccess=false
+🔍 Filtrando "solicitacao-frete": 2 subitens → 0 após filtro
+🔑 "tire-stock" (Entrada de Estoque): pageKey="STOCK_ENTRY", pageValue="stock_entry", hasAccess=false
+🔑 "tire-movement" (Movimentação de Pneus): pageKey="TIRE_MOVEMENT", pageValue="tire_movement", hasAccess=false
+🔑 "arcs-data-update" (Atualizar Base ARCS): pageKey="ARCS_UPDATE", pageValue="arcs_update", hasAccess=false
+🔑 "conferir-pneus" (Conferir Pneus): pageKey="CONFERIR_PNEUS", pageValue="conferir_pneus", hasAccess=false
+🔑 "historico-conferencia" (Histórico): pageKey="HISTORICO_CONFERENCIA", pageValue="historico_conferencia", hasAccess=false
+🔑 "divergencias-conferencia" (Divergências): pageKey="DIVERGENCIAS_CONFERENCIA", pageValue="divergencias_conferencia", hasAccess=false
+🔑 "conferencia-serial" (Conferência de Serial): pageKey="CONFERENCIA_SERIAL", pageValue="conferencia_serial", hasAccess=false
+🔍 Filtrando "conferencia-baias": 4 subitens → 0 após filtro
+🔑 "tire-discard-entry" (Registro de Descarte DSI): pageKey="TIRE_DISCARD", pageValue="tire_discard", hasAccess=false
+🔑 "reports" (Relatórios & Histórico): pageKey="REPORTS", pageValue="reports", hasAccess=false
+🔑 "configurar-temporada" (Configurar Temporada): pageKey="SEASON_CONFIGURATION", pageValue="season_configuration", hasAccess=false
+🔑 "rodas-dashboard" (Dashboard): pageKey="RODAS_DASHBOARD", pageValue="rodas_dashboard", hasAccess=false
+🔑 "rodas-pendencias" (Pendências): pageKey="RODAS_PENDENCIAS", pageValue="rodas_pendencias", hasAccess=false
+🔑 "rodas-avarias" (Avarias): pageKey="RODAS_AVARIAS", pageValue="rodas_avarias", hasAccess=false
+🔍 Filtrando "rodas": 3 subitens → 0 após filtro
+🔍 Filtrando "pneus": 8 subitens → 0 após filtro
+🔑 "tire-models" (Cadastro de Modelos): pageKey="TIRE_MODEL", pageValue="tire_model", hasAccess=false
+🔑 "tire-status" (Cadastro de Status): pageKey="STATUS_REGISTRATION", pageValue="status_registration", hasAccess=false
+🔑 "containers" (Cadastro de Contêineres): pageKey="CONTAINER", pageValue="container", hasAccess=false
+🔑 "master-data" (Master Data): pageKey="MASTER_DATA", pageValue="master_data", hasAccess=false
+🔍 Filtrando "cadastro": 4 subitens → 0 após filtro
+🔑 "users" (Gerenciar Usuários): pageKey="USER_MANAGEMENT", pageValue="user_management", hasAccess=false
+🔑 "access-profiles" (Perfis de Acesso): pageKey="ACCESS_PROFILES", pageValue="access_profiles", hasAccess=false
+🔑 "stock-adjustment" (Ajuste de Estoque): pageKey="STOCK_ADJUSTMENT", pageValue="stock_adjustment", hasAccess=false
+🔑 "configuracoes-notificacoes" (Notificações de Avarias): pageKey="CONFIGURACOES_NOTIFICACOES", pageValue="configuracoes_notificacoes", hasAccess=false
+🔑 "cadastros-caio" (Cadastros): pageKey="CADASTROS_CAIO", pageValue="cadastros_caio", hasAccess=false
+🔍 Filtrando "caio": 1 subitens → 0 após filtro
+🔑 "dashboard" (Dashboard): pageKey="DASHBOARD", pageValue="dashboard", hasAccess=false
+🔑 "tire-consumption" (Transferir para Piloto): pageKey="TIRE_CONSUMPTION", pageValue="tire_consumption", hasAccess=false
+🔑 "tire-status-change" (Mudar Status): pageKey="TIRE_STATUS_CHANGE", pageValue="tire_status_change", hasAccess=false
+🔑 "data-import" (Importação de Dados): pageKey="DATA_IMPORT", pageValue="data_import", hasAccess=false
+🔑 "tire-discard-reports" (Relatórios & Histórico de Descarte): pageKey="DISCARD_REPORTS", pageValue="discard_reports", hasAccess=false
+🔑 "almoxarifado-gases-cadastro" (Cadastro): pageKey="GASES_CADASTRO", pageValue="gases_cadastro", hasAccess=false
+🔑 "almoxarifado-gases-programacao" (Programação): pageKey="GASES_PROGRAMACAO", pageValue="gases_programacao", hasAccess=false
+🔍 Filtrando "almoxarifado-gases": 2 subitens → 0 após filtro
+🔑 "almoxarifado-combustivel" (Combustível): pageKey="COMBUSTIVEL", pageValue="combustivel", hasAccess=false
+🔑 "almoxarifado-solicitacao-compras" (Solicitação de Compras): pageKey="SOLICITACAO_COMPRAS", pageValue="solicitacao_compras", hasAccess=false
+🔑 "almoxarifado-solicitacao-uniforme" (Solicitação de Uniforme): pageKey="SOLICITACAO_UNIFORME", pageValue="solicitacao_uniforme", hasAccess=false
+🔍 Filtrando "almoxarifado": 4 subitens → 0 após filtro
+🔍 Filtrando "rafael": 6 subitens → 0 após filtro
+🔑 "shakedown" (Shakedown): pageKey="SHAKEDOWN", pageValue="shakedown", hasAccess=false
+🔑 "demanda" (Demanda): pageKey="DEMANDA", pageValue="demanda", hasAccess=false
+🔑 "pedidos-pneus" (Pedidos de Pneus): pageKey="PEDIDOS_PNEUS", pageValue="pedidos_pneus", hasAccess=false
+🔍 Filtrando "jamyli": 3 subitens → 0 após filtro
+🔍 Filtrando "em-desenvolvimento": 3 subitens → 0 após filtro
+🔍 Filtrando "administracao": 5 subitens → 0 após filtro
+🔐 usePermissions - Carregando perfil do Supabase...
+✅ Perfil encontrado (cache): Administrador (admin)
+⚡ Fast path - Usando perfil do cache: Administrador
+🔄 Background - Verificando atualizações no Supabase...
+🔍 Buscando perfil: admin
+🔐 Carregando perfis do Supabase via singleton client...
+🔥 DEBUG Sidebar - Em Desenvolvimento: {
+  "id": "em-desenvolvimento",
+  "label": "Em Desenvolvimento",
+  "icon": {},
+  "description": "Funcionalidades em desenvolvimento",
+  "subItems": [
+    {
+      "id": "caio",
+      "label": "Caio",
+      "icon": {},
+      "description": "Área de desenvolvimento Caio",
+      "subItems": [
+        {
+          "id": "cadastros-caio",
+          "label": "Cadastros",
+          "icon": {},
+          "description": "Página de cadastros do Caio"
+        }
+      ]
+    },
+    {
+      "id": "rafael",
+      "label": "Rafael",
+      "icon": {},
+      "description": "Área de desenvolvimento Rafael",
+      "subItems": [
+        {
+          "id": "dashboard",
+          "label": "Dashboard",
+          "icon": {},
+          "description": "Dashboard com métricas e gráficos"
+        },
+        {
+          "id": "tire-consumption",
+          "label": "Transferir para Piloto",
+          "icon": {},
+          "description": "Transferência de pneus para pilotos"
+        },
+        {
+          "id": "tire-status-change",
+          "label": "Mudar Status",
+          "icon": {},
+          "description": "Alteração de status de pneus"
+        },
+        {
+          "id": "data-import",
+          "label": "Importação de Dados",
+          "icon": {},
+          "description": "Importação de dados via planilha"
+        },
+        {
+          "id": "tire-discard-reports",
+          "label": "Relatórios & Histórico de Descarte",
+          "icon": {},
+          "description": "Relatórios de descarte de pneus"
+        },
+        {
+          "id": "almoxarifado",
+          "label": "Almoxarifado",
+          "icon": {},
+          "description": "Área de almoxarifado",
+          "subItems": [
+            {
+              "id": "almoxarifado-gases",
+              "label": "Gases",
+              "icon": {},
+              "description": "Controle de gases",
+              "subItems": [
+                {
+                  "id": "almoxarifado-gases-cadastro",
+                  "label": "Cadastro",
+                  "icon": {},
+                  "description": "Cadastro de gases"
+                },
+                {
+                  "id": "almoxarifado-gases-programacao",
+                  "label": "Programação",
+                  "icon": {},
+                  "description": "Programação de gases"
+                }
+              ]
+            },
+            {
+              "id": "almoxarifado-combustivel",
+              "label": "Combustível",
+              "icon": {},
+              "description": "Controle de combustível"
+            },
+            {
+              "id": "almoxarifado-solicitacao-compras",
+              "label": "Solicitação de Compras",
+              "icon": {},
+              "description": "Solicitação de compras"
+            },
+            {
+              "id": "almoxarifado-solicitacao-uniforme",
+              "label": "Solicitação de Uniforme",
+              "icon": {},
+              "description": "Solicitação de uniforme"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "jamyli",
+      "label": "Jamyli",
+      "icon": {},
+      "description": "Área de desenvolvimento Jamyli",
+      "subItems": [
+        {
+          "id": "shakedown",
+          "label": "Shakedown",
+          "icon": {},
+          "description": "Sistema de Shakedown"
+        },
+        {
+          "id": "demanda",
+          "label": "Demanda",
+          "icon": {},
+          "description": "Sistema de gestão de demandas"
+        },
+        {
+          "id": "pedidos-pneus",
+          "label": "Pedidos de Pneus",
+          "icon": {},
+          "description": "Sistema de pedidos de pneus"
+        }
+      ]
+    }
+  ]
+}
+🔥 DEBUG Sidebar - Subitens: [
+  "caio",
+  "rafael",
+  "jamyli"
+]
+2
+✅ usePermissions - Usando perfil global em cache
+🔑 "gestao-carga" (Gestão de Carga): pageKey="GESTAO_CARGA", pageValue="gestao_carga", hasAccess=true
+🔑 "manutencao-predial" (Manutenção predial): pageKey="MANUTENCAO_PREDIAL", pageValue="manutencao_predial", hasAccess=true
+🔑 "frete-smartphone" (Smartphone): pageKey="FRETE_SMARTPHONE", pageValue="frete_smartphone", hasAccess=true
+🔑 "frete-web" (Web): pageKey="FRETE_WEB", pageValue="frete_web", hasAccess=true
+🔍 Filtrando "frete-nacional": 2 subitens → 2 após filtro
+🔑 "frete-internacional" (Internacional): pageKey="FRETE_INTERNACIONAL", pageValue="frete_internacional", hasAccess=true
+🔍 Filtrando "solicitacao-frete": 2 subitens → 2 após filtro
+🔑 "tire-stock" (Entrada de Estoque): pageKey="STOCK_ENTRY", pageValue="stock_entry", hasAccess=true
+🔑 "tire-movement" (Movimentação de Pneus): pageKey="TIRE_MOVEMENT", pageValue="tire_movement", hasAccess=true
+🔑 "arcs-data-update" (Atualizar Base ARCS): pageKey="ARCS_UPDATE", pageValue="arcs_update", hasAccess=true
+🔑 "conferir-pneus" (Conferir Pneus): pageKey="CONFERIR_PNEUS", pageValue="conferir_pneus", hasAccess=true
+🔑 "historico-conferencia" (Histórico): pageKey="HISTORICO_CONFERENCIA", pageValue="historico_conferencia", hasAccess=true
+🔑 "divergencias-conferencia" (Divergências): pageKey="DIVERGENCIAS_CONFERENCIA", pageValue="divergencias_conferencia", hasAccess=true
+🔑 "conferencia-serial" (Conferência de Serial): pageKey="CONFERENCIA_SERIAL", pageValue="conferencia_serial", hasAccess=true
+🔍 Filtrando "conferencia-baias": 4 subitens → 4 após filtro
+🔑 "tire-discard-entry" (Registro de Descarte DSI): pageKey="TIRE_DISCARD", pageValue="tire_discard", hasAccess=true
+🔑 "reports" (Relatórios & Histórico): pageKey="REPORTS", pageValue="reports", hasAccess=true
+🔑 "configurar-temporada" (Configurar Temporada): pageKey="SEASON_CONFIGURATION", pageValue="season_configuration", hasAccess=true
+🔑 "rodas-dashboard" (Dashboard): pageKey="RODAS_DASHBOARD", pageValue="rodas_dashboard", hasAccess=true
+🔑 "rodas-pendencias" (Pendências): pageKey="RODAS_PENDENCIAS", pageValue="rodas_pendencias", hasAccess=true
+🔑 "rodas-avarias" (Avarias): pageKey="RODAS_AVARIAS", pageValue="rodas_avarias", hasAccess=true
+🔍 Filtrando "rodas": 3 subitens → 3 após filtro
+🔍 Filtrando "pneus": 8 subitens → 8 após filtro
+🔑 "tire-models" (Cadastro de Modelos): pageKey="TIRE_MODEL", pageValue="tire_model", hasAccess=true
+🔑 "tire-status" (Cadastro de Status): pageKey="STATUS_REGISTRATION", pageValue="status_registration", hasAccess=true
+🔑 "containers" (Cadastro de Contêineres): pageKey="CONTAINER", pageValue="container", hasAccess=true
+🔑 "master-data" (Master Data): pageKey="MASTER_DATA", pageValue="master_data", hasAccess=true
+🔍 Filtrando "cadastro": 4 subitens → 4 após filtro
+🔑 "users" (Gerenciar Usuários): pageKey="USER_MANAGEMENT", pageValue="user_management", hasAccess=true
+🔑 "access-profiles" (Perfis de Acesso): pageKey="ACCESS_PROFILES", pageValue="access_profiles", hasAccess=true
+🔑 "stock-adjustment" (Ajuste de Estoque): pageKey="STOCK_ADJUSTMENT", pageValue="stock_adjustment", hasAccess=true
+🔑 "configuracoes-notificacoes" (Notificações de Avarias): pageKey="CONFIGURACOES_NOTIFICACOES", pageValue="configuracoes_notificacoes", hasAccess=true
+🔑 "cadastros-caio" (Cadastros): pageKey="CADASTROS_CAIO", pageValue="cadastros_caio", hasAccess=true
+🔍 Filtrando "caio": 1 subitens → 1 após filtro
+🔑 "dashboard" (Dashboard): pageKey="DASHBOARD", pageValue="dashboard", hasAccess=true
+🔑 "tire-consumption" (Transferir para Piloto): pageKey="TIRE_CONSUMPTION", pageValue="tire_consumption", hasAccess=true
+🔑 "tire-status-change" (Mudar Status): pageKey="TIRE_STATUS_CHANGE", pageValue="tire_status_change", hasAccess=true
+🔑 "data-import" (Importação de Dados): pageKey="DATA_IMPORT", pageValue="data_import", hasAccess=true
+🔑 "tire-discard-reports" (Relatórios & Histórico de Descarte): pageKey="DISCARD_REPORTS", pageValue="discard_reports", hasAccess=true
+🔑 "almoxarifado-gases-cadastro" (Cadastro): pageKey="GASES_CADASTRO", pageValue="gases_cadastro", hasAccess=true
+🔑 "almoxarifado-gases-programacao" (Programação): pageKey="GASES_PROGRAMACAO", pageValue="gases_programacao", hasAccess=true
+🔍 Filtrando "almoxarifado-gases": 2 subitens → 2 após filtro
+🔑 "almoxarifado-combustivel" (Combustível): pageKey="COMBUSTIVEL", pageValue="combustivel", hasAccess=true
+🔑 "almoxarifado-solicitacao-compras" (Solicitação de Compras): pageKey="SOLICITACAO_COMPRAS", pageValue="solicitacao_compras", hasAccess=true
+🔑 "almoxarifado-solicitacao-uniforme" (Solicitação de Uniforme): pageKey="SOLICITACAO_UNIFORME", pageValue="solicitacao_uniforme", hasAccess=true
+🔍 Filtrando "almoxarifado": 4 subitens → 4 após filtro
+🔍 Filtrando "rafael": 6 subitens → 6 após filtro
+🔑 "shakedown" (Shakedown): pageKey="SHAKEDOWN", pageValue="shakedown", hasAccess=true
+🔑 "demanda" (Demanda): pageKey="DEMANDA", pageValue="demanda", hasAccess=true
+🔑 "pedidos-pneus" (Pedidos de Pneus): pageKey="PEDIDOS_PNEUS", pageValue="pedidos_pneus", hasAccess=true
+🔍 Filtrando "jamyli": 3 subitens → 3 após filtro
+🔍 Filtrando "em-desenvolvimento": 3 subitens → 3 após filtro
+🔍 Filtrando "administracao": 5 subitens → 5 após filtro
+ℹ️ Evento INITIAL_SESSION ignorado (automático do Supabase)
+✅ Usuário autenticado: rafaborgesg@gmail.com
+🔐 Sidebar - Perfil carregado: Administrador
+📋 Páginas permitidas: [
+  "dashboard",
+  "stock_entry",
+  "tire_model",
+  "container",
+  "reports",
+  "discard_reports",
+  "user_management",
+  "access_profiles",
+  "master_data",
+  "status_registration",
+  "stock_adjustment",
+  "tire_movement",
+  "tire_status_change",
+  "tire_discard",
+  "tire_consumption",
+  "data_import",
+  "arcs_update",
+  "em_desenvolvimento",
+  "rafael",
+  "caio",
+  "cadastros_caio",
+  "season_configuration",
+  "conferencia_baias",
+  "conferir_pneus",
+  "historico_conferencia",
+  "divergencias_conferencia",
+  "conferencia_serial",
+  "shakedown",
+  "demanda",
+  "pedidos_pneus",
+  "rodas",
+  "rodas_dashboard",
+  "rodas_pendencias",
+  "rodas_avarias",
+  "configuracoes_notificacoes",
+  "jamyli",
+  "solicitacao_frete",
+  "pneus",
+  "cadastro",
+  "administracao",
+  "gestao_carga",
+  "manutencao_predial",
+  "frete_smartphone",
+  "frete_web",
+  "frete_internacional",
+  "frete_nacional",
+  "almoxarifado",
+  "gases",
+  "gases_cadastro",
+  "gases_programacao",
+  "combustivel",
+  "solicitacao_compras",
+  "solicitacao_uniforme"
+]
+ℹ️ SIGNED_IN ignorado - usuário já autenticado e não está em página de auth
+✅ 7 perfis carregados do Supabase
+✅ Perfil encontrado: Administrador (admin)
+📋 Páginas permitidas: [
+  "dashboard",
+  "stock_entry",
+  "tire_model",
+  "container",
+  "reports",
+  "discard_reports",
+  "user_management",
+  "access_profiles",
+  "master_data",
+  "status_registration",
+  "stock_adjustment",
+  "tire_movement",
+  "tire_status_change",
+  "tire_discard",
+  "tire_consumption",
+  "data_import",
+  "arcs_update",
+  "em_desenvolvimento",
+  "rafael",
+  "caio",
+  "cadastros_caio",
+  "season_configuration",
+  "conferencia_baias",
+  "conferir_pneus",
+  "historico_conferencia",
+  "divergencias_conferencia",
+  "conferencia_serial",
+  "shakedown",
+  "demanda",
+  "pedidos_pneus",
+  "rodas",
+  "rodas_dashboard",
+  "rodas_pendencias",
+  "rodas_avarias",
+  "configuracoes_notificacoes",
+  "jamyli",
+  "solicitacao_frete",
+  "pneus",
+  "cadastro",
+  "administracao",
+  "gestao_carga",
+  "manutencao_predial",
+  "frete_smartphone",
+  "frete_web",
+  "frete_internacional",
+  "frete_nacional",
+  "almoxarifado",
+  "gases",
+  "gases_cadastro",
+  "gases_programacao",
+  "combustivel",
+  "solicitacao_compras",
+  "solicitacao_uniforme"
+]
+⚙️ Funcionalidades permitidas: [
+  "stock_create",
+  "stock_edit",
+  "stock_delete",
+  "stock_export",
+  "model_create",
+  "model_edit",
+  "model_delete",
+  "container_create",
+  "container_edit",
+  "container_delete",
+  "reports_view",
+  "reports_export",
+  "user_create",
+  "user_edit",
+  "user_delete",
+  "user_view",
+  "master_data_edit",
+  "status_create",
+  "status_edit",
+  "status_delete",
+  "movement_create",
+  "movement_approve",
+  "discard_create",
+  "discard_view",
+  "import_data",
+  "arcs_update",
+  "arcs_view"
+]
+✅ Perfil do Supabase carregado: Administrador
+🔑 "gestao-carga" (Gestão de Carga): pageKey="GESTAO_CARGA", pageValue="gestao_carga", hasAccess=true
+🔑 "manutencao-predial" (Manutenção predial): pageKey="MANUTENCAO_PREDIAL", pageValue="manutencao_predial", hasAccess=true
+🔑 "frete-smartphone" (Smartphone): pageKey="FRETE_SMARTPHONE", pageValue="frete_smartphone", hasAccess=true
+🔑 "frete-web" (Web): pageKey="FRETE_WEB", pageValue="frete_web", hasAccess=true
+🔍 Filtrando "frete-nacional": 2 subitens → 2 após filtro
+🔑 "frete-internacional" (Internacional): pageKey="FRETE_INTERNACIONAL", pageValue="frete_internacional", hasAccess=true
+🔍 Filtrando "solicitacao-frete": 2 subitens → 2 após filtro
+🔑 "tire-stock" (Entrada de Estoque): pageKey="STOCK_ENTRY", pageValue="stock_entry", hasAccess=true
+🔑 "tire-movement" (Movimentação de Pneus): pageKey="TIRE_MOVEMENT", pageValue="tire_movement", hasAccess=true
+🔑 "arcs-data-update" (Atualizar Base ARCS): pageKey="ARCS_UPDATE", pageValue="arcs_update", hasAccess=true
+🔑 "conferir-pneus" (Conferir Pneus): pageKey="CONFERIR_PNEUS", pageValue="conferir_pneus", hasAccess=true
+🔑 "historico-conferencia" (Histórico): pageKey="HISTORICO_CONFERENCIA", pageValue="historico_conferencia", hasAccess=true
+🔑 "divergencias-conferencia" (Divergências): pageKey="DIVERGENCIAS_CONFERENCIA", pageValue="divergencias_conferencia", hasAccess=true
+🔑 "conferencia-serial" (Conferência de Serial): pageKey="CONFERENCIA_SERIAL", pageValue="conferencia_serial", hasAccess=true
+🔍 Filtrando "conferencia-baias": 4 subitens → 4 após filtro
+🔑 "tire-discard-entry" (Registro de Descarte DSI): pageKey="TIRE_DISCARD", pageValue="tire_discard", hasAccess=true
+🔑 "reports" (Relatórios & Histórico): pageKey="REPORTS", pageValue="reports", hasAccess=true
+🔑 "configurar-temporada" (Configurar Temporada): pageKey="SEASON_CONFIGURATION", pageValue="season_configuration", hasAccess=true
+🔑 "rodas-dashboard" (Dashboard): pageKey="RODAS_DASHBOARD", pageValue="rodas_dashboard", hasAccess=true
+🔑 "rodas-pendencias" (Pendências): pageKey="RODAS_PENDENCIAS", pageValue="rodas_pendencias", hasAccess=true
+🔑 "rodas-avarias" (Avarias): pageKey="RODAS_AVARIAS", pageValue="rodas_avarias", hasAccess=true
+🔍 Filtrando "rodas": 3 subitens → 3 após filtro
+🔍 Filtrando "pneus": 8 subitens → 8 após filtro
+🔑 "tire-models" (Cadastro de Modelos): pageKey="TIRE_MODEL", pageValue="tire_model", hasAccess=true
+🔑 "tire-status" (Cadastro de Status): pageKey="STATUS_REGISTRATION", pageValue="status_registration", hasAccess=true
+🔑 "containers" (Cadastro de Contêineres): pageKey="CONTAINER", pageValue="container", hasAccess=true
+🔑 "master-data" (Master Data): pageKey="MASTER_DATA", pageValue="master_data", hasAccess=true
+🔍 Filtrando "cadastro": 4 subitens → 4 após filtro
+🔑 "users" (Gerenciar Usuários): pageKey="USER_MANAGEMENT", pageValue="user_management", hasAccess=true
+🔑 "access-profiles" (Perfis de Acesso): pageKey="ACCESS_PROFILES", pageValue="access_profiles", hasAccess=true
+🔑 "stock-adjustment" (Ajuste de Estoque): pageKey="STOCK_ADJUSTMENT", pageValue="stock_adjustment", hasAccess=true
+🔑 "configuracoes-notificacoes" (Notificações de Avarias): pageKey="CONFIGURACOES_NOTIFICACOES", pageValue="configuracoes_notificacoes", hasAccess=true
+🔑 "cadastros-caio" (Cadastros): pageKey="CADASTROS_CAIO", pageValue="cadastros_caio", hasAccess=true
+🔍 Filtrando "caio": 1 subitens → 1 após filtro
+🔑 "dashboard" (Dashboard): pageKey="DASHBOARD", pageValue="dashboard", hasAccess=true
+🔑 "tire-consumption" (Transferir para Piloto): pageKey="TIRE_CONSUMPTION", pageValue="tire_consumption", hasAccess=true
+🔑 "tire-status-change" (Mudar Status): pageKey="TIRE_STATUS_CHANGE", pageValue="tire_status_change", hasAccess=true
+🔑 "data-import" (Importação de Dados): pageKey="DATA_IMPORT", pageValue="data_import", hasAccess=true
+🔑 "tire-discard-reports" (Relatórios & Histórico de Descarte): pageKey="DISCARD_REPORTS", pageValue="discard_reports", hasAccess=true
+🔑 "almoxarifado-gases-cadastro" (Cadastro): pageKey="GASES_CADASTRO", pageValue="gases_cadastro", hasAccess=true
+🔑 "almoxarifado-gases-programacao" (Programação): pageKey="GASES_PROGRAMACAO", pageValue="gases_programacao", hasAccess=true
+🔍 Filtrando "almoxarifado-gases": 2 subitens → 2 após filtro
+🔑 "almoxarifado-combustivel" (Combustível): pageKey="COMBUSTIVEL", pageValue="combustivel", hasAccess=true
+🔑 "almoxarifado-solicitacao-compras" (Solicitação de Compras): pageKey="SOLICITACAO_COMPRAS", pageValue="solicitacao_compras", hasAccess=true
+🔑 "almoxarifado-solicitacao-uniforme" (Solicitação de Uniforme): pageKey="SOLICITACAO_UNIFORME", pageValue="solicitacao_uniforme", hasAccess=true
+🔍 Filtrando "almoxarifado": 4 subitens → 4 após filtro
+🔍 Filtrando "rafael": 6 subitens → 6 após filtro
+🔑 "shakedown" (Shakedown): pageKey="SHAKEDOWN", pageValue="shakedown", hasAccess=true
+🔑 "demanda" (Demanda): pageKey="DEMANDA", pageValue="demanda", hasAccess=true
+🔑 "pedidos-pneus" (Pedidos de Pneus): pageKey="PEDIDOS_PNEUS", pageValue="pedidos_pneus", hasAccess=true
+🔍 Filtrando "jamyli": 3 subitens → 3 após filtro
+🔍 Filtrando "em-desenvolvimento": 3 subitens → 3 após filtro
+🔍 Filtrando "administracao": 5 subitens → 5 após filtro
+✅ Status carregados do servidor: 4
+🎯 CHASSIS ÚNICOS GLOBALMENTE: {
+  "total_sessoes": 0,
+  "chassis_unicos": 0,
+  "lista_chassis_unicos": []
+}
+✅ Total de conferências carregadas: 8 (8 finalizadas + 0 desativadas)
+🔍 Dados brutos recebidos: 8 sessões
+🔍 Todas as sessões: [
+  {
+    "id": "4ce4f8c1-b639-4665-b1e1-897cc9a1e1e3",
+    "temporada": "Temporada 2026",
+    "etapa": "Pré Temporada",
+    "chassis": 41,
+    "data": "2026-03-16T12:30:25.849+00:00",
+    "created_at": "2026-03-16T12:30:26.451656+00:00"
+  },
+  {
+    "id": "f0307ef3-f741-4b98-88b3-3208b42d5951",
+    "temporada": "Temporada 2026",
+    "etapa": "Pré Temporada",
+    "chassis": 41,
+    "data": "2026-03-16T11:58:23.559+00:00",
+    "created_at": "2026-03-16T11:58:21.827778+00:00"
+  },
+  {
+    "id": "d452ccfc-eab1-4b67-bf30-a2129fa0b3f3",
+    "temporada": "Temporada 2026",
+    "etapa": "Pré Temporada",
+    "chassis": 41,
+    "data": "2026-03-13T21:26:47.441+00:00",
+    "created_at": "2026-03-13T21:26:45.015431+00:00"
+  },
+  {
+    "id": "478f66ec-137d-4f9d-9ef7-0c0ce5eefb8e",
+    "temporada": "Temporada 2026",
+    "etapa": "Pré Temporada",
+    "chassis": 41,
+    "data": "2026-03-13T21:26:22.339+00:00",
+    "created_at": "2026-03-13T21:26:19.943389+00:00"
+  },
+  {
+    "id": "8541b0e0-73c9-4a2d-b83e-462c8183a4f3",
+    "temporada": "Temporada 2026",
+    "etapa": "Pré Temporada",
+    "chassis": 40,
+    "data": "2026-03-13T21:22:57.07+00:00",
+    "created_at": "2026-03-13T21:22:57.626827+00:00"
+  },
+  {
+    "id": "a975b8da-89f7-4953-91b5-d6d8443ac06f",
+    "temporada": "Temporada 2026",
+    "etapa": "Pré Temporada",
+    "chassis": 40,
+    "data": "2026-03-13T21:17:59.035+00:00",
+    "created_at": "2026-03-13T21:17:56.66577+00:00"
+  },
+  {
+    "id": "feae962b-0a3b-4f0b-abf8-ece8a9c94d1b",
+    "temporada": "Temporada 2026",
+    "etapa": "Pré Temporada",
+    "chassis": 14,
+    "data": "2026-02-26T15:10:07.651+00:00",
+    "created_at": "2026-02-26T15:12:18.763255+00:00"
+  },
+  {
+    "id": "2da220a9-1226-45ad-b823-da42df143b8c",
+    "temporada": "Temporada 2026",
+    "etapa": "Pré Temporada",
+    "chassis": 6,
+    "data": "2026-02-18T16:45:22.518+00:00",
+    "created_at": "2026-02-18T16:45:23.096918+00:00"
+  }
+]
+✅ Sessão única adicionada: {
+  "id": "4ce4f8c1-b639-4665-b1e1-897cc9a1e1e3",
+  "temporada": "Temporada 2026",
+  "etapa": "Pré Temporada",
+  "chassis": 41,
+  "data": "2026-03-16T12:30:25.849+00:00",
+  "fingerprint": "073/992.1|Reserva::085/992.1|Alceu Feldmann::093/992.1|Lucas Salles::095/992.1|Raijan Mascarello::09..."
+}
+🔄 DUPLICATA encontrada: {
+  "id_novo": "f0307ef3-f741-4b98-88b3-3208b42d5951",
+  "id_existente": "4ce4f8c1-b639-4665-b1e1-897cc9a1e1e3",
+  "chassis": 41,
+  "data_novo": "2026-03-16T11:58:23.559+00:00",
+  "data_existente": "2026-03-16T12:30:25.849+00:00"
+}
+  → ⏭️ Mantida a existente (mais recente)
+🔄 DUPLICATA encontrada: {
+  "id_novo": "d452ccfc-eab1-4b67-bf30-a2129fa0b3f3",
+  "id_existente": "4ce4f8c1-b639-4665-b1e1-897cc9a1e1e3",
+  "chassis": 41,
+  "data_novo": "2026-03-13T21:26:47.441+00:00",
+  "data_existente": "2026-03-16T12:30:25.849+00:00"
+}
+  → ⏭️ Mantida a existente (mais recente)
+🔄 DUPLICATA encontrada: {
+  "id_novo": "478f66ec-137d-4f9d-9ef7-0c0ce5eefb8e",
+  "id_existente": "4ce4f8c1-b639-4665-b1e1-897cc9a1e1e3",
+  "chassis": 41,
+  "data_novo": "2026-03-13T21:26:22.339+00:00",
+  "data_existente": "2026-03-16T12:30:25.849+00:00"
+}
+  → ⏭️ Mantida a existente (mais recente)
+✅ Sessão única adicionada: {
+  "id": "8541b0e0-73c9-4a2d-b83e-462c8183a4f3",
+  "temporada": "Temporada 2026",
+  "etapa": "Pré Temporada",
+  "chassis": 40,
+  "data": "2026-03-13T21:22:57.07+00:00",
+  "fingerprint": "073/992.1|Reserva::093/992.1|Lucas Salles::095/992.1|Raijan Mascarello::096/992.1|Miguel Mariotti::1..."
+}
+🔄 DUPLICATA encontrada: {
+  "id_novo": "a975b8da-89f7-4953-91b5-d6d8443ac06f",
+  "id_existente": "8541b0e0-73c9-4a2d-b83e-462c8183a4f3",
+  "chassis": 40,
+  "data_novo": "2026-03-13T21:17:59.035+00:00",
+  "data_existente": "2026-03-13T21:22:57.07+00:00"
+}
+  → ⏭️ Mantida a existente (mais recente)
+✅ Sessão única adicionada: {
+  "id": "feae962b-0a3b-4f0b-abf8-ece8a9c94d1b",
+  "temporada": "Temporada 2026",
+  "etapa": "Pré Temporada",
+  "chassis": 14,
+  "data": "2026-02-26T15:10:07.651+00:00",
+  "fingerprint": "093/992.1|Lucas Salles::219/II|Nicholas Garfinkel::220/II|Ricardo Zylberman::226/II|Marco Mascari::2..."
+}
+✅ Sessão única adicionada: {
+  "id": "2da220a9-1226-45ad-b823-da42df143b8c",
+  "temporada": "Temporada 2026",
+  "etapa": "Pré Temporada",
+  "chassis": 6,
+  "data": "2026-02-18T16:45:22.518+00:00",
+  "fingerprint": "096/992.1|Miguel Mariotti::167/992.1|Josimar Junior::168/992.1|Marco Pisani::253/992.1|Sebá Malucell..."
+}
+📊 RESULTADO FINAL DA DEDUPLICAÇÃO: {
+  "sessoes_originais": 8,
+  "sessoes_unicas": 4,
+  "chassis_originais": 264,
+  "chassis_unicos": 101,
+  "duplicatas_removidas": 4,
+  "chassis_removidos": 163
+}
+📋 SESSÕES FINAIS (ÚNICAS): [
+  {
+    "id": "4ce4f8c1-b639-4665-b1e1-897cc9a1e1e3",
+    "temporada": "Temporada 2026",
+    "etapa": "Pré Temporada",
+    "chassis": 41,
+    "data": "2026-03-16T12:30:25.849+00:00"
+  },
+  {
+    "id": "8541b0e0-73c9-4a2d-b83e-462c8183a4f3",
+    "temporada": "Temporada 2026",
+    "etapa": "Pré Temporada",
+    "chassis": 40,
+    "data": "2026-03-13T21:22:57.07+00:00"
+  },
+  {
+    "id": "feae962b-0a3b-4f0b-abf8-ece8a9c94d1b",
+    "temporada": "Temporada 2026",
+    "etapa": "Pré Temporada",
+    "chassis": 14,
+    "data": "2026-02-26T15:10:07.651+00:00"
+  },
+  {
+    "id": "2da220a9-1226-45ad-b823-da42df143b8c",
+    "temporada": "Temporada 2026",
+    "etapa": "Pré Temporada",
+    "chassis": 6,
+    "data": "2026-02-18T16:45:22.518+00:00"
+  }
+]
+✅ Conferências carregadas: 4
+🎯 CHASSIS ÚNICOS GLOBALMENTE: {
+  "total_sessoes": 4,
+  "chassis_unicos": 47,
+  "lista_chassis_unicos": [
+    "085/992.1|Alceu Feldmann",
+    "251/992.1|Cristian Mohr",
+    "247/992.1|Miguel Paludo",
+    "259/992.1|Edu Guedes",
+    "279/992.1|Thiago Vivacqua",
+    "168/992.1|Marco Pisani",
+    "252/992.1|Carlos Campos",
+    "262/992.1|Christian Hahn",
+    "257/992.1|Marcos Regadas",
+    "096/992.1|Miguel Mariotti",
+    "095/992.1|Raijan Mascarello",
+    "265/992.1|Paulo Sousa",
+    "167/992.1|Josimar Junior",
+    "253/992.1|Sebá Malucelli",
+    "221/992.1|Luiz Souza",
+    "264/992.1|José Moura Neto",
+    "093/992.1|Lucas Salles",
+    "246/992.1|SangHo Kim",
+    "249/992.1|Rouman Ziemkiewicz",
+    "205/992.1|Pietro Fantin",
+    "406/992.1|Matheus Comparatto",
+    "073/992.1|Reserva",
+    "207/992.1|Reserva",
+    "218/II|Adriano Valverde",
+    "380/II|Neto Heil",
+    "227/II|Eldo Umbelino",
+    "223/II|Pedro Mac Dowell",
+    "226/II|Marco Mascari",
+    "220/II|Ricardo Zylberman",
+    "225/II|Emílio Moreira",
+    "319/II|Marcelo Bentivoglio",
+    "229/II|Cláudio Simão",
+    "337/I|Vinicius Motta",
+    "287/I|Alexandre Assolini",
+    "293/I|Paulo Reales",
+    "286/I|Alexandre dos Santos",
+    "274/I|Leonardo Marcelli",
+    "282/I|Cuca",
+    "279/I|Sergio Laurentys",
+    "283/I|João Guerra",
+    "292/I|Neylson Almeida",
+    "263/992.1|Rodrigo Mello",
+    "280/992.1|Israel Salmen",
+    "285/992.1|Marco Billi",
+    "258/992.1|Lineu Pires",
+    "219/II|Nicholas Garfinkel",
+    "245/992.1|Wagner Pontes"
+  ]
+}
+🔍 CacheBuster: Versão atual: 2.3.0, Armazenada: 2.3.0
+✅ CacheBuster: Versão atualizada

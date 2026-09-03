@@ -1,0 +1,30 @@
+======================================================================
+🔧 COPIE O SQL ABAIXO E EXECUTE NO SUPABASE SQL EDITOR
+======================================================================
+
+DROP POLICY IF EXISTS "Usuários autenticados podem atualizar sessões ativas" ON public.conference_sessions;
+
+CREATE POLICY "Usuários autenticados podem atualizar sessões ativas"
+  ON public.conference_sessions
+  FOR UPDATE
+  TO authenticated
+  USING (true)
+  WITH CHECK (true);
+
+======================================================================
+✅ COMO EXECUTAR:
+======================================================================
+
+1. Selecione TODO o texto acima (arraste o mouse ou Ctrl+A)
+2. Copie (Ctrl+C)
+3. Acesse: https://supabase.com/dashboard
+4. Selecione seu projeto
+5. Menu lateral → "SQL Editor"
+6. Clique em "+ New query"
+7. Cole o SQL (Ctrl+V)
+8. Clique em "RUN" (botão verde)
+9. Aguarde "Success"
+
+✅ PRONTO! Erro corrigido!
+
+======================================================================

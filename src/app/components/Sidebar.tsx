@@ -10,9 +10,16 @@ import { MENU_ID_TO_ROUTE } from '../routes';
 interface SidebarProps {
   onLogout?: () => void;
   userRole?: string;
+  isDesktopExpanded?: boolean;
+  onDesktopExpandedChange?: (expanded: boolean) => void;
 }
 
-export function Sidebar({ onLogout, userRole: _userRole = 'operator' }: SidebarProps) {
+export function Sidebar({
+  onLogout,
+  userRole: _userRole = 'operator',
+  isDesktopExpanded = false,
+  onDesktopExpandedChange
+}: SidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
@@ -237,6 +244,18 @@ export function Sidebar({ onLogout, userRole: _userRole = 'operator' }: SidebarP
     );
   };
 
+  const expandDesktopMenu = (itemId?: string) => {
+    onDesktopExpandedChange?.(true);
+    setHasUserInteracted(true);
+    if (itemId) {
+      setExpandedMenus(prev => prev.includes(itemId) ? prev : [...prev, itemId]);
+    }
+  };
+
+  const collapseDesktopMenu = () => {
+    onDesktopExpandedChange?.(false);
+  };
+
   // Função recursiva para verificar se um item está ativo
   const isItemActive = (item: any): boolean => {
     if (currentMenuId === item.id) return true;
@@ -266,6 +285,55 @@ export function Sidebar({ onLogout, userRole: _userRole = 'operator' }: SidebarP
     const isActive = isItemActive(item);
     const isDirectlyActive = currentMenuId === item.id;
     const isExternalLink = item.externalUrl;
+
+    if (!isDesktopExpanded) {
+      return (
+        <li key={item.id}>
+          <button
+            onClick={() => {
+              if (isExternalLink) {
+                window.open(item.externalUrl, '_blank', 'noopener,noreferrer');
+              } else if (hasSubItems) {
+                expandDesktopMenu(item.id);
+              } else {
+                setHasUserInteracted(true);
+                navigate(MENU_ID_TO_ROUTE[item.id] || '/');
+              }
+            }}
+            className="relative flex h-12 w-12 items-center justify-center rounded-xl transition-all duration-200"
+            title={item.label}
+            aria-label={item.label}
+            style={{
+              ...(isActive ? {
+                background: 'linear-gradient(135deg, #D50000 0%, #B00000 100%)',
+                color: '#ffffff',
+                boxShadow: '0 2px 8px rgba(213, 0, 0, 0.2), 0 1px 2px rgba(213, 0, 0, 0.1)',
+              } : {
+                color: '#E5E7EB',
+                background: 'transparent',
+              })
+            }}
+            onMouseEnter={(e) => {
+              if (!isActive) {
+                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+                e.currentTarget.style.color = '#FFFFFF';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!isActive) {
+                e.currentTarget.style.background = 'transparent';
+                e.currentTarget.style.color = '#E5E7EB';
+              }
+            }}
+          >
+            <Icon size={22} strokeWidth={2} className="flex-shrink-0" />
+            {hasSubItems && (
+              <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-white/60" />
+            )}
+          </button>
+        </li>
+      );
+    }
     
     return (
       <li 
@@ -387,26 +455,38 @@ export function Sidebar({ onLogout, userRole: _userRole = 'operator' }: SidebarP
       {/* Sidebar Desktop - Premium Design */}
       <aside
         className={`
-          fixed top-0 left-0 h-full w-72 z-40 
-          transition-transform duration-300 ease-in-out flex-col
+          fixed top-0 left-0 h-full z-40
+          transition-[width] duration-300 ease-in-out flex-col
           hidden lg:flex
           bg-black shadow-2xl
+          ${isDesktopExpanded ? 'w-72' : 'w-20'}
         `}
       >
         {/* Header com Glassmorphism Premium */}
         <div 
-          className="p-6 border-b flex justify-center"
+          className={`border-b ${isDesktopExpanded ? 'flex items-center justify-between gap-3 p-5' : 'flex justify-center p-4'}`}
           style={{
             background: 'linear-gradient(180deg, rgba(0, 0, 0, 1) 0%, rgba(26, 26, 26, 1) 100%)',
             backdropFilter: 'blur(8px)',
             borderColor: 'rgba(255, 255, 255, 0.1)',
           }}
         >
-          <img
-            src={porscheCupLogo}
-            alt="Conecta Cup"
-            className="h-16 w-auto object-contain"
-          />
+          {isDesktopExpanded ? (
+            <img
+              src={porscheCupLogo}
+              alt="Conecta Cup"
+              className="h-14 w-auto min-w-0 object-contain"
+            />
+          ) : null}
+          <button
+            type="button"
+            onClick={isDesktopExpanded ? collapseDesktopMenu : () => expandDesktopMenu()}
+            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-white transition hover:bg-white/10"
+            aria-label={isDesktopExpanded ? 'Recolher menu lateral' : 'Expandir menu lateral'}
+            title={isDesktopExpanded ? 'Recolher menu' : 'Expandir menu'}
+          >
+            {isDesktopExpanded ? <X size={22} strokeWidth={2} /> : <Menu size={24} strokeWidth={2} />}
+          </button>
         </div>
 
         {/* Menu Items - Scrollable com Scroll Indicators */}
@@ -418,7 +498,7 @@ export function Sidebar({ onLogout, userRole: _userRole = 'operator' }: SidebarP
             scrollBehavior: 'smooth',
           }}
         >
-          <div className="py-2">
+          <div className={isDesktopExpanded ? 'py-2' : 'flex flex-col items-center gap-3 py-4'}>
             {filteredMenuItems.map((item, index) => {
               // Renderiza separador antes de certos itens
               const showSeparator = index > 0;
@@ -426,11 +506,11 @@ export function Sidebar({ onLogout, userRole: _userRole = 'operator' }: SidebarP
               return (
                 <div key={item.id}>
                   {showSeparator && (
-                    <div className="mx-4 my-3">
-                      <div className="h-px bg-gradient-to-r from-transparent via-gray-700 to-transparent" />
+                    <div className={isDesktopExpanded ? 'mx-4 my-3' : 'my-1'}>
+                      <div className={isDesktopExpanded ? 'h-px bg-gradient-to-r from-transparent via-gray-700 to-transparent' : 'h-px w-8 bg-gray-800'} />
                     </div>
                   )}
-                  <ul className="px-4 space-y-1">
+                  <ul className={isDesktopExpanded ? 'px-4 space-y-1' : 'flex flex-col items-center gap-2'}>
                     {renderMenuItem(item, 0, index === 0)}
                   </ul>
                 </div>
@@ -442,7 +522,7 @@ export function Sidebar({ onLogout, userRole: _userRole = 'operator' }: SidebarP
         {/* Logout Button - Premium */}
         {onLogout && (
           <div 
-            className="p-4 border-t"
+            className={`${isDesktopExpanded ? 'p-4' : 'p-3'} border-t`}
             style={{
               background: 'linear-gradient(0deg, rgba(0, 0, 0, 1) 0%, rgba(26, 26, 26, 1) 100%)',
               boxShadow: '0 -4px 12px rgba(0, 0, 0, 0.3), 0 -1px 3px rgba(0, 0, 0, 0.2)',
@@ -451,7 +531,9 @@ export function Sidebar({ onLogout, userRole: _userRole = 'operator' }: SidebarP
           >
             <button
               onClick={onLogout}
-              className="w-full flex items-center justify-center gap-3 px-6 py-3 rounded-xl transition-all duration-200 border"
+              className={`${isDesktopExpanded ? 'w-full gap-3 px-6 py-3' : 'h-12 w-12'} flex items-center justify-center rounded-xl border transition-all duration-200`}
+              aria-label="Sair do sistema"
+              title="Sair do sistema"
               style={{
                 color: '#DC2626',
                 background: 'rgba(220, 38, 38, 0.08)',
@@ -467,20 +549,22 @@ export function Sidebar({ onLogout, userRole: _userRole = 'operator' }: SidebarP
               }}
             >
               <LogOut size={20} strokeWidth={2} />
-              <span className="font-semibold">Sair do Sistema</span>
+              {isDesktopExpanded ? <span className="font-semibold">Sair do Sistema</span> : null}
             </button>
           </div>
         )}
 
         {/* Footer */}
-        <div className="p-4 border-t bg-black" style={{ borderColor: 'rgba(255, 255, 255, 0.1)' }}>
-          <p className="text-gray-400 text-xs text-center font-medium mb-1">
-            Usuário: {currentUserName}
-          </p>
-          <p className="text-gray-500 text-xs text-center font-medium">
-            © 2025 Porsche Cup Brasil
-          </p>
-        </div>
+        {isDesktopExpanded ? (
+          <div className="p-4 border-t bg-black" style={{ borderColor: 'rgba(255, 255, 255, 0.1)' }}>
+            <p className="text-gray-400 text-xs text-center font-medium mb-1">
+              Usuário: {currentUserName}
+            </p>
+            <p className="text-gray-500 text-xs text-center font-medium">
+              © 2025 Porsche Cup Brasil
+            </p>
+          </div>
+        ) : null}
       </aside>
     </>
   );

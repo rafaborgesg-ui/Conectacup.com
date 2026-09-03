@@ -1,4 +1,5 @@
 import { Suspense, useState, useEffect } from 'react';
+import type { CSSProperties } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router';
 import { Sidebar } from '../components/Sidebar';
 import { MobileNav } from '../components/MobileNav';
@@ -41,7 +42,13 @@ export function MainLayout() {
   const [userRole, setUserRole] = useState<string>('operator');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isDesktopSidebarExpanded, setIsDesktopSidebarExpanded] = useState(false);
   const isFreightNationalRoute = location.pathname.startsWith('/frete/nacional');
+  const desktopSidebarWidth = isDesktopSidebarExpanded ? '18rem' : '5rem';
+  const desktopMainOffsetClass = isDesktopSidebarExpanded ? 'lg:ml-72' : 'lg:ml-20';
+  const layoutStyle = {
+    '--desktop-sidebar-width': desktopSidebarWidth,
+  } as CSSProperties;
 
   // 🎯 Inicializa handler de clique nos toasts (apenas uma vez)
   useEffect(() => {
@@ -116,7 +123,10 @@ export function MainLayout() {
       {/* Cache Buster - Detecta código desatualizado */}
       <CacheBuster />
       
-      <div className={`${isFreightNationalRoute ? 'min-h-0 lg:min-h-screen' : 'min-h-screen'} bg-gray-50 flex tap-highlight-none`}>
+      <div
+        className={`${isFreightNationalRoute ? 'min-h-0 lg:min-h-screen' : 'min-h-screen'} bg-gray-50 flex tap-highlight-none`}
+        style={layoutStyle}
+      >
         {/* Componente de Prevenção de Zoom */}
         <ZoomPrevention />
         
@@ -127,7 +137,12 @@ export function MainLayout() {
         />
       
         {/* Desktop Sidebar */}
-        <Sidebar onLogout={handleLogout} userRole={userRole} />
+        <Sidebar
+          onLogout={handleLogout}
+          userRole={userRole}
+          isDesktopExpanded={isDesktopSidebarExpanded}
+          onDesktopExpandedChange={setIsDesktopSidebarExpanded}
+        />
         
         {/* Mobile Navigation */}
         <MobileNav onLogout={handleLogout} userRole={userRole} />
@@ -136,7 +151,7 @@ export function MainLayout() {
         <main 
           id="main-content" 
           tabIndex={-1}
-          className={`flex-1 lg:ml-72 ${isFreightNationalRoute ? 'min-h-0 pb-0 lg:min-h-screen' : 'min-h-screen pb-16 lg:pb-0'} no-overscroll focus:outline-none collector-adapt-main`}
+          className={`flex-1 ${desktopMainOffsetClass} ${isFreightNationalRoute ? 'min-h-0 pb-0 lg:min-h-screen' : 'min-h-screen pb-16 lg:pb-0'} no-overscroll focus:outline-none collector-adapt-main`}
         >
           {/* 🚀 SUSPENSE - Envolve todos os componentes lazy loaded */}
           <Suspense fallback={<PageLoadingFallback />}>

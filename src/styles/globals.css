@@ -1446,14 +1446,25 @@ body {
 
 /* DESKTOP: ≥ 1024px */
 @media (min-width: 1024px) {
-  /* Sidebar visível (Tailwind lg:flex) */
+  /* Sidebar visível: recolhida por padrão e expansível via MainLayout */
   aside {
     display: flex !important;
   }
   
-  /* Main com margem para sidebar (Tailwind lg:ml-72) */
+  /* Main acompanha a largura real da sidebar */
   main {
-    margin-left: 18rem !important; /* 288px */
+    margin-left: var(--desktop-sidebar-width, 5rem) !important;
+    width: calc(100vw - var(--desktop-sidebar-width, 5rem)) !important;
+    max-width: calc(100vw - var(--desktop-sidebar-width, 5rem)) !important;
+    transition: margin-left 300ms ease, width 300ms ease, max-width 300ms ease;
+  }
+
+  /* Containers operacionais devem usar a largura disponível no desktop */
+  main [class*="max-w-7xl"],
+  main [class*="max-w-[1800px]"] {
+    max-width: none !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
   }
 }
 

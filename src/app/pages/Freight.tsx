@@ -2861,73 +2861,110 @@ function NationalForm({
   return (
     <form
       data-freight-national-form="true"
-      className="w-full max-w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
+      className="mx-auto w-full max-w-6xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
       onSubmit={onSubmit}
     >
-      <div className="border-b border-slate-100 px-4 py-4 pl-16 sm:px-5 sm:pl-5">
-        <h2 className="break-words text-lg font-bold leading-snug text-slate-950 sm:text-xl">Cadastrar solicitação de frete nacional</h2>
+      <div className="border-b border-slate-200 bg-white px-5 py-5 pl-16 sm:px-8 sm:pl-8">
+        <div className="flex min-w-0 flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div className="min-w-0">
+            <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-red-600">Frete Nacional</p>
+            <h2 className="mt-1 break-words text-xl font-bold leading-tight text-slate-950 sm:text-2xl">
+              Cadastrar solicitação de frete nacional
+            </h2>
+          </div>
+          <div className="inline-flex w-fit items-center rounded-lg border border-slate-200 bg-slate-50 p-1 text-xs font-semibold text-slate-600">
+            <span className="rounded-md bg-slate-950 px-3 py-1.5 text-white">Solicitação única</span>
+          </div>
+        </div>
         {deadlineMessage ? (
-          <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold leading-5 text-red-700">
+          <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold leading-5 text-red-700">
             {deadlineMessage}
           </div>
         ) : null}
       </div>
-      <div className="grid min-w-0 gap-x-4 gap-y-5 p-4 sm:p-5 lg:grid-cols-2 2xl:grid-cols-3">
-        <Field label="Setor">
-          <select className={fieldClass()} value={form.setor} onChange={event => onChange('setor', event.target.value)} required>
-            <option value="">Selecione...</option>
-            <SelectOptionList options={lookups.setores} />
-          </select>
-        </Field>
-        <Field label="Prazo de entrega">
-          <input className={fieldClass()} type="datetime-local" min={minimumDeadline} step={60} value={form.prazoEntrega} onChange={event => onChange('prazoEntrega', event.target.value)} required />
-          <p className="mt-1 text-xs font-medium leading-5 text-slate-500">Prazo mínimo: {formatSlaDaysLabel(requesterSlaDays)}.</p>
-        </Field>
-        <Field label="Projeto">
-          <select className={fieldClass()} value={form.projeto} onChange={event => onChange('projeto', event.target.value)} required>
-            <option value="">Selecione...</option>
-            <SelectOptionList options={lookups.projetos} />
-          </select>
-        </Field>
-        <Field label="Responsável pela solicitação">
-          <input className={fieldClass()} value={form.solicitanteNome} onChange={event => onChange('solicitanteNome', event.target.value)} required />
-        </Field>
-        <Field label="Responsável no local da retirada">
-          <input className={fieldClass()} value={form.responsavelLocal} onChange={event => onChange('responsavelLocal', event.target.value)} />
-        </Field>
-        <RecurringAddressField
-          label="Endereço de retirada"
-          value={form.enderecoRetirada}
-          options={lookups.enderecos}
-          open={openAddressMenu === 'retirada'}
-          onToggle={() => setOpenAddressMenu(current => current === 'retirada' ? null : 'retirada')}
-          onClose={() => setOpenAddressMenu(null)}
-          onChange={value => onChange('enderecoRetirada', value)}
-        />
-        <RecurringAddressField
-          label="Endereço de entrega"
-          value={form.enderecoEntrega}
-          options={lookups.enderecos}
-          open={openAddressMenu === 'entrega'}
-          onToggle={() => setOpenAddressMenu(current => current === 'entrega' ? null : 'entrega')}
-          onClose={() => setOpenAddressMenu(null)}
-          onChange={value => onChange('enderecoEntrega', value)}
-        />
-        <div className="lg:col-span-2 2xl:col-span-3">
-          <Field label="Descreva as quantidades e itens a serem transportados">
-            <textarea className={`${areaClass()} min-h-28 text-[12px] leading-4 placeholder:text-[12px] sm:text-sm sm:leading-5 sm:placeholder:text-sm`} value={form.itemDescricao} onChange={event => onChange('itemDescricao', event.target.value)} placeholder={'Exemplo:\n1x Parachoque traseiro\n2x Molde de alumínio'} required />
-          </Field>
-        </div>
-        <div className="lg:col-span-2 2xl:col-span-3">
-          <Field label="Observações">
-            <textarea className={areaClass()} value={form.observacoes} onChange={event => onChange('observacoes', event.target.value)} />
-          </Field>
-        </div>
-        <div className="lg:col-span-2 2xl:col-span-3">
-          <div className="block min-w-0">
-            <span className={labelClass()}>Fotos do produto</span>
-            <div className="flex min-w-0 flex-col gap-3 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-3 sm:p-4">
-              <label className={`${buttonClass('secondary')} w-full cursor-pointer sm:w-fit`}>
+
+      <div className="space-y-7 p-4 sm:p-6 lg:p-8">
+        <NationalFormSection number={1} title="Dados gerais da solicitação">
+          <div className="grid min-w-0 grid-cols-1 gap-5 md:grid-cols-12">
+            <div className="md:col-span-4">
+              <Field label="Setor">
+                <select className={fieldClass()} value={form.setor} onChange={event => onChange('setor', event.target.value)} required>
+                  <option value="">Selecione...</option>
+                  <SelectOptionList options={lookups.setores} />
+                </select>
+              </Field>
+            </div>
+            <div className="md:col-span-4">
+              <Field label="Prazo de entrega">
+                <input className={fieldClass()} type="datetime-local" min={minimumDeadline} step={60} value={form.prazoEntrega} onChange={event => onChange('prazoEntrega', event.target.value)} required />
+                <span className="mt-2 inline-flex rounded-full border border-red-100 bg-red-50 px-2.5 py-1 text-[11px] font-semibold text-red-700">
+                  Prazo mín: {formatSlaDaysLabel(requesterSlaDays)}.
+                </span>
+              </Field>
+            </div>
+            <div className="md:col-span-4">
+              <Field label="Projeto">
+                <select className={fieldClass()} value={form.projeto} onChange={event => onChange('projeto', event.target.value)} required>
+                  <option value="">Selecione...</option>
+                  <SelectOptionList options={lookups.projetos} />
+                </select>
+              </Field>
+            </div>
+          </div>
+        </NationalFormSection>
+
+        <NationalFormSection number={2} title="Responsáveis pelo processo">
+          <div className="grid min-w-0 grid-cols-1 gap-5 md:grid-cols-2">
+            <Field label="Responsável pela solicitação">
+              <input className={fieldClass()} value={form.solicitanteNome} onChange={event => onChange('solicitanteNome', event.target.value)} required />
+            </Field>
+            <Field label="Responsável no local da retirada">
+              <input className={fieldClass()} value={form.responsavelLocal} onChange={event => onChange('responsavelLocal', event.target.value)} />
+            </Field>
+          </div>
+        </NationalFormSection>
+
+        <NationalFormSection number={3} title="Rota: retirada e entrega">
+          <div className="grid min-w-0 grid-cols-1 gap-5 md:grid-cols-2">
+            <RecurringAddressField
+              label="Endereço de retirada"
+              value={form.enderecoRetirada}
+              options={lookups.enderecos}
+              open={openAddressMenu === 'retirada'}
+              onToggle={() => setOpenAddressMenu(current => current === 'retirada' ? null : 'retirada')}
+              onClose={() => setOpenAddressMenu(null)}
+              onChange={value => onChange('enderecoRetirada', value)}
+            />
+            <RecurringAddressField
+              label="Endereço de entrega"
+              value={form.enderecoEntrega}
+              options={lookups.enderecos}
+              open={openAddressMenu === 'entrega'}
+              onToggle={() => setOpenAddressMenu(current => current === 'entrega' ? null : 'entrega')}
+              onClose={() => setOpenAddressMenu(null)}
+              onChange={value => onChange('enderecoEntrega', value)}
+            />
+          </div>
+        </NationalFormSection>
+
+        <NationalFormSection number={4} title="Descrição da carga">
+          <div className="grid min-w-0 gap-5">
+            <Field label="Descreva as quantidades e itens a serem transportados">
+              <textarea className={`${areaClass()} min-h-28 text-sm leading-5 placeholder:text-sm sm:min-h-32`} value={form.itemDescricao} onChange={event => onChange('itemDescricao', event.target.value)} placeholder={'Exemplo:\n1x Parachoque traseiro\n2x Molde de alumínio'} required />
+            </Field>
+            <Field label="Observações">
+              <textarea className={areaClass()} value={form.observacoes} onChange={event => onChange('observacoes', event.target.value)} />
+            </Field>
+          </div>
+        </NationalFormSection>
+
+        <NationalFormSection number={5} title="Fotos do produto ou documentos">
+          <div className="min-w-0 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/70 p-4 text-center transition hover:border-red-300 hover:bg-white sm:p-8">
+            <div className="flex min-w-0 flex-col items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-red-600">
+                <Upload className="h-6 w-6" />
+              </div>
+              <label className={`${buttonClass('secondary')} w-full cursor-pointer rounded-lg sm:w-auto`}>
                 Escolher arquivos
                 <input
                   className="sr-only"
@@ -2941,30 +2978,32 @@ function NationalForm({
                 />
               </label>
               <p className="text-sm text-slate-500">{files.length ? `${files.length} foto(s) selecionada(s)` : 'Nenhuma foto selecionada.'}</p>
-              {filePreviews.length ? (
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-6">
-                  {filePreviews.map((preview, index) => (
-                    <div key={`${preview.name}-${index}`} className="relative overflow-hidden rounded-md border border-slate-200 bg-white">
-                      <img src={preview.url} alt={`Foto ${index + 1}`} className="aspect-square w-full object-cover" />
-                      <div className="truncate px-2 py-1 text-[11px] font-semibold text-slate-600">Foto {index + 1}</div>
-                      <button
-                        className="absolute right-1 top-1 flex h-7 w-7 items-center justify-center rounded-full bg-white/95 text-red-600 shadow-sm transition hover:bg-red-50"
-                        type="button"
-                        onClick={() => removeFile(index)}
-                        aria-label={`Remover Foto ${index + 1}`}
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
             </div>
+            {filePreviews.length ? (
+              <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
+                {filePreviews.map((preview, index) => (
+                  <div key={`${preview.name}-${index}`} className="relative overflow-hidden rounded-lg border border-slate-200 bg-white text-left shadow-sm">
+                    <img src={preview.url} alt={`Foto ${index + 1}`} className="aspect-square w-full object-cover" />
+                    <div className="truncate px-2 py-1.5 text-[11px] font-semibold text-slate-600">Foto {index + 1}</div>
+                    <button
+                      className="absolute right-1 top-1 flex h-7 w-7 items-center justify-center rounded-full bg-white/95 text-red-600 shadow-sm transition hover:bg-red-50"
+                      type="button"
+                      onClick={() => removeFile(index)}
+                      aria-label={`Remover Foto ${index + 1}`}
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : null}
           </div>
-        </div>
+        </NationalFormSection>
       </div>
-      <div className="flex justify-center border-t border-slate-100 bg-white px-4 py-4 sm:justify-end sm:px-5">
-        <button key={saving ? 'saving-national-submit' : 'ready-national-submit'} className={`${buttonClass('primary')} w-full sm:w-auto`} type="submit" disabled={saving} aria-busy={saving}>
+
+      <div className="flex flex-col gap-3 border-t border-slate-200 bg-slate-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-8">
+        <p className="text-xs font-medium text-slate-500">Os campos obrigatórios precisam estar preenchidos para registrar a solicitação.</p>
+        <button key={saving ? 'saving-national-submit' : 'ready-national-submit'} className={`${buttonClass('primary')} w-full rounded-lg px-6 sm:w-auto`} type="submit" disabled={saving} aria-busy={saving}>
           {saving ? (
             <>
               <RefreshCw className="h-4 w-4 animate-spin" />
@@ -2979,6 +3018,22 @@ function NationalForm({
         </button>
       </div>
     </form>
+  );
+}
+
+function NationalFormSection({ number, title, children }: { number: number; title: string; children: ReactNode }) {
+  return (
+    <section className="min-w-0">
+      <div className="mb-5 flex min-w-0 items-center gap-3 border-b border-slate-100 pb-3">
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-red-600 text-xs font-bold text-white">
+          {number}
+        </span>
+        <h3 className="min-w-0 text-sm font-bold uppercase tracking-wide text-slate-700">
+          {title}
+        </h3>
+      </div>
+      {children}
+    </section>
   );
 }
 

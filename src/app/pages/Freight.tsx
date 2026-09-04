@@ -188,15 +188,15 @@ function isDriverVisibleStatus(status?: string | null) {
 }
 
 function fieldClass() {
-  return 'box-border block h-12 w-full min-w-0 max-w-full rounded-md border border-slate-200 bg-white px-4 text-base leading-normal text-slate-900 outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-100 disabled:bg-slate-50 disabled:text-slate-400 sm:h-10 sm:px-3 sm:text-sm';
+  return 'box-border block min-h-12 w-full min-w-0 max-w-full rounded-md border border-slate-200 bg-white px-4 py-2.5 text-base leading-6 text-slate-900 outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-100 disabled:bg-slate-50 disabled:text-slate-400 sm:min-h-10 sm:px-3 sm:py-2 sm:text-sm sm:leading-5';
 }
 
 function areaClass() {
-  return 'min-h-24 w-full min-w-0 max-w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-100';
+  return 'box-border min-h-24 w-full min-w-0 max-w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm leading-5 text-slate-900 outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-100';
 }
 
 function buttonClass(variant: 'primary' | 'secondary' | 'dark' | 'danger' = 'secondary') {
-  const base = 'inline-flex h-10 items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50';
+  const base = 'inline-flex min-h-10 items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold leading-tight transition disabled:cursor-not-allowed disabled:opacity-50';
   const variants = {
     primary: 'bg-red-600 text-white hover:bg-red-700',
     secondary: 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
@@ -2001,10 +2001,10 @@ function FreightPage({ mode }: { mode: FreightMode }) {
     : null;
 
   return (
-    <div className="overflow-x-hidden bg-slate-50 px-3 pb-0 pt-3 sm:min-h-screen sm:p-4 md:p-6">
-      <div className="mx-auto w-full min-w-0 max-w-7xl space-y-5">
+    <div className="w-full min-w-0 overflow-x-hidden bg-slate-50 px-2 pb-3 pt-3 sm:min-h-screen sm:px-4 sm:py-4 xl:px-5 2xl:px-6">
+      <div className="w-full min-w-0 space-y-4 sm:space-y-5">
         {showPageHeader ? (
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm lg:flex-row lg:items-start lg:justify-between">
             <div className="flex min-w-0 items-start gap-3">
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-red-600 text-white shadow-sm">
                 <HeaderIcon className="h-6 w-6" />
@@ -2042,7 +2042,7 @@ function FreightPage({ mode }: { mode: FreightMode }) {
         ) : null}
 
         {activeTab === 'dashboard' ? (
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
             <StatCard label="Total" value={stats.total} icon={ClipboardList} tone="bg-slate-100 text-slate-700" />
             <StatCard label="Solicitadas" value={stats.pendente} icon={AlertTriangle} tone="bg-amber-100 text-amber-700" />
             <StatCard label={isInternational ? 'Em andamento' : 'Agendados'} value={stats.agendado} icon={CalendarClock} tone="bg-blue-100 text-blue-700" />
@@ -2052,26 +2052,28 @@ function FreightPage({ mode }: { mode: FreightMode }) {
         ) : null}
 
         {!isSingleTabView ? (
-          <div className="-mx-1 flex gap-2 overflow-x-auto border-b border-slate-200 px-1 pb-2">
-            {[
-              { id: 'dashboard', label: 'Dashboard', icon: BarChart3, visible: true },
-              { id: 'nova', label: 'Nova solicitação', icon: Plus, visible: !isDriver },
-              { id: 'atendimento', label: 'Atendimento', icon: CalendarClock, visible: !isInternational },
-              { id: 'kanban', label: 'Kanban', icon: Columns3, visible: !isInternational },
-              { id: 'motorista', label: 'Motorista', icon: Smartphone, visible: !isInternational },
-              { id: 'relatorios', label: 'Relatórios', icon: FileSpreadsheet, visible: true }
-            ].filter(item => item.visible).map(item => (
-              <button
-                key={item.id}
-                className={`inline-flex h-10 shrink-0 items-center gap-2 rounded-md px-4 text-sm font-semibold transition ${activeTab === item.id ? 'bg-slate-950 text-white' : 'bg-white text-slate-700 hover:bg-slate-100'}`}
-                onClick={() => setTab(item.id as TabKey)}
-                type="button"
-              >
-                <item.icon className="h-4 w-4" />
-                {item.label}
-              </button>
-            ))}
-          </div>
+          <nav aria-label="Seções do frete" className="-mx-2 overflow-x-auto border-b border-slate-200 px-2 pb-2">
+            <div className="flex min-w-max gap-2">
+              {[
+                { id: 'dashboard', label: 'Dashboard', icon: BarChart3, visible: true },
+                { id: 'nova', label: 'Nova solicitação', icon: Plus, visible: !isDriver },
+                { id: 'atendimento', label: 'Atendimento', icon: CalendarClock, visible: !isInternational },
+                { id: 'kanban', label: 'Kanban', icon: Columns3, visible: !isInternational },
+                { id: 'motorista', label: 'Motorista', icon: Smartphone, visible: !isInternational },
+                { id: 'relatorios', label: 'Relatórios', icon: FileSpreadsheet, visible: true }
+              ].filter(item => item.visible).map(item => (
+                <button
+                  key={item.id}
+                  className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-md px-4 py-2 text-sm font-semibold leading-tight transition ${activeTab === item.id ? 'bg-slate-950 text-white shadow-sm' : 'bg-white text-slate-700 hover:bg-slate-100'}`}
+                  onClick={() => setTab(item.id as TabKey)}
+                  type="button"
+                >
+                  <item.icon className="h-4 w-4" />
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </nav>
         ) : null}
 
         {activeTab !== 'nova' && !(activeTab === 'kanban' && !isInternational) ? (
@@ -2283,9 +2285,9 @@ function FilterBar({
   hideProject?: boolean;
 }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-7">
-        <div className="xl:col-span-2">
+    <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+      <div className="grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 2xl:grid-cols-7">
+        <div className="sm:col-span-2 lg:col-span-3 xl:col-span-2">
           <label className={labelClass()}>Busca</label>
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -2345,7 +2347,7 @@ function FilterToggleButton({
   return (
     <div className="flex justify-end">
       <button
-        className={`inline-flex h-9 items-center gap-2 rounded-md border px-3 text-xs font-semibold transition ${filtersOpen ? 'border-red-200 bg-red-50 text-red-700' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+        className={`inline-flex min-h-9 items-center gap-2 rounded-md border px-3 py-2 text-xs font-semibold leading-tight transition ${filtersOpen ? 'border-red-200 bg-red-50 text-red-700' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
         type="button"
         onClick={onToggle}
       >
@@ -2414,12 +2416,12 @@ function FreightKanbanFilters({
   };
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
-      <div className="flex items-center justify-between gap-3">
+    <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-base font-bold text-slate-950">Fretes Porsche Cup</h2>
         <div className="flex items-center gap-2">
           <button
-            className={`inline-flex h-8 items-center gap-2 rounded-md border px-3 text-xs font-semibold transition ${filtersOpen ? 'border-red-200 bg-red-50 text-red-700' : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'}`}
+            className={`inline-flex min-h-9 items-center gap-2 rounded-md border px-3 py-2 text-xs font-semibold leading-tight transition ${filtersOpen ? 'border-red-200 bg-red-50 text-red-700' : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'}`}
             type="button"
             onClick={onToggleFilters}
           >
@@ -2427,7 +2429,7 @@ function FreightKanbanFilters({
             <BarChart3 className="h-3.5 w-3.5 text-red-500" />
           </button>
           <button
-            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-slate-50 text-slate-500 transition hover:bg-slate-100 disabled:opacity-50"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 bg-slate-50 text-slate-500 transition hover:bg-slate-100 disabled:opacity-50"
             type="button"
             onClick={onRefresh}
             disabled={refreshing}
@@ -2452,10 +2454,10 @@ function FreightKanbanFilters({
         </div>
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center gap-2">
+      <div className="mt-3 flex min-w-0 flex-wrap items-center gap-2">
         <span className="mr-1 text-xs font-semibold text-slate-500">Motorista:</span>
         <button
-          className={`inline-flex h-9 items-center gap-2 rounded-md px-3 text-xs font-bold transition ${filters.motorista === 'TODOS' ? 'bg-red-600 text-white shadow-sm' : 'border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'}`}
+          className={`inline-flex min-h-9 items-center gap-2 rounded-md px-3 py-2 text-xs font-bold leading-tight transition ${filters.motorista === 'TODOS' ? 'bg-red-600 text-white shadow-sm' : 'border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'}`}
           type="button"
           onClick={() => update({ motorista: 'TODOS' })}
         >
@@ -2465,22 +2467,22 @@ function FreightKanbanFilters({
         {motoristaCounts.map(item => (
           <button
             key={item.label}
-            className={`inline-flex h-9 items-center gap-2 rounded-md px-3 text-xs font-semibold transition ${filters.motorista === item.label ? 'bg-red-600 text-white shadow-sm' : 'border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'}`}
+            className={`inline-flex min-h-9 max-w-full items-center gap-2 rounded-md px-3 py-2 text-xs font-semibold leading-tight transition ${filters.motorista === item.label ? 'bg-red-600 text-white shadow-sm' : 'border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'}`}
             type="button"
             onClick={() => update({ motorista: item.label })}
           >
-            {item.label}
+            <span className="max-w-48 truncate">{item.label}</span>
             <span className={`rounded-full px-2 py-0.5 text-[11px] ${filters.motorista === item.label ? 'bg-white text-red-600' : 'bg-white text-slate-600'}`}>{item.count}</span>
           </button>
         ))}
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center gap-2">
+      <div className="mt-3 flex min-w-0 flex-wrap items-center gap-2">
         <span className="mr-1 text-xs font-semibold text-slate-500">Status:</span>
         {statusCounts.map(item => (
           <button
             key={item.status}
-            className={`inline-flex h-9 items-center gap-2 rounded-md px-3 text-xs font-bold transition ${filters.status === item.status ? 'bg-red-600 text-white shadow-sm ring-2 ring-red-200' : 'bg-red-600 text-white hover:bg-red-700'}`}
+            className={`inline-flex min-h-9 items-center gap-2 rounded-md px-3 py-2 text-xs font-bold leading-tight transition ${filters.status === item.status ? 'bg-red-600 text-white shadow-sm ring-2 ring-red-200' : 'bg-red-600 text-white hover:bg-red-700'}`}
             type="button"
             onClick={() => update({ status: filters.status === item.status ? 'Todos' : item.status })}
           >
@@ -2490,7 +2492,7 @@ function FreightKanbanFilters({
         ))}
       </div>
 
-      <div className="mt-3 grid gap-3 md:grid-cols-[1fr_auto_auto_auto] md:items-end">
+      <div className="mt-3 grid min-w-0 gap-3 lg:grid-cols-[minmax(16rem,1fr)_minmax(9rem,12rem)_minmax(9rem,12rem)_auto] lg:items-end">
         <div>
           <label className={labelClass()}>Projeto</label>
           <select className={fieldClass()} value={filters.projeto} onChange={event => update({ projeto: event.target.value })}>
@@ -2506,10 +2508,10 @@ function FreightKanbanFilters({
           <label className={labelClass()}>Até</label>
           <input className={fieldClass()} type="date" value={filters.dateTo} onChange={event => update({ dateTo: event.target.value })} />
         </div>
-        <div className="flex flex-wrap gap-2">
-          <button className="h-9 rounded-md border border-slate-200 bg-slate-100 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-200" type="button" onClick={setThisMonth}>Este Mês</button>
-          <button className="h-9 rounded-md border border-slate-200 bg-slate-100 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-200" type="button" onClick={setThisYear}>Este Ano</button>
-          <button className="h-9 rounded-md bg-red-600 px-3 text-xs font-semibold text-white hover:bg-red-700" type="button" onClick={() => update({ dateFrom: '', dateTo: '' })}>Limpar</button>
+        <div className="flex flex-wrap gap-2 lg:justify-end">
+          <button className="min-h-9 rounded-md border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-semibold leading-tight text-slate-700 hover:bg-slate-200" type="button" onClick={setThisMonth}>Este Mês</button>
+          <button className="min-h-9 rounded-md border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-semibold leading-tight text-slate-700 hover:bg-slate-200" type="button" onClick={setThisYear}>Este Ano</button>
+          <button className="min-h-9 rounded-md bg-red-600 px-3 py-2 text-xs font-semibold leading-tight text-white hover:bg-red-700" type="button" onClick={() => update({ dateFrom: '', dateTo: '' })}>Limpar</button>
         </div>
       </div>
         </>
@@ -2526,6 +2528,15 @@ function DashboardHeaderInfo({ label, description }: { label: string; descriptio
         {description}
       </span>
     </span>
+  );
+}
+
+function MobileInfo({ label, value, wide = false }: { label: string; value: ReactNode; wide?: boolean }) {
+  return (
+    <div className={`min-w-0 rounded-lg bg-slate-50 px-3 py-2 ${wide ? 'col-span-2' : ''}`}>
+      <div className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</div>
+      <div className="mt-1 break-words text-sm font-medium leading-5 text-slate-900">{value || '-'}</div>
+    </div>
   );
 }
 
@@ -2551,14 +2562,111 @@ function RequestsTable({
   saving: boolean;
 }) {
   return (
-    <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
         <div>
           <h2 className="font-semibold text-slate-950">Solicitações</h2>
           <p className="text-sm text-slate-500">{requests.length} registro(s) encontrados</p>
         </div>
       </div>
-      <div className="overflow-x-auto">
+      <div className="divide-y divide-slate-100 lg:hidden">
+        {requests.map(request => {
+          const slaDays = freightSlaElapsedDays(request);
+          const isSlaLate = slaDays > slaLimitDays;
+          const requesterSlaDays = freightRequesterSlaElapsedDays(request);
+          const isRequesterSlaLate = requesterSlaDays === null || requesterSlaDays < requesterSlaLimitDays;
+
+          return (
+            <article key={request.id} className="min-w-0 space-y-3 p-4">
+              <div className="flex min-w-0 items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-lg font-bold text-slate-950">{formatProtocol(request)}</div>
+                  <div className="mt-1 break-words text-sm text-slate-500">
+                    {isInternational
+                      ? [request.necessidade, request.tipoFrete].filter(Boolean).join(' · ') || '-'
+                      : [request.setor, request.projeto || request.projetoDescricao].filter(Boolean).join(' · ') || '-'}
+                  </div>
+                </div>
+                <span className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-semibold ${statusBadgeClass(request.status)}`}>
+                  {request.status}
+                </span>
+              </div>
+
+              {isInternational ? (
+                <div className="grid grid-cols-2 gap-2">
+                  <MobileInfo label="Necessidade" value={request.necessidade || '-'} />
+                  <MobileInfo label="Tipo" value={request.definitivaTemporaria || '-'} />
+                  <MobileInfo label="Origem" value={request.empresaRemetente || '-'} />
+                  <MobileInfo label="Destino" value={request.empresaDestinatario || '-'} />
+                  <MobileInfo label="Transporte" value={`${request.tipoFrete || '-'} · ${request.modalidadeFrete || '-'}`} wide />
+                  <MobileInfo label="Logística" value={request.motorista || [request.veiculo, request.placa].filter(Boolean).join(' - ') || formatFreightDate(request.agendamentoAt)} wide />
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  <MobileInfo label="Setor" value={request.setor || '-'} />
+                  <MobileInfo label="Projeto" value={request.projeto || request.projetoDescricao || '-'} />
+                  <MobileInfo label="Solicitante" value={request.solicitanteNome || '-'} />
+                  <MobileInfo label="E-mail" value={requesterEmail(request)} />
+                  <MobileInfo label="Registro" value={formatFreightDate(request.createdAt)} />
+                  <MobileInfo label="Prazo" value={formatFreightDate(request.prazoEntrega)} />
+                  <MobileInfo label="Agendamento" value={formatFreightDate(request.agendamentoAt)} />
+                  <MobileInfo label="Atendimento" value={formatFreightDate(request.atendimentoAt)} />
+                  <MobileInfo
+                    label="SLA Solicitante"
+                    value={requesterSlaDays === null ? '-' : (
+                      <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${isRequesterSlaLate ? 'border-red-200 bg-red-100 text-red-700' : 'border-emerald-200 bg-emerald-100 text-emerald-700'}`}>
+                        {formatSlaDaysLabel(requesterSlaDays)}
+                      </span>
+                    )}
+                  />
+                  <MobileInfo
+                    label="SLA Agendamento"
+                    value={(
+                      <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${isSlaLate ? 'border-red-200 bg-red-100 text-red-700' : 'border-emerald-200 bg-emerald-100 text-emerald-700'}`}>
+                        {slaDays} dia{slaDays === 1 ? '' : 's'}
+                      </span>
+                    )}
+                  />
+                  <MobileInfo label="Data de entrega" value={formattedFreightDeliveryDate(request)} />
+                  <MobileInfo label="Motorista" value={request.motorista || '-'} />
+                  <MobileInfo label="Veículo" value={[request.veiculo, request.placa].filter(Boolean).join(' - ') || '-'} wide />
+                  <MobileInfo label="Itens" value={<span className="whitespace-pre-wrap">{request.itemDescricao || '-'}</span>} wide />
+                </div>
+              )}
+
+              <div className="grid gap-2 sm:grid-cols-3">
+                {!isInternational && canEdit ? (
+                  <button
+                    className={`${buttonClass('secondary')} w-full`}
+                    onClick={() => onEdit(request)}
+                    type="button"
+                    disabled={saving}
+                    title="Editar solicitação"
+                    aria-label={`Editar ${formatProtocol(request)}`}
+                  >
+                    <Pencil className="h-4 w-4" />
+                    Editar
+                  </button>
+                ) : null}
+                <button className={`${buttonClass('secondary')} w-full`} onClick={() => onOpen(request)} type="button">
+                  <Eye className="h-4 w-4" />
+                  Detalhes
+                </button>
+                {!isInternational && isRequestedFreightStatus(request.status) ? (
+                  <button className={`${buttonClass('dark')} w-full`} onClick={() => onSchedule(request)} type="button" disabled={saving}>
+                    <CalendarClock className="h-4 w-4" />
+                    Agendar
+                  </button>
+                ) : null}
+              </div>
+            </article>
+          );
+        })}
+        {!requests.length ? (
+          <div className="p-8 text-center text-sm text-slate-500">Nenhuma solicitação encontrada.</div>
+        ) : null}
+      </div>
+      <div className="hidden overflow-x-auto lg:block">
         <table className={`${isInternational ? 'min-w-full' : 'min-w-[1960px]'} divide-y divide-slate-100 text-sm`}>
           <thead className="bg-slate-50">
             <tr className="text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -2753,18 +2861,18 @@ function NationalForm({
   return (
     <form
       data-freight-national-form="true"
-      className="w-full max-w-full rounded-lg border border-slate-200 bg-white shadow-sm"
+      className="w-full max-w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
       onSubmit={onSubmit}
     >
-      <div className="border-b border-slate-100 px-4 py-4 pl-20 sm:px-5 sm:pl-5">
-        <h2 className="break-words text-base font-bold leading-snug text-slate-950 sm:text-lg">Cadastrar solicitação de frete nacional</h2>
+      <div className="border-b border-slate-100 px-4 py-4 pl-16 sm:px-5 sm:pl-5">
+        <h2 className="break-words text-lg font-bold leading-snug text-slate-950 sm:text-xl">Cadastrar solicitação de frete nacional</h2>
         {deadlineMessage ? (
           <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold leading-5 text-red-700">
             {deadlineMessage}
           </div>
         ) : null}
       </div>
-      <div className="grid min-w-0 gap-4 p-4 sm:p-5 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid min-w-0 gap-x-4 gap-y-5 p-4 sm:p-5 lg:grid-cols-2 2xl:grid-cols-3">
         <Field label="Setor">
           <select className={fieldClass()} value={form.setor} onChange={event => onChange('setor', event.target.value)} required>
             <option value="">Selecione...</option>
@@ -2805,17 +2913,17 @@ function NationalForm({
           onClose={() => setOpenAddressMenu(null)}
           onChange={value => onChange('enderecoEntrega', value)}
         />
-        <div className="md:col-span-2 xl:col-span-3">
+        <div className="lg:col-span-2 2xl:col-span-3">
           <Field label="Descreva as quantidades e itens a serem transportados">
             <textarea className={`${areaClass()} min-h-28 text-[12px] leading-4 placeholder:text-[12px] sm:text-sm sm:leading-5 sm:placeholder:text-sm`} value={form.itemDescricao} onChange={event => onChange('itemDescricao', event.target.value)} placeholder={'Exemplo:\n1x Parachoque traseiro\n2x Molde de alumínio'} required />
           </Field>
         </div>
-        <div className="md:col-span-2 xl:col-span-3">
+        <div className="lg:col-span-2 2xl:col-span-3">
           <Field label="Observações">
             <textarea className={areaClass()} value={form.observacoes} onChange={event => onChange('observacoes', event.target.value)} />
           </Field>
         </div>
-        <div className="md:col-span-2 xl:col-span-3">
+        <div className="lg:col-span-2 2xl:col-span-3">
           <div className="block min-w-0">
             <span className={labelClass()}>Fotos do produto</span>
             <div className="flex min-w-0 flex-col gap-3 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-3 sm:p-4">
@@ -2855,7 +2963,7 @@ function NationalForm({
           </div>
         </div>
       </div>
-      <div className="flex justify-center border-t border-slate-100 px-4 py-4 sm:justify-end sm:px-5">
+      <div className="flex justify-center border-t border-slate-100 bg-white px-4 py-4 sm:justify-end sm:px-5">
         <button key={saving ? 'saving-national-submit' : 'ready-national-submit'} className={`${buttonClass('primary')} w-full sm:w-auto`} type="submit" disabled={saving} aria-busy={saving}>
           {saving ? (
             <>
@@ -2931,12 +3039,12 @@ function RecurringAddressField({
     ? createPortal(
       <>
         <button
-          className="fixed inset-0 z-[9998] bg-transparent sm:hidden"
+          className="fixed inset-0 z-[9998] bg-slate-950/10 sm:hidden"
           type="button"
           aria-label="Fechar endereços"
           onClick={onClose}
         />
-        <div className="fixed left-4 right-4 top-1/2 z-[9999] max-h-[70dvh] -translate-y-1/2 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 text-sm shadow-2xl sm:hidden">
+        <div className="fixed inset-x-3 bottom-3 z-[9999] max-h-[60dvh] overflow-hidden rounded-xl border border-slate-200 bg-white py-1 text-sm shadow-2xl sm:hidden">
           {renderMenuContent()}
         </div>
       </>,
@@ -2949,12 +3057,12 @@ function RecurringAddressField({
       <span className={labelClass()}>{label}</span>
       <div className="relative min-w-0">
         <button
-          className="absolute right-1 top-1/2 z-10 inline-flex h-10 -translate-y-1/2 items-center justify-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-3 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-white sm:h-8"
+          className="absolute right-1.5 top-1/2 z-10 inline-flex h-9 max-w-[44%] -translate-y-1/2 items-center justify-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2.5 text-[11px] font-semibold text-slate-700 shadow-sm transition hover:bg-white sm:h-8 sm:max-w-none sm:px-3 sm:text-xs"
           type="button"
           onClick={onToggle}
         >
           <MapPin className="h-3.5 w-3.5 text-pink-500" />
-          Endereços
+          <span className="truncate">Endereços</span>
         </button>
         {open ? (
           <>
@@ -2964,7 +3072,7 @@ function RecurringAddressField({
             </div>
           </>
         ) : null}
-        <input className={`${fieldClass()} pr-32`} value={value} onChange={event => onChange(event.target.value)} />
+        <input className={`${fieldClass()} pr-28 sm:pr-32`} value={value} onChange={event => onChange(event.target.value)} />
       </div>
     </div>
   );
@@ -3294,10 +3402,10 @@ function AttendancePanel({
   };
 
   return (
-    <div className="space-y-5">
-      <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+    <div className="w-full min-w-0 space-y-4 sm:space-y-5">
+      <div className="w-full min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
+          <div className="min-w-0">
             <h2 className="text-xl font-bold text-slate-950">Painel de Atendimento de Fretes</h2>
             <p className="text-sm text-slate-500">Filtre, selecione em lote e programe motoristas e veículos para as entregas solicitadas.</p>
           </div>
@@ -3312,10 +3420,10 @@ function AttendancePanel({
         </div>
 
         <div className="mt-5 flex flex-wrap gap-2">
-          <button className="inline-flex h-10 items-center justify-center rounded-md bg-blue-600 px-4 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50" type="button" disabled={!selectedIds.length}>
+          <button className="inline-flex min-h-10 w-full items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold leading-tight text-white hover:bg-blue-700 disabled:opacity-50 sm:w-auto" type="button" disabled={!selectedIds.length}>
             Agendar Selecionados
           </button>
-          <button className={buttonClass('danger')} type="button" onClick={() => openCancelPanel()} disabled={!selectedIds.length || saving}>
+          <button className={`${buttonClass('danger')} w-full sm:w-auto`} type="button" onClick={() => openCancelPanel()} disabled={!selectedIds.length || saving}>
             <X className="h-4 w-4" />
             Cancelar solicitação
           </button>
@@ -3351,8 +3459,8 @@ function AttendancePanel({
           </div>
         ) : null}
 
-        <div className="mt-3 overflow-x-auto">
-          <table className="min-w-full border-collapse text-sm">
+        <div className="mt-3 max-w-full overflow-x-auto rounded-lg border border-slate-200 [-webkit-overflow-scrolling:touch]">
+          <table className="min-w-[1120px] border-collapse text-sm">
             <thead className="bg-slate-100">
               <tr className="border border-slate-200">
                 <th className="w-24 border border-slate-200 p-2">{headerCell('SLA', 'sla')}</th>
@@ -3439,7 +3547,7 @@ function AttendancePanel({
         </div>
       </div>
 
-      <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="w-full min-w-0 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
         <h2 className="text-lg font-bold text-red-600">Agendar {selectedIds.length} Solicitações em Lote</h2>
         <p className="text-sm text-slate-500">Selecione um ou mais motoristas e veículos para a mesma operação.</p>
         <div className="mt-4 space-y-4">
@@ -3465,11 +3573,11 @@ function AttendancePanel({
             <textarea className={areaClass()} value={draft.observacoesLogistica} onChange={event => setDraft((current: any) => ({ ...current, observacoesLogistica: event.target.value }))} />
           </Field>
           <div className="flex flex-wrap gap-2">
-            <button className={buttonClass('primary')} type="button" onClick={onApply} disabled={saving || !selectedIds.length}>
+            <button className={`${buttonClass('primary')} w-full sm:w-auto`} type="button" onClick={onApply} disabled={saving || !selectedIds.length}>
               <Save className="h-4 w-4" />
               {saving ? 'Salvando...' : 'Salvar Agendamento'}
             </button>
-            <button className={buttonClass('secondary')} type="button" onClick={() => setSelectedIds([])}>
+            <button className={`${buttonClass('secondary')} w-full sm:w-auto`} type="button" onClick={() => setSelectedIds([])}>
               Cancelar seleção
             </button>
           </div>
@@ -3618,14 +3726,14 @@ function KanbanPanel({
 
   if (isDriver) {
     return (
-      <div data-freight-driver-panel="true" className="grid min-w-0 max-w-full gap-3 overflow-hidden lg:min-h-[520px] lg:grid-cols-2">
+      <div data-freight-driver-panel="true" className="grid min-w-0 max-w-full gap-3 overflow-hidden xl:min-h-[520px] xl:grid-cols-2">
         {(['Em Rota', 'Agendado'] as FreightStatus[]).map(status => {
           const rows = driverGrouped[status] || [];
           const accentClass = status === 'Agendado' ? 'border-yellow-400 bg-yellow-50/60' : 'border-blue-500 bg-blue-50/60';
           const countClass = status === 'Agendado' ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800';
 
           return (
-            <section key={status} className={`flex min-w-0 flex-col overflow-hidden rounded-lg border bg-white shadow-sm lg:min-h-[420px] ${accentClass}`}>
+            <section key={status} className={`flex min-w-0 flex-col overflow-hidden rounded-xl border bg-white shadow-sm xl:min-h-[420px] ${accentClass}`}>
               <div className="flex items-center justify-between border-b border-slate-100 bg-white px-4 py-3">
                 <h3 className="font-bold text-slate-950">{status}</h3>
                 <span className={`rounded-full px-2 py-1 text-xs font-bold ${countClass}`}>{rows.length}</span>
@@ -3637,7 +3745,7 @@ function KanbanPanel({
                   const requesterObservation = String(request.observacoes || request.observacoesFinais || '').trim();
 
                   return (
-                  <div key={request.id} className="min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                  <div key={request.id} className="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                     <div className="flex min-w-0 items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="text-lg font-bold text-slate-950">{formatProtocol(request)}</div>
@@ -3721,11 +3829,11 @@ function KanbanPanel({
   }
 
   return (
-    <div className="grid min-h-[560px] gap-3 xl:grid-cols-4">
+    <div className="grid min-w-0 gap-3 lg:grid-cols-2 2xl:grid-cols-4">
       {laneOrder.map(lane => (
         <div
           key={lane}
-          className={`flex min-h-[520px] flex-col rounded-lg border bg-white shadow-sm transition ${dropLane === lane ? 'border-red-300 ring-2 ring-red-100' : 'border-slate-200'}`}
+          className={`flex min-h-[420px] min-w-0 flex-col rounded-xl border bg-white shadow-sm transition xl:min-h-[520px] ${dropLane === lane ? 'border-red-300 ring-2 ring-red-100' : 'border-slate-200'}`}
           onDragOver={event => {
             event.preventDefault();
             setDropLane(lane);

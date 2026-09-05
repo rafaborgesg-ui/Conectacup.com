@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
 import {
@@ -7,6 +7,9 @@ import {
   CalendarClock,
   Camera,
   CheckCircle2,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Clock3,
   ClipboardList,
   Columns3,
@@ -15,6 +18,7 @@ import {
   FileSpreadsheet,
   Globe2,
   Info,
+  Lock,
   MapPin,
   Package,
   Pencil,
@@ -52,6 +56,8 @@ import {
   type FreightVolume
 } from '../utils/freightStorage';
 import { usePermissions } from '../utils/usePermissions';
+import { getChassis, type Chassis } from '../utils/chassisStorage';
+import { createClient } from '../utils/supabase/client';
 
 type FreightMode = 'nacional' | 'motorista' | 'internacional';
 type TabKey = 'dashboard' | 'nova' | 'atendimento' | 'kanban' | 'motorista' | 'relatorios';
@@ -113,6 +119,30 @@ const emptyNationalForm = {
   enderecoEntrega: '',
   observacoes: ''
 };
+
+type BatchItem = {
+  id: string;
+  itemDescricao: string;
+  overrideOpen: boolean;
+  prazoEntrega: string;
+  enderecoRetirada: string;
+  enderecoEntrega: string;
+  responsavelLocal: string;
+  observacoes: string;
+};
+
+function emptyBatchItem(): BatchItem {
+  return {
+    id: Math.random().toString(36).slice(2),
+    itemDescricao: '',
+    overrideOpen: false,
+    prazoEntrega: '',
+    enderecoRetirada: '',
+    enderecoEntrega: '',
+    responsavelLocal: '',
+    observacoes: '',
+  };
+}
 
 const emptyNationalEditForm = {
   ...emptyNationalForm,
@@ -188,15 +218,15 @@ function isDriverVisibleStatus(status?: string | null) {
 }
 
 function fieldClass() {
-  return 'box-border block min-h-12 w-full min-w-0 max-w-full rounded-md border border-slate-200 bg-white px-4 py-2.5 text-base leading-6 text-slate-900 outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-100 disabled:bg-slate-50 disabled:text-slate-400 sm:min-h-10 sm:px-3 sm:py-2 sm:text-sm sm:leading-5';
+  return 'box-border block h-12 w-full min-w-0 max-w-full rounded-md border border-slate-200 bg-white px-4 text-base leading-normal text-slate-900 outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-100 disabled:bg-slate-50 disabled:text-slate-400 sm:h-10 sm:px-3 sm:text-sm';
 }
 
 function areaClass() {
-  return 'box-border min-h-24 w-full min-w-0 max-w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm leading-5 text-slate-900 outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-100';
+  return 'min-h-24 w-full min-w-0 max-w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-100';
 }
 
 function buttonClass(variant: 'primary' | 'secondary' | 'dark' | 'danger' = 'secondary') {
-  const base = 'inline-flex min-h-10 items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold leading-tight transition disabled:cursor-not-allowed disabled:opacity-50';
+  const base = 'inline-flex h-10 items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50';
   const variants = {
     primary: 'bg-red-600 text-white hover:bg-red-700',
     secondary: 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
@@ -1288,12 +1318,17 @@ function FreightPage({ mode }: { mode: FreightMode }) {
     setKanbanFiltersOpen(false);
   }, [activeTab]);
 
+  const activeTabRef = useRef<TabKey>(activeTab);
   useEffect(() => {
-    if (activeTab !== 'kanban' || isInternational) return;
+    activeTabRef.current = activeTab;
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (isInternational) return;
 
     let refreshing = false;
     const intervalId = window.setInterval(() => {
-      if (refreshing) return;
+      if (refreshing || activeTabRef.current !== 'kanban') return;
       refreshing = true;
       loadData({ silent: true }).finally(() => {
         refreshing = false;
@@ -1301,7 +1336,7 @@ function FreightPage({ mode }: { mode: FreightMode }) {
     }, 60000);
 
     return () => window.clearInterval(intervalId);
-  }, [activeTab, freightType, isInternational]);
+  }, [freightType, isInternational]);
 
   useEffect(() => {
     if (isInternational || selected || editingRequest || !['nova', 'motorista'].includes(activeTab)) return;
@@ -1716,6 +1751,57 @@ function FreightPage({ mode }: { mode: FreightMode }) {
     }
   }
 
+  async function handleBatchCreateNational(items: (typeof emptyNationalForm)[]) {
+    setMessage(null);
+    const requesterSla = requesterSlaDays(lookups);
+    const minimumDl = requesterMinimumDeadline(requesterSla);
+
+    for (const item of items) {
+      const requested = new Date(item.prazoEntrega);
+      if (!item.prazoEntrega || Number.isNaN(requested.getTime()) || requested.getTime() < minimumDl.getTime()) {
+        setMessage({
+          type: 'error',
+          text: `Um ou mais fretes tem prazo inválido. O mínimo é ${formatSlaDaysLabel(requesterSla)} de antecedência.`
+        });
+        return;
+      }
+    }
+
+    setSaving(true);
+    try {
+      const created = await Promise.all(items.map(item => createFreightRequest({
+        freightType: 'nacional',
+        status: 'Solicitado',
+        ...item,
+        setorId: item.setorId || undefined,
+        projetoId: item.projetoId || undefined,
+        responsavelEntrega: undefined,
+        pagamento: undefined,
+        fotosProdutoUrls: [],
+        fotoEntregaUrls: [],
+        payloadOriginal: { ...item, responsavelEntrega: undefined, pagamento: undefined }
+      })));
+
+      if (productFiles.length) {
+        await Promise.all(created.map(c => uploadFreightFiles(c.id, productFiles, 'produto')));
+      }
+      await Promise.all(created.map(c => sendFreightNotification(c.id, 'created')));
+
+      setNationalForm(emptyNationalForm);
+      setProductFiles([]);
+      setTab(forcedTab || 'dashboard');
+      setSuccessDialog({
+        title: `${created.length} solicitaç${created.length === 1 ? 'ão' : 'ões'} cadastrada${created.length === 1 ? '' : 's'} com sucesso`,
+        text: 'Você receberá cópias por e-mail com os dados de cada solicitação.'
+      });
+      await loadData({ silent: true });
+    } catch (error: any) {
+      setMessage({ type: 'error', text: error.message || 'Erro ao cadastrar solicitações.' });
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function handleCreateInternational(event: React.FormEvent) {
     event.preventDefault();
     setSaving(true);
@@ -1991,6 +2077,23 @@ function FreightPage({ mode }: { mode: FreightMode }) {
       : { title: 'Frete Nacional', subtitle: '', icon: Truck };
   const HeaderIcon = header.icon;
   const showPageHeader = !isSingleTabView && (isInternational || activeTab === 'dashboard');
+  const currentUserData = useMemo(() => {
+    try {
+      const raw = localStorage.getItem('porsche-cup-user');
+      if (!raw) return null;
+      const user = JSON.parse(raw);
+      return { name: String(user.name || profile?.name || ''), email: String(user.email || '') };
+    } catch {
+      return null;
+    }
+  }, [profile]);
+
+  useEffect(() => {
+    if (currentUserData?.name && !nationalForm.solicitanteNome) {
+      setNationalForm(current => ({ ...current, solicitanteNome: currentUserData.name }));
+    }
+  }, [currentUserData]);
+
   const nationalRequesterSlaDays = requesterSlaDays(lookups);
   const nationalMinimumDeadlineInput = toDateTimeLocalInput(requesterMinimumDeadline(nationalRequesterSlaDays).toISOString());
   const nationalDeadlineMessage = activeTab === 'nova'
@@ -2001,10 +2104,10 @@ function FreightPage({ mode }: { mode: FreightMode }) {
     : null;
 
   return (
-    <div className="w-full min-w-0 overflow-x-hidden bg-slate-50 px-2 pb-3 pt-3 sm:min-h-screen sm:px-4 sm:py-4 xl:px-5 2xl:px-6">
-      <div className="w-full min-w-0 space-y-4 sm:space-y-5">
+    <div className="overflow-x-clip bg-slate-50 px-3 pb-0 pt-3 sm:p-4 md:p-6">
+      <div className="mx-auto w-full min-w-0 max-w-7xl space-y-5">
         {showPageHeader ? (
-          <div className="flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="flex min-w-0 items-start gap-3">
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-red-600 text-white shadow-sm">
                 <HeaderIcon className="h-6 w-6" />
@@ -2042,7 +2145,7 @@ function FreightPage({ mode }: { mode: FreightMode }) {
         ) : null}
 
         {activeTab === 'dashboard' ? (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
             <StatCard label="Total" value={stats.total} icon={ClipboardList} tone="bg-slate-100 text-slate-700" />
             <StatCard label="Solicitadas" value={stats.pendente} icon={AlertTriangle} tone="bg-amber-100 text-amber-700" />
             <StatCard label={isInternational ? 'Em andamento' : 'Agendados'} value={stats.agendado} icon={CalendarClock} tone="bg-blue-100 text-blue-700" />
@@ -2052,28 +2155,26 @@ function FreightPage({ mode }: { mode: FreightMode }) {
         ) : null}
 
         {!isSingleTabView ? (
-          <nav aria-label="Seções do frete" className="-mx-2 overflow-x-auto border-b border-slate-200 px-2 pb-2">
-            <div className="flex min-w-max gap-2">
-              {[
-                { id: 'dashboard', label: 'Dashboard', icon: BarChart3, visible: true },
-                { id: 'nova', label: 'Nova solicitação', icon: Plus, visible: !isDriver },
-                { id: 'atendimento', label: 'Atendimento', icon: CalendarClock, visible: !isInternational },
-                { id: 'kanban', label: 'Kanban', icon: Columns3, visible: !isInternational },
-                { id: 'motorista', label: 'Motorista', icon: Smartphone, visible: !isInternational },
-                { id: 'relatorios', label: 'Relatórios', icon: FileSpreadsheet, visible: true }
-              ].filter(item => item.visible).map(item => (
-                <button
-                  key={item.id}
-                  className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-md px-4 py-2 text-sm font-semibold leading-tight transition ${activeTab === item.id ? 'bg-slate-950 text-white shadow-sm' : 'bg-white text-slate-700 hover:bg-slate-100'}`}
-                  onClick={() => setTab(item.id as TabKey)}
-                  type="button"
-                >
-                  <item.icon className="h-4 w-4" />
-                  {item.label}
-                </button>
-              ))}
-            </div>
-          </nav>
+          <div className="-mx-1 flex gap-2 overflow-x-auto border-b border-slate-200 px-1 pb-2">
+            {[
+              { id: 'dashboard', label: 'Dashboard', icon: BarChart3, visible: true },
+              { id: 'nova', label: 'Nova solicitação', icon: Plus, visible: !isDriver },
+              { id: 'atendimento', label: 'Atendimento', icon: CalendarClock, visible: !isInternational },
+              { id: 'kanban', label: 'Kanban', icon: Columns3, visible: !isInternational },
+              { id: 'motorista', label: 'Motorista', icon: Smartphone, visible: !isInternational },
+              { id: 'relatorios', label: 'Relatórios', icon: FileSpreadsheet, visible: true }
+            ].filter(item => item.visible).map(item => (
+              <button
+                key={item.id}
+                className={`inline-flex h-10 shrink-0 items-center gap-2 rounded-md px-4 text-sm font-semibold transition ${activeTab === item.id ? 'bg-slate-950 text-white' : 'bg-white text-slate-700 hover:bg-slate-100'}`}
+                onClick={() => setTab(item.id as TabKey)}
+                type="button"
+              >
+                <item.icon className="h-4 w-4" />
+                {item.label}
+              </button>
+            ))}
+          </div>
         ) : null}
 
         {activeTab !== 'nova' && !(activeTab === 'kanban' && !isInternational) ? (
@@ -2141,9 +2242,12 @@ function FreightPage({ mode }: { mode: FreightMode }) {
                 requesterSlaDays={nationalRequesterSlaDays}
                 minimumDeadline={nationalMinimumDeadlineInput}
                 deadlineMessage={nationalDeadlineMessage}
+                currentUser={currentUserData || undefined}
                 onChange={updateNationalField}
                 onFiles={files => setProductFiles(files)}
                 onSubmit={handleCreateNational}
+                onBatchSubmit={handleBatchCreateNational}
+                onCancel={isSingleTabView ? undefined : () => setTab('dashboard')}
               />
             )}
 
@@ -2285,9 +2389,9 @@ function FilterBar({
   hideProject?: boolean;
 }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
-      <div className="grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 2xl:grid-cols-7">
-        <div className="sm:col-span-2 lg:col-span-3 xl:col-span-2">
+    <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-7">
+        <div className="xl:col-span-2">
           <label className={labelClass()}>Busca</label>
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -2347,7 +2451,7 @@ function FilterToggleButton({
   return (
     <div className="flex justify-end">
       <button
-        className={`inline-flex min-h-9 items-center gap-2 rounded-md border px-3 py-2 text-xs font-semibold leading-tight transition ${filtersOpen ? 'border-red-200 bg-red-50 text-red-700' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+        className={`inline-flex h-9 items-center gap-2 rounded-md border px-3 text-xs font-semibold transition ${filtersOpen ? 'border-red-200 bg-red-50 text-red-700' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
         type="button"
         onClick={onToggle}
       >
@@ -2416,12 +2520,12 @@ function FreightKanbanFilters({
   };
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+      <div className="flex items-center justify-between gap-3">
         <h2 className="text-base font-bold text-slate-950">Fretes Porsche Cup</h2>
         <div className="flex items-center gap-2">
           <button
-            className={`inline-flex min-h-9 items-center gap-2 rounded-md border px-3 py-2 text-xs font-semibold leading-tight transition ${filtersOpen ? 'border-red-200 bg-red-50 text-red-700' : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'}`}
+            className={`inline-flex h-8 items-center gap-2 rounded-md border px-3 text-xs font-semibold transition ${filtersOpen ? 'border-red-200 bg-red-50 text-red-700' : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'}`}
             type="button"
             onClick={onToggleFilters}
           >
@@ -2429,7 +2533,7 @@ function FreightKanbanFilters({
             <BarChart3 className="h-3.5 w-3.5 text-red-500" />
           </button>
           <button
-            className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 bg-slate-50 text-slate-500 transition hover:bg-slate-100 disabled:opacity-50"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-slate-50 text-slate-500 transition hover:bg-slate-100 disabled:opacity-50"
             type="button"
             onClick={onRefresh}
             disabled={refreshing}
@@ -2454,10 +2558,10 @@ function FreightKanbanFilters({
         </div>
       </div>
 
-      <div className="mt-3 flex min-w-0 flex-wrap items-center gap-2">
+      <div className="mt-3 flex flex-wrap items-center gap-2">
         <span className="mr-1 text-xs font-semibold text-slate-500">Motorista:</span>
         <button
-          className={`inline-flex min-h-9 items-center gap-2 rounded-md px-3 py-2 text-xs font-bold leading-tight transition ${filters.motorista === 'TODOS' ? 'bg-red-600 text-white shadow-sm' : 'border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'}`}
+          className={`inline-flex h-9 items-center gap-2 rounded-md px-3 text-xs font-bold transition ${filters.motorista === 'TODOS' ? 'bg-red-600 text-white shadow-sm' : 'border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'}`}
           type="button"
           onClick={() => update({ motorista: 'TODOS' })}
         >
@@ -2467,22 +2571,22 @@ function FreightKanbanFilters({
         {motoristaCounts.map(item => (
           <button
             key={item.label}
-            className={`inline-flex min-h-9 max-w-full items-center gap-2 rounded-md px-3 py-2 text-xs font-semibold leading-tight transition ${filters.motorista === item.label ? 'bg-red-600 text-white shadow-sm' : 'border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'}`}
+            className={`inline-flex h-9 items-center gap-2 rounded-md px-3 text-xs font-semibold transition ${filters.motorista === item.label ? 'bg-red-600 text-white shadow-sm' : 'border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'}`}
             type="button"
             onClick={() => update({ motorista: item.label })}
           >
-            <span className="max-w-48 truncate">{item.label}</span>
+            {item.label}
             <span className={`rounded-full px-2 py-0.5 text-[11px] ${filters.motorista === item.label ? 'bg-white text-red-600' : 'bg-white text-slate-600'}`}>{item.count}</span>
           </button>
         ))}
       </div>
 
-      <div className="mt-3 flex min-w-0 flex-wrap items-center gap-2">
+      <div className="mt-3 flex flex-wrap items-center gap-2">
         <span className="mr-1 text-xs font-semibold text-slate-500">Status:</span>
         {statusCounts.map(item => (
           <button
             key={item.status}
-            className={`inline-flex min-h-9 items-center gap-2 rounded-md px-3 py-2 text-xs font-bold leading-tight transition ${filters.status === item.status ? 'bg-red-600 text-white shadow-sm ring-2 ring-red-200' : 'bg-red-600 text-white hover:bg-red-700'}`}
+            className={`inline-flex h-9 items-center gap-2 rounded-md px-3 text-xs font-bold transition ${filters.status === item.status ? 'bg-red-600 text-white shadow-sm ring-2 ring-red-200' : 'bg-red-600 text-white hover:bg-red-700'}`}
             type="button"
             onClick={() => update({ status: filters.status === item.status ? 'Todos' : item.status })}
           >
@@ -2492,7 +2596,7 @@ function FreightKanbanFilters({
         ))}
       </div>
 
-      <div className="mt-3 grid min-w-0 gap-3 lg:grid-cols-[minmax(16rem,1fr)_minmax(9rem,12rem)_minmax(9rem,12rem)_auto] lg:items-end">
+      <div className="mt-3 grid gap-3 md:grid-cols-[1fr_auto_auto_auto] md:items-end">
         <div>
           <label className={labelClass()}>Projeto</label>
           <select className={fieldClass()} value={filters.projeto} onChange={event => update({ projeto: event.target.value })}>
@@ -2508,10 +2612,10 @@ function FreightKanbanFilters({
           <label className={labelClass()}>Até</label>
           <input className={fieldClass()} type="date" value={filters.dateTo} onChange={event => update({ dateTo: event.target.value })} />
         </div>
-        <div className="flex flex-wrap gap-2 lg:justify-end">
-          <button className="min-h-9 rounded-md border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-semibold leading-tight text-slate-700 hover:bg-slate-200" type="button" onClick={setThisMonth}>Este Mês</button>
-          <button className="min-h-9 rounded-md border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-semibold leading-tight text-slate-700 hover:bg-slate-200" type="button" onClick={setThisYear}>Este Ano</button>
-          <button className="min-h-9 rounded-md bg-red-600 px-3 py-2 text-xs font-semibold leading-tight text-white hover:bg-red-700" type="button" onClick={() => update({ dateFrom: '', dateTo: '' })}>Limpar</button>
+        <div className="flex flex-wrap gap-2">
+          <button className="h-9 rounded-md border border-slate-200 bg-slate-100 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-200" type="button" onClick={setThisMonth}>Este Mês</button>
+          <button className="h-9 rounded-md border border-slate-200 bg-slate-100 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-200" type="button" onClick={setThisYear}>Este Ano</button>
+          <button className="h-9 rounded-md bg-red-600 px-3 text-xs font-semibold text-white hover:bg-red-700" type="button" onClick={() => update({ dateFrom: '', dateTo: '' })}>Limpar</button>
         </div>
       </div>
         </>
@@ -2528,15 +2632,6 @@ function DashboardHeaderInfo({ label, description }: { label: string; descriptio
         {description}
       </span>
     </span>
-  );
-}
-
-function MobileInfo({ label, value, wide = false }: { label: string; value: ReactNode; wide?: boolean }) {
-  return (
-    <div className={`min-w-0 rounded-lg bg-slate-50 px-3 py-2 ${wide ? 'col-span-2' : ''}`}>
-      <div className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</div>
-      <div className="mt-1 break-words text-sm font-medium leading-5 text-slate-900">{value || '-'}</div>
-    </div>
   );
 }
 
@@ -2562,111 +2657,14 @@ function RequestsTable({
   saving: boolean;
 }) {
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+    <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
       <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
         <div>
           <h2 className="font-semibold text-slate-950">Solicitações</h2>
           <p className="text-sm text-slate-500">{requests.length} registro(s) encontrados</p>
         </div>
       </div>
-      <div className="divide-y divide-slate-100 lg:hidden">
-        {requests.map(request => {
-          const slaDays = freightSlaElapsedDays(request);
-          const isSlaLate = slaDays > slaLimitDays;
-          const requesterSlaDays = freightRequesterSlaElapsedDays(request);
-          const isRequesterSlaLate = requesterSlaDays === null || requesterSlaDays < requesterSlaLimitDays;
-
-          return (
-            <article key={request.id} className="min-w-0 space-y-3 p-4">
-              <div className="flex min-w-0 items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="text-lg font-bold text-slate-950">{formatProtocol(request)}</div>
-                  <div className="mt-1 break-words text-sm text-slate-500">
-                    {isInternational
-                      ? [request.necessidade, request.tipoFrete].filter(Boolean).join(' · ') || '-'
-                      : [request.setor, request.projeto || request.projetoDescricao].filter(Boolean).join(' · ') || '-'}
-                  </div>
-                </div>
-                <span className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-semibold ${statusBadgeClass(request.status)}`}>
-                  {request.status}
-                </span>
-              </div>
-
-              {isInternational ? (
-                <div className="grid grid-cols-2 gap-2">
-                  <MobileInfo label="Necessidade" value={request.necessidade || '-'} />
-                  <MobileInfo label="Tipo" value={request.definitivaTemporaria || '-'} />
-                  <MobileInfo label="Origem" value={request.empresaRemetente || '-'} />
-                  <MobileInfo label="Destino" value={request.empresaDestinatario || '-'} />
-                  <MobileInfo label="Transporte" value={`${request.tipoFrete || '-'} · ${request.modalidadeFrete || '-'}`} wide />
-                  <MobileInfo label="Logística" value={request.motorista || [request.veiculo, request.placa].filter(Boolean).join(' - ') || formatFreightDate(request.agendamentoAt)} wide />
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-2">
-                  <MobileInfo label="Setor" value={request.setor || '-'} />
-                  <MobileInfo label="Projeto" value={request.projeto || request.projetoDescricao || '-'} />
-                  <MobileInfo label="Solicitante" value={request.solicitanteNome || '-'} />
-                  <MobileInfo label="E-mail" value={requesterEmail(request)} />
-                  <MobileInfo label="Registro" value={formatFreightDate(request.createdAt)} />
-                  <MobileInfo label="Prazo" value={formatFreightDate(request.prazoEntrega)} />
-                  <MobileInfo label="Agendamento" value={formatFreightDate(request.agendamentoAt)} />
-                  <MobileInfo label="Atendimento" value={formatFreightDate(request.atendimentoAt)} />
-                  <MobileInfo
-                    label="SLA Solicitante"
-                    value={requesterSlaDays === null ? '-' : (
-                      <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${isRequesterSlaLate ? 'border-red-200 bg-red-100 text-red-700' : 'border-emerald-200 bg-emerald-100 text-emerald-700'}`}>
-                        {formatSlaDaysLabel(requesterSlaDays)}
-                      </span>
-                    )}
-                  />
-                  <MobileInfo
-                    label="SLA Agendamento"
-                    value={(
-                      <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${isSlaLate ? 'border-red-200 bg-red-100 text-red-700' : 'border-emerald-200 bg-emerald-100 text-emerald-700'}`}>
-                        {slaDays} dia{slaDays === 1 ? '' : 's'}
-                      </span>
-                    )}
-                  />
-                  <MobileInfo label="Data de entrega" value={formattedFreightDeliveryDate(request)} />
-                  <MobileInfo label="Motorista" value={request.motorista || '-'} />
-                  <MobileInfo label="Veículo" value={[request.veiculo, request.placa].filter(Boolean).join(' - ') || '-'} wide />
-                  <MobileInfo label="Itens" value={<span className="whitespace-pre-wrap">{request.itemDescricao || '-'}</span>} wide />
-                </div>
-              )}
-
-              <div className="grid gap-2 sm:grid-cols-3">
-                {!isInternational && canEdit ? (
-                  <button
-                    className={`${buttonClass('secondary')} w-full`}
-                    onClick={() => onEdit(request)}
-                    type="button"
-                    disabled={saving}
-                    title="Editar solicitação"
-                    aria-label={`Editar ${formatProtocol(request)}`}
-                  >
-                    <Pencil className="h-4 w-4" />
-                    Editar
-                  </button>
-                ) : null}
-                <button className={`${buttonClass('secondary')} w-full`} onClick={() => onOpen(request)} type="button">
-                  <Eye className="h-4 w-4" />
-                  Detalhes
-                </button>
-                {!isInternational && isRequestedFreightStatus(request.status) ? (
-                  <button className={`${buttonClass('dark')} w-full`} onClick={() => onSchedule(request)} type="button" disabled={saving}>
-                    <CalendarClock className="h-4 w-4" />
-                    Agendar
-                  </button>
-                ) : null}
-              </div>
-            </article>
-          );
-        })}
-        {!requests.length ? (
-          <div className="p-8 text-center text-sm text-slate-500">Nenhuma solicitação encontrada.</div>
-        ) : null}
-      </div>
-      <div className="hidden overflow-x-auto lg:block">
+      <div className="overflow-x-auto">
         <table className={`${isInternational ? 'min-w-full' : 'min-w-[1960px]'} divide-y divide-slate-100 text-sm`}>
           <thead className="bg-slate-50">
             <tr className="text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -2822,6 +2820,178 @@ function RequestsTable({
   );
 }
 
+function BatchItemCard({
+  item,
+  index,
+  lookups,
+  chassisCategories,
+  containersList,
+  minimumDeadline,
+  requesterSlaDays: slaDays,
+  onChange,
+  onRemove,
+  canRemove,
+}: {
+  item: BatchItem;
+  index: number;
+  lookups: any;
+  chassisCategories: Map<string, Chassis[]>;
+  containersList: { id: string; name: string }[];
+  minimumDeadline: string;
+  requesterSlaDays: number;
+  onChange: (updates: Partial<BatchItem>) => void;
+  onRemove: () => void;
+  canRemove: boolean;
+}) {
+  const [selectedChassisCat, setSelectedChassisCat] = useState<string | null>(null);
+  const [containerMenuOpen, setContainerMenuOpen] = useState(false);
+  const [openAddressMenu, setOpenAddressMenu] = useState<string | null>(null);
+
+  const appendDescription = (text: string) => {
+    const current = item.itemDescricao.trim();
+    onChange({ itemDescricao: current ? `${current}\n${text}` : text });
+    setSelectedChassisCat(null);
+  };
+
+  const hasChips = chassisCategories.size > 0 || containersList.length > 0;
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white">
+      <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+        <span className="text-sm font-semibold text-slate-800">Frete #{index + 1}</span>
+        {canRemove && (
+          <button type="button" onClick={onRemove} className="rounded p-1 text-slate-400 hover:text-red-500">
+            <X className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+      <div className="space-y-3 p-4">
+        {hasChips && (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[11px] text-slate-400">Inserir rápido:</span>
+            {Array.from(chassisCategories.keys()).map(gen => (
+              <div key={gen} className="relative">
+                <button
+                  type="button"
+                  className={`inline-flex items-center rounded border px-2.5 py-1 text-xs transition ${selectedChassisCat === gen ? 'border-slate-400 bg-slate-100 text-slate-800' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-400 hover:text-slate-800'}`}
+                  onClick={() => setSelectedChassisCat(c => c === gen ? null : gen)}
+                >
+                  + Carro {gen}
+                </button>
+                {selectedChassisCat === gen && (
+                  <div className="absolute left-0 top-full z-20 mt-1 max-h-48 min-w-36 overflow-y-auto rounded-md border border-slate-200 bg-white py-1 shadow-lg">
+                    <p className="border-b border-slate-100 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">Carro {gen}</p>
+                    {(chassisCategories.get(gen) || []).map(c => (
+                      <button key={c.id} type="button" className="block w-full px-3 py-2 text-left text-xs text-slate-700 hover:bg-slate-50"
+                        onClick={() => appendDescription(`1x Carro ${gen} #${c.codigo}`)}>
+                        {c.codigo}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+            {containersList.length > 0 && (
+              <div className="relative">
+                <button type="button"
+                  className={`inline-flex items-center rounded border px-2.5 py-1 text-xs transition ${containerMenuOpen ? 'border-slate-400 bg-slate-100 text-slate-800' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-400 hover:text-slate-800'}`}
+                  onClick={() => { setContainerMenuOpen(o => !o); setSelectedChassisCat(null); }}>
+                  + Container
+                </button>
+                {containerMenuOpen && (
+                  <div className="absolute left-0 top-full z-20 mt-1 max-h-48 min-w-44 overflow-y-auto rounded-md border border-slate-200 bg-white py-1 shadow-lg">
+                    <p className="border-b border-slate-100 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">Selecione o Container</p>
+                    {containersList.map(c => (
+                      <button key={c.id} type="button" className="block w-full px-3 py-2 text-left text-xs text-slate-700 hover:bg-slate-50"
+                        onClick={() => { appendDescription(`1x CNTR (${c.name})`); setContainerMenuOpen(false); }}>
+                        {c.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+        <div>
+          <label className={labelClass()}>Discriminação dos itens<span className="text-red-500"> *</span></label>
+          <textarea
+            className={`${areaClass()} min-h-[100px]`}
+            value={item.itemDescricao}
+            onChange={e => onChange({ itemDescricao: e.target.value })}
+            placeholder={'Ex:\n1x Parachoque traseiro\n2x Molde de alumínio'}
+            required
+          />
+        </div>
+        <button
+          type="button"
+          className="flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-700"
+          onClick={() => onChange({ overrideOpen: !item.overrideOpen })}
+        >
+          <ChevronDown className={`h-3.5 w-3.5 transition-transform ${item.overrideOpen ? 'rotate-180' : ''}`} />
+          {item.overrideOpen ? 'Ocultar campos específicos' : 'Personalizar campos para este frete'}
+        </button>
+        {item.overrideOpen && (
+          <div className="space-y-3 border-t border-slate-100 pt-3">
+            <p className="text-[11px] text-slate-400">Deixe em branco para usar o valor padrão acima. Os campos abaixo substituem o padrão apenas neste frete.</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className={labelClass()}>Prazo específico</label>
+                <input
+                  className={fieldClass()}
+                  type="datetime-local"
+                  min={minimumDeadline}
+                  step={60}
+                  value={item.prazoEntrega}
+                  onChange={e => onChange({ prazoEntrega: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className={labelClass()}>Responsável local específico</label>
+                <input
+                  className={fieldClass()}
+                  value={item.responsavelLocal}
+                  onChange={e => onChange({ responsavelLocal: e.target.value })}
+                  placeholder="Substitui o responsável padrão"
+                />
+              </div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <RecurringAddressField
+                label="Retirada específica"
+                value={item.enderecoRetirada}
+                options={lookups.enderecos}
+                open={openAddressMenu === 'retirada'}
+                onToggle={() => setOpenAddressMenu(c => c === 'retirada' ? null : 'retirada')}
+                onClose={() => setOpenAddressMenu(null)}
+                onChange={v => onChange({ enderecoRetirada: v })}
+              />
+              <RecurringAddressField
+                label="Entrega específica"
+                value={item.enderecoEntrega}
+                options={lookups.enderecos}
+                open={openAddressMenu === 'entrega'}
+                onToggle={() => setOpenAddressMenu(c => c === 'entrega' ? null : 'entrega')}
+                onClose={() => setOpenAddressMenu(null)}
+                onChange={v => onChange({ enderecoEntrega: v })}
+              />
+            </div>
+            <div>
+              <label className={labelClass()}>Observações específicas</label>
+              <textarea
+                className={areaClass()}
+                value={item.observacoes}
+                onChange={e => onChange({ observacoes: e.target.value })}
+                placeholder="Observações exclusivas para este frete"
+              />
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function NationalForm({
   form,
   files,
@@ -2830,9 +3000,12 @@ function NationalForm({
   requesterSlaDays,
   minimumDeadline,
   deadlineMessage,
+  currentUser,
   onChange,
   onFiles,
-  onSubmit
+  onSubmit,
+  onBatchSubmit,
+  onCancel
 }: {
   form: typeof emptyNationalForm;
   files: File[];
@@ -2841,12 +3014,31 @@ function NationalForm({
   requesterSlaDays: number;
   minimumDeadline: string;
   deadlineMessage?: string | null;
+  currentUser?: { name: string; email: string };
   onChange: (field: keyof typeof emptyNationalForm, value: string) => void;
   onFiles: (files: File[]) => void;
   onSubmit: (event: FormEvent) => void;
+  onBatchSubmit?: (items: (typeof emptyNationalForm)[]) => Promise<void>;
+  onCancel?: () => void;
 }) {
+  const [freightMode, setFreightMode] = useState<'single' | 'batch'>('single');
+  const [batchItems, setBatchItems] = useState<BatchItem[]>([emptyBatchItem()]);
   const [openAddressMenu, setOpenAddressMenu] = useState<'retirada' | 'entrega' | null>(null);
   const [filePreviews, setFilePreviews] = useState<Array<{ name: string; url: string }>>([]);
+  const [chassisData, setChassisData] = useState<Chassis[]>([]);
+  const [containersList, setContainersList] = useState<Array<{ id: string; name: string }>>([]);
+  const [selectedChassisCat, setSelectedChassisCat] = useState<string | null>(null);
+  const [containerMenuOpen, setContainerMenuOpen] = useState<boolean>(false);
+  const [nameLocked, setNameLocked] = useState<boolean>(true);
+
+  useEffect(() => {
+    getChassis().then(setChassisData).catch(() => {});
+    createClient()
+      .from('containers')
+      .select('id, name')
+      .order('name')
+      .then(({ data }) => { if (data) setContainersList(data as Array<{ id: string; name: string }>); });
+  }, []);
 
   useEffect(() => {
     const previews = files.map(file => ({ name: file.name, url: URL.createObjectURL(file) }));
@@ -2855,185 +3047,447 @@ function NationalForm({
   }, [files]);
 
   const removeFile = (index: number) => {
-    onFiles(files.filter((_, currentIndex) => currentIndex !== index));
+    onFiles(files.filter((_, i) => i !== index));
+  };
+
+  const chassisCategories = useMemo(() => {
+    const map = new Map<string, Chassis[]>();
+    chassisData.forEach(c => {
+      const gen = c.geracao || 'Outros';
+      if (!map.has(gen)) map.set(gen, []);
+      map.get(gen)!.push(c);
+    });
+    return map;
+  }, [chassisData]);
+
+  const progressFields = [form.projeto, form.setor, form.prazoEntrega, form.enderecoRetirada, form.enderecoEntrega, form.itemDescricao, form.responsavelLocal];
+  const filledCount = progressFields.filter(Boolean).length;
+  const progressPct = Math.round((filledCount / progressFields.length) * 100);
+
+  const appendDescription = (text: string) => {
+    const current = form.itemDescricao.trim();
+    onChange('itemDescricao', current ? `${current}\n${text}` : text);
+    setSelectedChassisCat(null);
   };
 
   return (
-    <form
-      data-freight-national-form="true"
-      className="mx-auto w-full max-w-6xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
-      onSubmit={onSubmit}
-    >
-      <div className="border-b border-slate-200 bg-white px-5 py-5 pl-16 sm:px-8 sm:pl-8">
-        <div className="flex min-w-0 flex-col gap-3 md:flex-row md:items-start md:justify-between">
-          <div className="min-w-0">
-            <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-red-600">Frete Nacional</p>
-            <h2 className="mt-1 break-words text-xl font-bold leading-tight text-slate-950 sm:text-2xl">
-              Cadastrar solicitação de frete nacional
-            </h2>
+    <>
+      {/* Page header */}
+      <div className="mb-4">
+        <nav className="mb-2 flex items-center gap-1 text-xs text-slate-400">
+          <span>Fretes</span>
+          <ChevronRight className="h-3 w-3" />
+          <span>Frete Nacional</span>
+          <ChevronRight className="h-3 w-3" />
+          <span className="font-medium text-slate-600">Cadastrar Solicitação</span>
+        </nav>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex items-center gap-2">
+            {onCancel ? (
+              <button
+                type="button"
+                onClick={onCancel}
+                className="flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+            ) : null}
+            <h1 className="text-lg font-bold text-slate-950 sm:text-xl">Cadastrar solicitação de frete nacional</h1>
           </div>
-          <div className="inline-flex w-fit items-center rounded-lg border border-slate-200 bg-slate-50 p-1 text-xs font-semibold text-slate-600">
-            <span className="rounded-md bg-slate-950 px-3 py-1.5 text-white">Solicitação única</span>
+          <div className="hidden items-center gap-3 sm:flex">
+            <span className="text-xs text-slate-500">Progresso da solicitação</span>
+            <div className="h-1.5 w-28 overflow-hidden rounded-full bg-slate-200">
+              <div className="h-full rounded-full bg-red-500 transition-all duration-300" style={{ width: `${progressPct}%` }} />
+            </div>
+            <span className="text-xs font-bold text-red-600">{progressPct}%</span>
           </div>
         </div>
-        {deadlineMessage ? (
-          <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold leading-5 text-red-700">
-            {deadlineMessage}
-          </div>
-        ) : null}
+        <div className="mt-3 flex items-center gap-2">
+          <button
+            type="button"
+            className={`inline-flex items-center gap-1.5 rounded-md px-4 py-2 text-sm font-semibold transition ${freightMode === 'single' ? 'bg-slate-950 text-white' : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'}`}
+            onClick={() => setFreightMode('single')}
+          >
+            {freightMode === 'single' && <span className="h-1.5 w-1.5 rounded-full bg-red-500" />}
+            Frete único
+          </button>
+          <button
+            type="button"
+            className={`inline-flex items-center gap-1.5 rounded-md px-4 py-2 text-sm font-semibold transition ${freightMode === 'batch' ? 'bg-slate-950 text-white' : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'}`}
+            onClick={() => setFreightMode('batch')}
+          >
+            {freightMode === 'batch' && <span className="h-1.5 w-1.5 rounded-full bg-red-500" />}
+            Vários fretes
+          </button>
+        </div>
       </div>
 
-      <div className="space-y-7 p-4 sm:p-6 lg:p-8">
-        <NationalFormSection number={1} title="Dados gerais da solicitação">
-          <div className="grid min-w-0 grid-cols-1 gap-5 md:grid-cols-12">
-            <div className="md:col-span-4">
-              <Field label="Setor">
-                <select className={fieldClass()} value={form.setor} onChange={event => onChange('setor', event.target.value)} required>
-                  <option value="">Selecione...</option>
-                  <SelectOptionList options={lookups.setores} />
-                </select>
-              </Field>
-            </div>
-            <div className="md:col-span-4">
-              <Field label="Prazo de entrega">
-                <input className={fieldClass()} type="datetime-local" min={minimumDeadline} step={60} value={form.prazoEntrega} onChange={event => onChange('prazoEntrega', event.target.value)} required />
-                <span className="mt-2 inline-flex rounded-full border border-red-100 bg-red-50 px-2.5 py-1 text-[11px] font-semibold text-red-700">
-                  Prazo mín: {formatSlaDaysLabel(requesterSlaDays)}.
-                </span>
-              </Field>
-            </div>
-            <div className="md:col-span-4">
-              <Field label="Projeto">
-                <select className={fieldClass()} value={form.projeto} onChange={event => onChange('projeto', event.target.value)} required>
-                  <option value="">Selecione...</option>
-                  <SelectOptionList options={lookups.projetos} />
-                </select>
-              </Field>
+    <form data-freight-national-form="true" className="w-full space-y-4" onSubmit={onSubmit}>
+
+      {/* Single unified card */}
+      <div className="rounded-lg border border-slate-200 bg-white">
+
+        {/* 1. Dados Gerais */}
+        <div className="px-5 py-5 sm:px-6">
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Field label="Projeto">
+              <select className={fieldClass()} value={form.projeto} onChange={e => onChange('projeto', e.target.value)}>
+                <option value="">Selecione...</option>
+                <SelectOptionList options={lookups.projetos} />
+              </select>
+            </Field>
+            <Field label="Setor Solicitante *">
+              <select className={fieldClass()} value={form.setor} onChange={e => onChange('setor', e.target.value)} required>
+                <option value="">Selecione...</option>
+                <SelectOptionList options={lookups.setores} />
+              </select>
+            </Field>
+            <div>
+              <div className="mb-1 flex items-center justify-between">
+                <span className={labelClass()}>Prazo de Entrega<span className="text-red-500"> *</span></span>
+                {!deadlineMessage && (
+                  <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-600">
+                    Prazo mínimo: {formatSlaDaysLabel(requesterSlaDays)}
+                  </span>
+                )}
+              </div>
+              <input
+                className={fieldClass()}
+                type="datetime-local"
+                min={minimumDeadline}
+                step={60}
+                value={form.prazoEntrega}
+                onChange={e => onChange('prazoEntrega', e.target.value)}
+                required
+              />
             </div>
           </div>
-        </NationalFormSection>
+          {deadlineMessage ? (
+            <div className="mt-4 flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2.5 text-sm font-medium text-red-700">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{deadlineMessage}</span>
+            </div>
+          ) : null}
+        </div>
 
-        <NationalFormSection number={2} title="Responsáveis pelo processo">
-          <div className="grid min-w-0 grid-cols-1 gap-5 md:grid-cols-2">
-            <Field label="Responsável pela solicitação">
-              <input className={fieldClass()} value={form.solicitanteNome} onChange={event => onChange('solicitanteNome', event.target.value)} required />
-            </Field>
-            <Field label="Responsável no local da retirada">
-              <input className={fieldClass()} value={form.responsavelLocal} onChange={event => onChange('responsavelLocal', event.target.value)} />
+        {/* 2. Responsáveis */}
+        <div className="px-5 pb-5 sm:px-6">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className={labelClass()}>Responsável pela Solicitação<span className="text-red-500"> *</span></label>
+              <div className={`flex h-10 items-center gap-2 rounded-md border px-3 ${nameLocked ? 'border-slate-200 bg-slate-50' : 'border-red-300 bg-white'}`}>
+                <div className="min-w-0 flex-1 overflow-hidden">
+                  {nameLocked ? (
+                    <div className="flex min-w-0 items-baseline gap-2">
+                      <span className="truncate text-sm text-slate-800">
+                        {currentUser?.name || form.solicitanteNome || '—'}
+                      </span>
+                      {currentUser?.email ? (
+                        <span className="shrink-0 text-xs text-slate-400">({currentUser.email})</span>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <div className="flex min-w-0 items-baseline gap-2">
+                      <input
+                        className="min-w-0 flex-1 bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400"
+                        value={form.solicitanteNome}
+                        onChange={e => onChange('solicitanteNome', e.target.value)}
+                        placeholder="Nome do solicitante..."
+                        autoFocus
+                        required
+                      />
+                      {currentUser?.email ? (
+                        <span className="shrink-0 text-xs text-slate-400">({currentUser.email})</span>
+                      ) : null}
+                    </div>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  title={nameLocked ? 'Clique para editar o nome' : 'Clique para travar o nome'}
+                  className="shrink-0 rounded p-0.5 transition hover:bg-slate-200"
+                  onClick={() => setNameLocked(l => !l)}
+                >
+                  <Lock className={`h-3.5 w-3.5 ${nameLocked ? 'text-slate-400' : 'text-red-500'}`} />
+                </button>
+              </div>
+              {!nameLocked && (
+                <p className="mt-1 text-[11px] text-slate-500">Editando em nome de outro solicitante. O e-mail permanece fixo.</p>
+              )}
+            </div>
+            <Field label="Responsável no Local da Retirada *">
+              <input
+                className={fieldClass()}
+                value={form.responsavelLocal}
+                onChange={e => onChange('responsavelLocal', e.target.value)}
+                placeholder="Ex: Carlos Almoxarife / Ramal 404"
+                required
+              />
             </Field>
           </div>
-        </NationalFormSection>
+        </div>
 
-        <NationalFormSection number={3} title="Rota: retirada e entrega">
-          <div className="grid min-w-0 grid-cols-1 gap-5 md:grid-cols-2">
+        {/* 3. Rota */}
+        <div className="px-5 pb-5 sm:px-6">
+          <div className="grid gap-4 sm:grid-cols-2">
             <RecurringAddressField
-              label="Endereço de retirada"
+              label="Endereço de Retirada (Origem) *"
               value={form.enderecoRetirada}
               options={lookups.enderecos}
               open={openAddressMenu === 'retirada'}
-              onToggle={() => setOpenAddressMenu(current => current === 'retirada' ? null : 'retirada')}
+              onToggle={() => setOpenAddressMenu(cur => cur === 'retirada' ? null : 'retirada')}
               onClose={() => setOpenAddressMenu(null)}
-              onChange={value => onChange('enderecoRetirada', value)}
+              onChange={v => onChange('enderecoRetirada', v)}
             />
             <RecurringAddressField
-              label="Endereço de entrega"
+              label="Endereço de Entrega (Destino) *"
               value={form.enderecoEntrega}
               options={lookups.enderecos}
               open={openAddressMenu === 'entrega'}
-              onToggle={() => setOpenAddressMenu(current => current === 'entrega' ? null : 'entrega')}
+              onToggle={() => setOpenAddressMenu(cur => cur === 'entrega' ? null : 'entrega')}
               onClose={() => setOpenAddressMenu(null)}
-              onChange={value => onChange('enderecoEntrega', value)}
+              onChange={v => onChange('enderecoEntrega', v)}
             />
           </div>
-        </NationalFormSection>
+          {form.enderecoRetirada && form.enderecoEntrega ? (
+            <a
+              href={`https://www.google.com/maps/dir/${encodeURIComponent(form.enderecoRetirada)}/${encodeURIComponent(form.enderecoEntrega)}`}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-800"
+            >
+              <Route className="h-3 w-3" />
+              Ver no Mapa
+            </a>
+          ) : null}
+        </div>
 
-        <NationalFormSection number={4} title="Descrição da carga">
-          <div className="grid min-w-0 gap-5">
-            <Field label="Descreva as quantidades e itens a serem transportados">
-              <textarea className={`${areaClass()} min-h-28 text-sm leading-5 placeholder:text-sm sm:min-h-32`} value={form.itemDescricao} onChange={event => onChange('itemDescricao', event.target.value)} placeholder={'Exemplo:\n1x Parachoque traseiro\n2x Molde de alumínio'} required />
-            </Field>
-            <Field label="Observações">
-              <textarea className={areaClass()} value={form.observacoes} onChange={event => onChange('observacoes', event.target.value)} />
-            </Field>
-          </div>
-        </NationalFormSection>
-
-        <NationalFormSection number={5} title="Fotos do produto ou documentos">
-          <div className="min-w-0 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/70 p-4 text-center transition hover:border-red-300 hover:bg-white sm:p-8">
-            <div className="flex min-w-0 flex-col items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-red-600">
-                <Upload className="h-6 w-6" />
-              </div>
-              <label className={`${buttonClass('secondary')} w-full cursor-pointer rounded-lg sm:w-auto`}>
-                Escolher arquivos
-                <input
-                  className="sr-only"
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={event => {
-                    onFiles(Array.from(event.target.files || []));
-                    event.currentTarget.value = '';
-                  }}
+        {/* 4. Itens */}
+        {freightMode === 'single' ? (
+          <div className="px-5 pb-5 sm:px-6">
+            <div className="space-y-4">
+              <div>
+                <div className="mb-1 flex items-center justify-between">
+                  <span className={labelClass()}>Descreva as quantidades e itens a serem transportados<span className="text-red-500"> *</span></span>
+                  {form.itemDescricao ? (
+                    <button type="button" className="text-[11px] font-medium text-slate-400 hover:text-red-600" onClick={() => onChange('itemDescricao', '')}>
+                      Limpar
+                    </button>
+                  ) : null}
+                </div>
+                <textarea
+                  className={`${areaClass()} min-h-[120px]`}
+                  value={form.itemDescricao}
+                  onChange={e => onChange('itemDescricao', e.target.value)}
+                  placeholder={'Exemplo:\n1x Parachoque traseiro\n2x Molde de alumínio'}
+                  required
                 />
-              </label>
-              <p className="text-sm text-slate-500">{files.length ? `${files.length} foto(s) selecionada(s)` : 'Nenhuma foto selecionada.'}</p>
+              </div>
+
+              {(chassisCategories.size > 0 || containersList.length > 0) ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[11px] text-slate-400">Inserir rápido:</span>
+                  {Array.from(chassisCategories.keys()).map(gen => (
+                    <div key={gen} className="relative">
+                      <button
+                        type="button"
+                        className={`inline-flex items-center rounded border px-2.5 py-1 text-xs transition ${selectedChassisCat === gen ? 'border-slate-400 bg-slate-100 text-slate-800' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-400 hover:text-slate-800'}`}
+                        onClick={() => setSelectedChassisCat(cur => cur === gen ? null : gen)}
+                      >
+                        + Carro {gen}
+                      </button>
+                      {selectedChassisCat === gen ? (
+                        <div className="absolute left-0 top-full z-20 mt-1 max-h-48 min-w-36 overflow-y-auto rounded-md border border-slate-200 bg-white py-1 shadow-lg">
+                          <p className="border-b border-slate-100 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">Carro {gen}</p>
+                          {(chassisCategories.get(gen) || []).map(c => (
+                            <button key={c.id} type="button" className="block w-full px-3 py-2 text-left text-xs text-slate-700 hover:bg-slate-50"
+                              onClick={() => appendDescription(`1x Carro ${gen} #${c.codigo}`)}>
+                              {c.codigo}
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  ))}
+                  {containersList.length > 0 ? (
+                    <div className="relative">
+                      <button type="button"
+                        className={`inline-flex items-center rounded border px-2.5 py-1 text-xs transition ${containerMenuOpen ? 'border-slate-400 bg-slate-100 text-slate-800' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-400 hover:text-slate-800'}`}
+                        onClick={() => { setContainerMenuOpen(o => !o); setSelectedChassisCat(null); }}>
+                        + Container
+                      </button>
+                      {containerMenuOpen ? (
+                        <div className="absolute left-0 top-full z-20 mt-1 max-h-48 min-w-44 overflow-y-auto rounded-md border border-slate-200 bg-white py-1 shadow-lg">
+                          <p className="border-b border-slate-100 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">Selecione o Container</p>
+                          {containersList.map(c => (
+                            <button key={c.id} type="button" className="block w-full px-3 py-2 text-left text-xs text-slate-700 hover:bg-slate-50"
+                              onClick={() => { appendDescription(`1x CNTR (${c.name})`); setContainerMenuOpen(false); }}>
+                              {c.name}
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
+              <div>
+                <label className={labelClass()}>Observações Especiais</label>
+                <textarea
+                  className={areaClass()}
+                  value={form.observacoes}
+                  onChange={e => onChange('observacoes', e.target.value)}
+                  placeholder="Requisitos específicos para motorista, tipo de veículo (baú, sider, plataforma), carga frágil ou restrições de horário de descarga..."
+                />
+              </div>
             </div>
-            {filePreviews.length ? (
-              <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
-                {filePreviews.map((preview, index) => (
-                  <div key={`${preview.name}-${index}`} className="relative overflow-hidden rounded-lg border border-slate-200 bg-white text-left shadow-sm">
-                    <img src={preview.url} alt={`Foto ${index + 1}`} className="aspect-square w-full object-cover" />
-                    <div className="truncate px-2 py-1.5 text-[11px] font-semibold text-slate-600">Foto {index + 1}</div>
+          </div>
+        ) : (
+          <div className="px-5 pb-5 sm:px-6">
+            <div className="mb-3 rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+              Cada item abaixo gerará uma <strong>solicitação de frete separada</strong>. Os campos padrão (setor, prazo, responsáveis, endereços) se aplicam a todos, a menos que você personalize individualmente.
+            </div>
+            <div className="space-y-3">
+              {batchItems.map((item, index) => (
+                <BatchItemCard
+                  key={item.id}
+                  item={item}
+                  index={index}
+                  lookups={lookups}
+                  chassisCategories={chassisCategories}
+                  containersList={containersList}
+                  minimumDeadline={minimumDeadline}
+                  requesterSlaDays={requesterSlaDays}
+                  canRemove={batchItems.length > 1}
+                  onChange={updates => setBatchItems(prev => prev.map((it, i) => i === index ? { ...it, ...updates } : it))}
+                  onRemove={() => setBatchItems(prev => prev.filter((_, i) => i !== index))}
+                />
+              ))}
+            </div>
+            <button
+              type="button"
+              className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-dashed border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 hover:border-slate-400 hover:bg-slate-50"
+              onClick={() => setBatchItems(prev => [...prev, emptyBatchItem()])}
+            >
+              <Plus className="h-4 w-4" />
+              Adicionar outro frete
+            </button>
+          </div>
+        )}
+
+        {/* 5. Fotos & Documentos */}
+        <div className="px-5 pb-6 sm:px-6">
+          <label className={`${labelClass()} mb-3`}>Foto</label>
+          {filePreviews.length === 0 ? (
+            <label className="flex cursor-pointer flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-slate-300 bg-white py-10 text-center transition hover:border-slate-400 hover:bg-slate-50">
+              <Camera className="h-8 w-8 text-slate-300" />
+              <span className="inline-flex items-center gap-2 rounded border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                Escolher arquivos
+              </span>
+              <span className="text-xs text-slate-400">Arraste ou clique para anexar fotos dos itens ou NFe (PNG, JPG, PDF até 15MB)</span>
+              <span className="text-xs italic text-slate-400">Nenhuma foto selecionada até o momento.</span>
+              <input
+                className="sr-only"
+                type="file"
+                accept="image/*,application/pdf"
+                multiple
+                onChange={e => { onFiles(Array.from(e.target.files || [])); e.currentTarget.value = ''; }}
+              />
+            </label>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-xs font-medium text-slate-500">Arquivos selecionados ({files.length})</p>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {filePreviews.map((preview, i) => (
+                  <div key={`${preview.name}-${i}`} className="relative overflow-hidden rounded border border-slate-200 bg-white">
+                    <img src={preview.url} alt={`Arquivo ${i + 1}`} className="aspect-square w-full object-cover" />
+                    <div className="truncate px-2 py-1 text-[11px] text-slate-600">{preview.name}</div>
                     <button
-                      className="absolute right-1 top-1 flex h-7 w-7 items-center justify-center rounded-full bg-white/95 text-red-600 shadow-sm transition hover:bg-red-50"
+                      className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-white/95 text-slate-500 shadow-sm hover:text-red-600"
                       type="button"
-                      onClick={() => removeFile(index)}
-                      aria-label={`Remover Foto ${index + 1}`}
+                      onClick={() => removeFile(i)}
+                      aria-label={`Remover ${preview.name}`}
                     >
-                      <X className="h-4 w-4" />
+                      <X className="h-3 w-3" />
                     </button>
                   </div>
                 ))}
               </div>
-            ) : null}
-          </div>
-        </NationalFormSection>
+              <label className="inline-flex cursor-pointer items-center gap-2 rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">
+                <Upload className="h-3.5 w-3.5" />
+                Adicionar mais arquivos
+                <input
+                  className="sr-only"
+                  type="file"
+                  accept="image/*,application/pdf"
+                  multiple
+                  onChange={e => { onFiles([...files, ...Array.from(e.target.files || [])]); e.currentTarget.value = ''; }}
+                />
+              </label>
+            </div>
+          )}
+        </div>
+
       </div>
 
-      <div className="flex flex-col gap-3 border-t border-slate-200 bg-slate-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-8">
-        <p className="text-xs font-medium text-slate-500">Os campos obrigatórios precisam estar preenchidos para registrar a solicitação.</p>
-        <button key={saving ? 'saving-national-submit' : 'ready-national-submit'} className={`${buttonClass('primary')} w-full rounded-lg px-6 sm:w-auto`} type="submit" disabled={saving} aria-busy={saving}>
-          {saving ? (
-            <>
-              <RefreshCw className="h-4 w-4 animate-spin" />
-              Salvando...
-            </>
-          ) : (
-            <>
-              <Save className="h-4 w-4" />
-              Cadastrar solicitação
-            </>
-          )}
-        </button>
+      {/* Footer actions */}
+      <div className="flex flex-col-reverse gap-2 pb-6 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-2">
+          <button type="button" className={`${buttonClass('secondary')} h-9 px-4 text-sm`} disabled={saving}>
+            <Save className="h-3.5 w-3.5" />
+            Salvar Rascunho
+          </button>
+          {onCancel ? (
+            <button type="button" className={`${buttonClass('secondary')} h-9 px-4 text-sm`} disabled={saving} onClick={onCancel}>
+              Cancelar
+            </button>
+          ) : null}
+        </div>
+        {freightMode === 'single' ? (
+          <button
+            key={saving ? 'saving-national-submit' : 'ready-national-submit'}
+            className={`${buttonClass('primary')} h-10 px-6`}
+            type="submit"
+            disabled={saving}
+            aria-busy={saving}
+          >
+            {saving ? (
+              <><RefreshCw className="h-4 w-4 animate-spin" />Salvando...</>
+            ) : (
+              <><CheckCircle2 className="h-4 w-4" />Cadastrar solicitação</>
+            )}
+          </button>
+        ) : (
+          <button
+            type="button"
+            className={`${buttonClass('primary')} h-10 px-6`}
+            disabled={saving}
+            onClick={async () => {
+              if (!onBatchSubmit) return;
+              const merged = batchItems.map(item => ({
+                ...form,
+                itemDescricao: item.itemDescricao,
+                prazoEntrega: item.prazoEntrega || form.prazoEntrega,
+                enderecoRetirada: item.enderecoRetirada || form.enderecoRetirada,
+                enderecoEntrega: item.enderecoEntrega || form.enderecoEntrega,
+                responsavelLocal: item.responsavelLocal || form.responsavelLocal,
+                observacoes: item.observacoes || form.observacoes,
+              }));
+              await onBatchSubmit(merged);
+              setBatchItems([emptyBatchItem()]);
+            }}
+          >
+            {saving ? (
+              <><RefreshCw className="h-4 w-4 animate-spin" />Salvando...</>
+            ) : (
+              <><CheckCircle2 className="h-4 w-4" />Cadastrar {batchItems.length} solicitaç{batchItems.length === 1 ? 'ão' : 'ões'}</>
+            )}
+          </button>
+        )}
       </div>
     </form>
-  );
-}
-
-function NationalFormSection({ number, title, children }: { number: number; title: string; children: ReactNode }) {
-  return (
-    <section className="min-w-0">
-      <div className="mb-5 flex min-w-0 items-center gap-3 border-b border-slate-100 pb-3">
-        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-red-600 text-xs font-bold text-white">
-          {number}
-        </span>
-        <h3 className="min-w-0 text-sm font-bold uppercase tracking-wide text-slate-700">
-          {title}
-        </h3>
-      </div>
-      {children}
-    </section>
+    </>
   );
 }
 
@@ -3094,12 +3548,12 @@ function RecurringAddressField({
     ? createPortal(
       <>
         <button
-          className="fixed inset-0 z-[9998] bg-slate-950/10 sm:hidden"
+          className="fixed inset-0 z-[9998] bg-transparent sm:hidden"
           type="button"
           aria-label="Fechar endereços"
           onClick={onClose}
         />
-        <div className="fixed inset-x-3 bottom-3 z-[9999] max-h-[60dvh] overflow-hidden rounded-xl border border-slate-200 bg-white py-1 text-sm shadow-2xl sm:hidden">
+        <div className="fixed left-4 right-4 top-1/2 z-[9999] max-h-[70dvh] -translate-y-1/2 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 text-sm shadow-2xl sm:hidden">
           {renderMenuContent()}
         </div>
       </>,
@@ -3107,17 +3561,19 @@ function RecurringAddressField({
     )
     : null;
 
+  const addrIsReq = label.endsWith(' *');
+  const addrLabelText = addrIsReq ? label.slice(0, -2) : label;
   return (
     <div className="block min-w-0">
-      <span className={labelClass()}>{label}</span>
+      <span className={labelClass()}>{addrLabelText}{addrIsReq && <span className="text-red-500"> *</span>}</span>
       <div className="relative min-w-0">
         <button
-          className="absolute right-1.5 top-1/2 z-10 inline-flex h-9 max-w-[44%] -translate-y-1/2 items-center justify-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2.5 text-[11px] font-semibold text-slate-700 shadow-sm transition hover:bg-white sm:h-8 sm:max-w-none sm:px-3 sm:text-xs"
+          className="absolute right-1 top-1/2 z-10 inline-flex h-10 -translate-y-1/2 items-center justify-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-3 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-white sm:h-8"
           type="button"
           onClick={onToggle}
         >
           <MapPin className="h-3.5 w-3.5 text-pink-500" />
-          <span className="truncate">Endereços</span>
+          Endereços
         </button>
         {open ? (
           <>
@@ -3127,7 +3583,7 @@ function RecurringAddressField({
             </div>
           </>
         ) : null}
-        <input className={`${fieldClass()} pr-28 sm:pr-32`} value={value} onChange={event => onChange(event.target.value)} />
+        <input className={`${fieldClass()} pr-32`} value={value} onChange={event => onChange(event.target.value)} />
       </div>
     </div>
   );
@@ -3280,9 +3736,11 @@ function EditRequestDrawer({
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
+  const isReq = label.endsWith(' *');
+  const labelText = isReq ? label.slice(0, -2) : label;
   return (
     <label className="block min-w-0">
-      <span className={labelClass()}>{label}</span>
+      <span className={labelClass()}>{labelText}{isReq && <span className="text-red-500"> *</span>}</span>
       {children}
     </label>
   );
@@ -3457,10 +3915,10 @@ function AttendancePanel({
   };
 
   return (
-    <div className="w-full min-w-0 space-y-4 sm:space-y-5">
-      <div className="w-full min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+    <div className="space-y-5">
+      <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="min-w-0">
+          <div>
             <h2 className="text-xl font-bold text-slate-950">Painel de Atendimento de Fretes</h2>
             <p className="text-sm text-slate-500">Filtre, selecione em lote e programe motoristas e veículos para as entregas solicitadas.</p>
           </div>
@@ -3475,10 +3933,10 @@ function AttendancePanel({
         </div>
 
         <div className="mt-5 flex flex-wrap gap-2">
-          <button className="inline-flex min-h-10 w-full items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold leading-tight text-white hover:bg-blue-700 disabled:opacity-50 sm:w-auto" type="button" disabled={!selectedIds.length}>
+          <button className="inline-flex h-10 items-center justify-center rounded-md bg-blue-600 px-4 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50" type="button" disabled={!selectedIds.length}>
             Agendar Selecionados
           </button>
-          <button className={`${buttonClass('danger')} w-full sm:w-auto`} type="button" onClick={() => openCancelPanel()} disabled={!selectedIds.length || saving}>
+          <button className={buttonClass('danger')} type="button" onClick={() => openCancelPanel()} disabled={!selectedIds.length || saving}>
             <X className="h-4 w-4" />
             Cancelar solicitação
           </button>
@@ -3514,8 +3972,8 @@ function AttendancePanel({
           </div>
         ) : null}
 
-        <div className="mt-3 max-w-full overflow-x-auto rounded-lg border border-slate-200 [-webkit-overflow-scrolling:touch]">
-          <table className="min-w-[1120px] border-collapse text-sm">
+        <div className="mt-3 overflow-x-auto">
+          <table className="min-w-full border-collapse text-sm">
             <thead className="bg-slate-100">
               <tr className="border border-slate-200">
                 <th className="w-24 border border-slate-200 p-2">{headerCell('SLA', 'sla')}</th>
@@ -3602,7 +4060,7 @@ function AttendancePanel({
         </div>
       </div>
 
-      <div className="w-full min-w-0 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+      <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
         <h2 className="text-lg font-bold text-red-600">Agendar {selectedIds.length} Solicitações em Lote</h2>
         <p className="text-sm text-slate-500">Selecione um ou mais motoristas e veículos para a mesma operação.</p>
         <div className="mt-4 space-y-4">
@@ -3628,11 +4086,11 @@ function AttendancePanel({
             <textarea className={areaClass()} value={draft.observacoesLogistica} onChange={event => setDraft((current: any) => ({ ...current, observacoesLogistica: event.target.value }))} />
           </Field>
           <div className="flex flex-wrap gap-2">
-            <button className={`${buttonClass('primary')} w-full sm:w-auto`} type="button" onClick={onApply} disabled={saving || !selectedIds.length}>
+            <button className={buttonClass('primary')} type="button" onClick={onApply} disabled={saving || !selectedIds.length}>
               <Save className="h-4 w-4" />
               {saving ? 'Salvando...' : 'Salvar Agendamento'}
             </button>
-            <button className={`${buttonClass('secondary')} w-full sm:w-auto`} type="button" onClick={() => setSelectedIds([])}>
+            <button className={buttonClass('secondary')} type="button" onClick={() => setSelectedIds([])}>
               Cancelar seleção
             </button>
           </div>
@@ -3781,14 +4239,14 @@ function KanbanPanel({
 
   if (isDriver) {
     return (
-      <div data-freight-driver-panel="true" className="grid min-w-0 max-w-full gap-3 overflow-hidden xl:min-h-[520px] xl:grid-cols-2">
+      <div data-freight-driver-panel="true" className="grid min-w-0 max-w-full gap-3 overflow-hidden lg:min-h-[520px] lg:grid-cols-2">
         {(['Em Rota', 'Agendado'] as FreightStatus[]).map(status => {
           const rows = driverGrouped[status] || [];
           const accentClass = status === 'Agendado' ? 'border-yellow-400 bg-yellow-50/60' : 'border-blue-500 bg-blue-50/60';
           const countClass = status === 'Agendado' ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800';
 
           return (
-            <section key={status} className={`flex min-w-0 flex-col overflow-hidden rounded-xl border bg-white shadow-sm xl:min-h-[420px] ${accentClass}`}>
+            <section key={status} className={`flex min-w-0 flex-col overflow-hidden rounded-lg border bg-white shadow-sm lg:min-h-[420px] ${accentClass}`}>
               <div className="flex items-center justify-between border-b border-slate-100 bg-white px-4 py-3">
                 <h3 className="font-bold text-slate-950">{status}</h3>
                 <span className={`rounded-full px-2 py-1 text-xs font-bold ${countClass}`}>{rows.length}</span>
@@ -3800,7 +4258,7 @@ function KanbanPanel({
                   const requesterObservation = String(request.observacoes || request.observacoesFinais || '').trim();
 
                   return (
-                  <div key={request.id} className="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <div key={request.id} className="min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
                     <div className="flex min-w-0 items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="text-lg font-bold text-slate-950">{formatProtocol(request)}</div>
@@ -3884,11 +4342,11 @@ function KanbanPanel({
   }
 
   return (
-    <div className="grid min-w-0 gap-3 lg:grid-cols-2 2xl:grid-cols-4">
+    <div className="grid min-h-[560px] gap-3 xl:grid-cols-4">
       {laneOrder.map(lane => (
         <div
           key={lane}
-          className={`flex min-h-[420px] min-w-0 flex-col rounded-xl border bg-white shadow-sm transition xl:min-h-[520px] ${dropLane === lane ? 'border-red-300 ring-2 ring-red-100' : 'border-slate-200'}`}
+          className={`flex min-h-[520px] flex-col rounded-lg border bg-white shadow-sm transition ${dropLane === lane ? 'border-red-300 ring-2 ring-red-100' : 'border-slate-200'}`}
           onDragOver={event => {
             event.preventDefault();
             setDropLane(lane);

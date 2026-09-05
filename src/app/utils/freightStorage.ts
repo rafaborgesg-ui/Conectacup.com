@@ -939,7 +939,8 @@ function itemToRow(requestId: string, item: FreightItem) {
   };
 }
 
-const FREIGHT_RELATED_QUERY_BATCH_SIZE = 75;
+// Keep PostgREST URLs short for users who can view the full freight history.
+const FREIGHT_RELATED_QUERY_BATCH_SIZE = 50;
 
 type FreightRelatedTable = 'freight_request_volumes' | 'freight_request_items' | 'freight_attachments';
 
